@@ -1,0 +1,253 @@
+
+## Documentación del Módulo: Shopify Metaobject Loader
+
+Este módulo facilita la interacción con los metaobjetos de Shopify a través de la API Admin GraphQL. Permite cargar datos desde archivos CSV, crear, actualizar y gestionar metaobjetos y sus definiciones.
+
+### Clases Principales
+
+1.  **`Metaobject`**: Representa un metaobjeto individual de Shopify.
+2.  **`ShopifyMetaobjectLoader`**: Clase principal para manejar las operaciones con metaobjetos, como carga desde CSV, obtención, creación y actualización.
+
+---
+
+### 1. Clase `Metaobject`
+
+Representa un metaobjeto de Shopify, proporcionando una interfaz para acceder y modificar sus campos y metacampos.
+
+**Atributos:**
+
+*   `id (Optional[str])`: El identificador único del metaobjeto.
+*   `handle (str)`: El "handle" (manejador o identificador legible) del metaobjeto.
+*   `type (str)`: El tipo del metaobjeto.
+*   `fields (Dict[str, Any])`: Diccionario de los campos clave-valor del metaobjeto.
+*   `metafields (Dict[str, Dict[str, Any]])`: Diccionario de metacampos, indexados por su clave completa (`namespace.key`).
+
+**Métodos:**
+
+*   **`__init__(self, type: str, handle: str, id: Optional[str] = None, fields: Optional[Dict[str, Any]] = None, metafields: Optional[Dict[str, Dict[str, Any]]] = None)`**
+    *   **Descripción:** Inicializa una instancia de `Metaobject`.
+    *   **Argumentos:**
+        *   `type (str)`: El tipo del metaobjeto.
+        *   `handle (str)`: El "handle" del metaobjeto.
+        *   `id (Optional[str], opcional)`: El ID del metaobjeto. Por defecto `None`.
+        *   `fields (Optional[Dict[str, Any]], opcional)`: Diccionario de campos clave-valor. Por defecto `None` (se inicializa como `{}`).
+        *   `metafields (Optional[Dict[str, Dict[str, Any]]], opcional)`: Diccionario de metacampos. Por defecto `None` (se inicializa como `{}`).
+
+*   **`from_shopify_data(cls, data: Dict[str, Any]) -> 'Metaobject'`**
+    *   **Descripción:** Método de clase para crear una instancia de `Metaobject` a partir de los datos de respuesta de la API de Shopify.
+    *   **Argumentos:**
+        *   `data (Dict[str, Any])`: Diccionario que contiene los datos del metaobjeto de la API de Shopify.
+    *   **Retorna:**
+        *   `Metaobject`: Una nueva instancia de `Metaobject`.
+
+*   **`to_shopify_fields(self) -> List[Dict[str, str]]`**
+    *   **Descripción:** Convierte los campos del metaobjeto al formato esperado por la API de Shopify.
+    *   **Retorna:**
+        *   `List[Dict[str, str]]`: Lista de objetos de campo en formato Shopify (ej: `[{"key": "nombre", "value": "Producto Ejemplo"}]`).
+
+*   **`get_field(self, key: str) -> Optional[Any]`**
+    *   **Descripción:** Obtiene el valor de un campo por su clave.
+    *   **Argumentos:**
+        *   `key (str)`: La clave del campo a obtener.
+    *   **Retorna:**
+        *   `Optional[Any]`: El valor del campo, o `None` si no se encuentra.
+
+*   **`set_field(self, key: str, value: Any) -> None`**
+    *   **Descripción:** Establece el valor de un campo.
+    *   **Argumentos:**
+        *   `key (str)`: La clave del campo a establecer.
+        *   `value (Any)`: El valor a establecer para el campo.
+
+*   **`get_metafield(self, key: str, namespace: str = "custom") -> Optional[Dict[str, Any]]`**
+    *   **Descripción:** Obtiene un metadato por su clave y espacio de nombres.
+    *   **Argumentos:**
+        *   `key (str)`: La clave del metadato.
+        *   `namespace (str, opcional)`: El espacio de nombres del metadato. Por defecto `"custom"`.
+    *   **Retorna:**
+        *   `Optional[Dict[str, Any]]`: Los datos del metadato, o `None` si no se encuentra.
+
+*   **`set_metafield(self, key: str, value: str, type: str = "single_line_text_field", namespace: str = "custom") -> None`**
+    *   **Descripción:** Establece el valor de un metadato.
+    *   **Argumentos:**
+        *   `key (str)`: La clave del metadato.
+        *   `value (str)`: El valor a establecer.
+        *   `type (str, opcional)`: El tipo del metadato. Por defecto `"single_line_text_field"`.
+        *   `namespace (str, opcional)`: El espacio de nombres del metadato. Por defecto `"custom"`.
+
+*   **`to_dict(self) -> Dict[str, Any]`**
+    *   **Descripción:** Convierte el metaobjeto a un diccionario.
+    *   **Retorna:**
+        *   `Dict[str, Any]`: Representación en diccionario del metaobjeto.
+
+---
+
+### 2. Clase `ShopifyMetaobjectLoader`
+
+Clase para manejar la carga de datos desde archivos CSV a metaobjetos de Shopify, así como otras operaciones relacionadas con metaobjetos.
+
+**Métodos:**
+
+*   **`__init__(self, shop_domain: str, access_token: str, api_version: str = "2025-04", cache_dir: Optional[str] = None)`**
+    *   **Descripción:** Inicializa el `ShopifyMetaobjectLoader`.
+    *   **Argumentos:**
+        *   `shop_domain (str)`: El dominio de la tienda Shopify (ej: `tu-tienda.myshopify.com`).
+        *   `access_token (str)`: El token de acceso de la API Admin de Shopify.
+        *   `api_version (str, opcional)`: La versión de la API de Shopify a utilizar. Por defecto `"2025-04"`.
+        *   `cache_dir (Optional[str], opcional)`: Directorio opcional para el almacenamiento en caché de las respuestas de la API. Por defecto `None`.
+
+*   **`batch_upsert_metaobjects(self, metaobjects: List[Metaobject], batch_size: int = 50) -> Dict[str, int]`**
+    *   **Descripción:** Realiza un "upsert" (creación o actualización) de múltiples metaobjetos en lotes.
+    *   **Argumentos:**
+        *   `metaobjects (List[Metaobject])`: Lista de instancias de `Metaobject` a procesar.
+        *   `batch_size (int, opcional)`: Número de metaobjetos a procesar en cada lote. Por defecto `50`.
+    *   **Retorna:**
+        *   `Dict[str, int]`: Estadísticas de la operación (ej: `{"upserted": 10, "failed": 2}`).
+
+*   **`export_metaobjects_to_csv(self, metaobject_type: str, output_file: str, include_metafields: bool = False) -> None`**
+    *   **Descripción:** Exporta metaobjetos de un tipo específico a un archivo CSV.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjetos a exportar.
+        *   `output_file (str)`: Ruta al archivo CSV de salida.
+        *   `include_metafields (bool, opcional)`: Indica si se deben incluir los metacampos en la exportación. Por defecto `False`.
+
+*   **`validate_metaobject_definition(self, metaobject: Metaobject, definition: MetaobjectDefinition) -> List[str]`**
+    *   **Descripción:** Valida una instancia de `Metaobject` contra su `MetaobjectDefinition`.
+    *   **Argumentos:**
+        *   `metaobject (Metaobject)`: La instancia de `Metaobject` a validar.
+        *   `definition (MetaobjectDefinition)`: La definición (`TypedDict`) del metaobjeto contra la cual validar.
+    *   **Retorna:**
+        *   `List[str]`: Lista de errores de validación. Vacía si es válido.
+
+*   **`get_metaobject_stats(self, metaobject_type: str) -> Dict[str, Any]`**
+    *   **Descripción:** Obtiene estadísticas sobre los metaobjetos de un tipo específico.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjetos a analizar.
+    *   **Retorna:**
+        *   `Dict[str, Any]`: Estadísticas sobre los metaobjetos (total, detalles de campos y metacampos).
+
+*   **`process_csv(self, file_path: str, metaobject_type: str) -> Dict[str, int]`**
+    *   **Descripción:** Procesa un archivo CSV y realiza un "upsert" de su contenido en metaobjetos de Shopify. El CSV debe tener una columna "handle" y el resto de columnas se tratarán como campos del metaobjeto.
+    *   **Argumentos:**
+        *   `file_path (str)`: Ruta al archivo CSV.
+        *   `metaobject_type (str)`: El tipo de metaobjeto a crear/actualizar.
+    *   **Retorna:**
+        *   `Dict[str, int]`: Estadísticas de la operación (ej: `{"upserted": 45, "failed": 5}`).
+    *   **Levanta:**
+        *   `FileNotFoundError`: Si el archivo CSV no existe.
+        *   `pd.errors.EmptyDataError`: Si el archivo CSV está vacío.
+
+*   **`fetch_metaobjects(self, metaobject_type: str, first: int = 250, after: Optional[str] = None) -> Dict[str, Any]`**
+    *   **Descripción:** Obtiene una página de metaobjetos de un tipo específico desde Shopify.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjetos a obtener.
+        *   `first (int, opcional)`: Número de metaobjetos a obtener por página (máximo 250). Por defecto `250`.
+        *   `after (Optional[str], opcional)`: Cursor para paginación. Por defecto `None`.
+    *   **Retorna:**
+        *   `Dict[str, Any]`: Diccionario que contiene los metaobjetos (`edges`) e información de paginación (`pageInfo`).
+
+*   **`fetch_all_metaobjects(self, metaobject_type: str, batch_size: int = 250) -> List[Dict[str, Any]]`**
+    *   **Descripción:** Obtiene todos los metaobjetos de un tipo específico desde Shopify usando paginación.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjetos a obtener.
+        *   `batch_size (int, opcional)`: Número de metaobjetos a obtener por página (máximo 250). Por defecto `250`.
+    *   **Retorna:**
+        *   `List[Dict[str, Any]]`: Lista de todos los metaobjetos. Cada metaobjeto es un diccionario con `id`, `handle` y `fields`.
+
+*   **`fetch_metaobjects_as_dict(self, metaobject_type: str, key_field: str = "handle") -> Dict[str, Dict[str, Any]]`**
+    *   **Descripción:** Obtiene todos los metaobjetos de un tipo específico y los devuelve como un diccionario indexado por el campo clave especificado.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjetos a obtener.
+        *   `key_field (str, opcional)`: El campo a usar como clave del diccionario (ej: "handle", "id", o cualquier clave de campo). Por defecto `"handle"`.
+    *   **Retorna:**
+        *   `Dict[str, Dict[str, Any]]`: Diccionario de metaobjetos indexados por `key_field`. Los valores son diccionarios que representan el metaobjeto, incluyendo sus campos, `id` y `handle`.
+    *   **Levanta:**
+        *   `ValueError`: Si `key_field` no se encuentra en los campos del metaobjeto.
+
+*   **`fetch_metaobjects_to_csv(self, metaobject_type: str, output_file: str, include_id: bool = False, include_handle: bool = True, field_order: Optional[List[str]] = None) -> None`**
+    *   **Descripción:** Obtiene metaobjetos de un tipo específico y los guarda en un archivo CSV.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjetos a obtener.
+        *   `output_file (str)`: Ruta al archivo CSV de salida.
+        *   `include_id (bool, opcional)`: Incluir el ID del metaobjeto en el CSV. Por defecto `False`.
+        *   `include_handle (bool, opcional)`: Incluir el campo "handle" en el CSV. Por defecto `True`.
+        *   `field_order (Optional[List[str]], opcional)`: Lista opcional de nombres de campo para especificar el orden de las columnas. Por defecto `None`.
+
+*   **`fetch_metaobject_definition(self, metaobject_type: str) -> Optional[MetaobjectDefinition]`**
+    *   **Descripción:** Obtiene la definición de un tipo de metaobjeto desde Shopify.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjeto para el cual obtener la definición.
+    *   **Retorna:**
+        *   `Optional[MetaobjectDefinition]`: La definición del metaobjeto (`TypedDict`) si se encuentra, de lo contrario `None`.
+
+*   **`describe_metaobject_type(self, metaobject_type: str) -> Dict[str, Any]`**
+    *   **Descripción:** Obtiene una descripción detallada de un tipo de metaobjeto, incluyendo sus campos y validaciones.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjeto a describir.
+    *   **Retorna:**
+        *   `Dict[str, Any]`: Un diccionario que contiene la descripción del tipo de metaobjeto (nombre, descripción, resumen de campos, detalles de campos requeridos y opcionales).
+    *   **Levanta:**
+        *   `ValueError`: Si el tipo de metaobjeto no se encuentra.
+
+*   **`print_metaobject_type_description(self, metaobject_type: str) -> None`**
+    *   **Descripción:** Imprime una descripción legible por humanos de un tipo de metaobjeto.
+    *   **Argumentos:**
+        *   `metaobject_type (str)`: El tipo de metaobjeto a describir.
+
+*   **`create_metaobject_definition(self, type_name: str, display_name: str, description: str, fields: List[Dict[str, Any]]) -> Optional[MetaobjectDefinition]`**
+    *   **Descripción:** Crea una nueva definición de metaobjeto en Shopify.
+    *   **Argumentos:**
+        *   `type_name (str)`: El nombre de tipo para la nueva definición de metaobjeto (ej: `mi_tipo_custom`).
+        *   `display_name (str)`: El nombre a mostrar para la nueva definición de metaobjeto (ej: "Mi Tipo Custom").
+        *   `description (str)`: La descripción para la nueva definición de metaobjeto.
+        *   `fields (List[Dict[str, Any]])`: Lista de definiciones de campos para el nuevo metaobjeto. Cada diccionario de campo debe tener `key`, `name`, `type`, y opcionalmente `description`, `required`, `validations`.
+            *   Ejemplo de un campo: `{"key": "titulo_seo", "name": "Título SEO", "type": "single_line_text_field", "required": False}`
+    *   **Retorna:**
+        *   `Optional[MetaobjectDefinition]`: La definición del metaobjeto creada si tiene éxito, de lo contrario `None`.
+
+*   **`add_metafield(self, metaobject_id: str, key: str, value: str, type: str = "single_line_text_field", namespace: str = "custom") -> Optional[Dict[str, Any]]`**
+    *   **Descripción:** Añade un nuevo metadato a un metaobjeto existente.
+    *   **Argumentos:**
+        *   `metaobject_id (str)`: El ID del metaobjeto al que se añadirá el metadato (ej: `gid://shopify/Metaobject/12345`).
+        *   `key (str)`: La clave para el metadato.
+        *   `value (str)`: El valor para el metadato.
+        *   `type (str, opcional)`: El tipo del metadato. Por defecto `"single_line_text_field"`.
+        *   `namespace (str, opcional)`: El espacio de nombres para el metadato. Por defecto `"custom"`.
+    *   **Retorna:**
+        *   `Optional[Dict[str, Any]]`: Los datos del metadato creado si tiene éxito, de lo contrario `None`.
+
+*   **`modify_metafield(self, metafield_id: str, value: str, type: Optional[str] = None) -> Optional[Dict[str, Any]]`**
+    *   **Descripción:** Modifica un metadato existente de un metaobjeto.
+    *   **Argumentos:**
+        *   `metafield_id (str)`: El ID del metadato a modificar (ej: `gid://shopify/Metafield/67890`).
+        *   `value (str)`: El nuevo valor para el metadato.
+        *   `type (Optional[str], opcional)`: El nuevo tipo opcional para el metadato. Por defecto `None` (no se cambia el tipo).
+    *   **Retorna:**
+        *   `Optional[Dict[str, Any]]`: Los datos del metadato actualizado si tiene éxito, de lo contrario `None`.
+
+*   **`delete_metafield(self, metafield_id: str) -> bool`**
+    *   **Descripción:** Elimina un metadato de un metaobjeto.
+    *   **Argumentos:**
+        *   `metafield_id (str)`: El ID del metadato a eliminar (ej: `gid://shopify/Metafield/67890`).
+    *   **Retorna:**
+        *   `bool`: `True` si la eliminación fue exitosa, `False` en caso contrario.
+
+---
+
+### Tipos de Datos Adicionales (TypedDicts para referencia)
+
+*   **`MetaobjectFieldDefinition(TypedDict)`**:
+    *   `key (str)`
+    *   `name (str)`
+    *   `type (str)`
+    *   `description (Optional[str])`
+    *   `required (bool)`
+    *   `validations (List[Dict[str, Any]])`
+
+*   **`MetaobjectDefinition(TypedDict)`**:
+    *   `type (str)`
+    *   `name (str)`
+    *   `description (Optional[str])`
+    *   `fields (List[MetaobjectFieldDefinition])`
+
+---
+

@@ -1,0 +1,17 @@
+asgiref
+Django
+python-dotenv
+pyactiveresource
+pytz
+PyYAML
+ShopifyAPI
+six
+sqlparse
+tomli-w
+django-extensions
+jupyter
+notebook < 7.0
+shopifyapp
+pandas>=1.0.0
+requests>=2.25.0
+wagtail

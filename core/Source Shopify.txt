@@ -1,0 +1,183 @@
+# Cheat Sheet de Metaobjetos en Shopify GraphQL Admin API
+
+## 1. ¿Qué son los Metaobjetos?
+Los metaobjetos permiten definir y almacenar datos personalizados estructurados en Shopify, más allá de los recursos estándar (productos, clientes, etc.). Se componen de definiciones (blueprints) y objetos individuales.
+
+---
+
+## 2. Operaciones Principales
+
+### a) Crear una definición de metaobjeto
+```graphql
+mutation {
+  metaobjectDefinitionCreate(definition: {
+    name: "Color swatch",
+    type: "color-swatch",
+    fieldDefinitions: [
+      {
+        name: "Hex",
+        key: "hex",
+        type: "single_line_text_field",
+        validations: [{ name: "regex", value: "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$" }]
+      }
+    ]
+  }) {
+    metaobjectDefinition {
+      name
+      type
+      fieldDefinitions { name key }
+    }
+    userErrors { field message code }
+  }
+}
+```
+
+---
+
+## 3. Actualizar una definición de metaobjeto
+```graphql
+mutation {
+  metaobjectDefinitionUpdate(
+    id: "gid://shopify/MetaobjectDefinition/578408816",
+    definition: {
+      fieldDefinitions: [
+        {
+          create: {
+            key: "description",
+            name: "Description",
+            type: "single_line_text_field"
+          }
+        }
+      ]
+    }
+  ) {
+    metaobjectDefinition {
+      id
+      name
+      fieldDefinitions { name key type { name } }
+    }
+    userErrors { field message code }
+  }
+}
+```
+
+---
+
+## 4. Crear un metaobjeto
+```graphql
+mutation {
+  metaobjectCreate(metaobject: {
+    type: "lookbook",
+    handle: "winter-2023",
+    fields: [
+      { key: "season", value: "winter" }
+    ]
+  }) {
+    metaobject {
+      handle
+      season: field(key: "season") { value }
+    }
+    userErrors { field message code }
+  }
+}
+```
+
+---
+
+## 5. Consultar metaobjetos y definiciones
+
+### Consultar una definición de metaobjeto
+```graphql
+query {
+  metaobjectDefinition(type: "color-swatch") {
+    id
+    name
+    fieldDefinitions { key name type { name } }
+  }
+}
+```
+
+### Consultar un metaobjeto por handle
+```graphql
+query {
+  metaobject(type: "lookbook", handle: "winter-2023") {
+    id
+    handle
+    fields { key value }
+  }
+}
+```
+
+---
+
+## 6. Borrar metaobjetos en bulk
+```graphql
+mutation {
+  metaobjectBulkDelete(where: { type: "lookbook" }) {
+    job { id done }
+    userErrors { field message code }
+  }
+}
+```
+
+---
+
+## 7. Ejemplo de definición avanzada con controles de acceso
+```graphql
+mutation {
+  metaobjectDefinitionCreate(definition: {
+    name: "FAQ",
+    type: "$app:faq",
+    access: {
+      admin: MERCHANT_READ_WRITE,
+      storefront: PUBLIC_READ
+    },
+    fieldDefinitions: [
+      {
+        name: "Question",
+        key: "question",
+        type: "single_line_text_field",
+        validations: [{ name: "max", value: "100" }]
+      },
+      {
+        name: "Answer",
+        key: "answer",
+        type: "multi_line_text_field",
+        validations: [{ name: "max", value: "250" }]
+      }
+    ]
+  }) {
+    metaobjectDefinition {
+      name
+      type
+      access { admin storefront }
+      fieldDefinitions { name key }
+    }
+    userErrors { field message code }
+  }
+}
+```
+
+---
+
+## 8. Capacidades avanzadas
+- **publishable**: Permite establecer el estado DRAFT o ACTIVE para controlar la visibilidad.
+- **translatable**: Permite traducir los campos del metaobjeto.
+- **renderable**: Permite exponer campos SEO y aparecer en el sitemap.
+- **onlineStore**: Permite asignar plantilla y URL para renderizar como página web.
+
+---
+
+## 9. Notas y mejores prácticas
+- Crea primero la definición antes de crear metaobjetos de ese tipo.
+- Usa los scopes de acceso adecuados: `write_metaobject_definitions` y `write_metaobjects`.
+- Los metaobjetos pueden ser traducibles si habilitas la capacidad `translatable`.
+- Puedes consultar metaobjetos y definiciones usando queries estándar de GraphQL.
+
+---
+
+## 10. Recursos útiles
+- [Metaobjects en Shopify](#)
+- [Metaobject Definitions](#)
+- [Guía de metaobjetos](#)
+- [Metaobject Capabilities](#)

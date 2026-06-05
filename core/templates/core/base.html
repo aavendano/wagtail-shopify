@@ -1,0 +1,46 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Shop Manager</title>
+    <meta name="shopify-api-key" content="{{ SHOPIFY_API_KEY }}" />
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+    <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@imacrayon/alpine-ajax@0.12.6/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+
+    {% include 'core/navbar.html' %}
+
+    {% if messages %}
+    <div id="django-messages" hidden>
+        {% for message in messages %}
+        <span data-content="{{ message|escape }}"
+            data-error="{% if message.tags == 'error' %}1{% else %}0{% endif %}"></span>
+
+        {% endfor %}
+
+    </div>
+    {% endif %}
+
+    {% block content %}
+    {% endblock %}
+
+
+    {% block extra_js %}
+    {% endblock %}
+
+
+
+    <script defer
+        src="{{ request.scheme }}://{{ request.META.HTTP_HOST }}{% static 'core/js/messages_manager.js' %}?v=20260313"></script>
+
+</body>
+
+</html>
