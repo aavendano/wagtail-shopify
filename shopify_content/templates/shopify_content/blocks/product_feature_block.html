@@ -1,0 +1,2 @@
+{% load wagtailimages_tags %}
+<div class="product-feature">{% if value.icon %}{% image value.icon width-48 as icon_img %}<img src="{{ icon_img.url }}" alt="{{ value.title }}">{% endif %}<h4>{{ value.title }}</h4><p>{{ value.description }}</p></div>
