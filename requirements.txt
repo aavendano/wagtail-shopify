@@ -15,3 +15,4 @@ shopifyapp
 pandas>=1.0.0
 requests>=2.25.0
 wagtail
+wagtail-localize>=1.8

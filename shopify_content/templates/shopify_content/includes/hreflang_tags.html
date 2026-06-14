@@ -1,0 +1,10 @@
+{% load wagtailcore_tags %}
+{% if page.locale %}
+<link rel="alternate" hreflang="{{ page.locale.language_code }}" href="{{ page.full_url }}">
+{% for translation in page.get_translations %}
+{% if translation.live %}
+<link rel="alternate" hreflang="{{ translation.locale.language_code }}" href="{{ translation.full_url }}">
+{% endif %}
+{% endfor %}
+<link rel="alternate" hreflang="x-default" href="{{ page.full_url }}">
+{% endif %}

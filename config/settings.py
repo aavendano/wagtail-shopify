@@ -32,8 +32,12 @@ if os.environ.get('SHOPIFY_APP_DOMAIN'):
 INSTALLED_APPS = [
     'custom.apps.CustomConfig',
 
+    'wagtail_localize',
+    'wagtail_localize.locales',
+
     'wagtail.contrib.forms',
     'wagtail.contrib.redirects',
+    'wagtail.contrib.simple_translation',
     'wagtail.embeds',
     'wagtail.sites',
     'wagtail.users',
@@ -47,7 +51,6 @@ INSTALLED_APPS = [
     'taggit',
     'modelcluster',
 
-
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -57,6 +60,7 @@ INSTALLED_APPS = [
 
     'core.apps.CoreConfig',
     'webhooks.apps.WebhooksConfig',
+    'shopify_content',
 ]
 
 MIDDLEWARE = [
@@ -130,11 +134,20 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'en-US'
+
+WAGTAIL_CONTENT_LANGUAGES = LANGUAGES = [
+    ('en-US', 'English (United States)'),
+    ('es-US', 'Spanish (United States)'),
+    ('en-CA', 'English (Canada)'),
+    ('fr-CA', 'French (Canada)'),
+]
 
 TIME_ZONE = 'America/Toronto'
 
 USE_I18N = True
+
+WAGTAIL_I18N_ENABLED = True
 
 USE_TZ = True
 
