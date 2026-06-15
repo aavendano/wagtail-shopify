@@ -15,6 +15,7 @@ are pushed as metafields (namespace=seo, keys=hreflang_en_us, etc.) so the
 Shopify Liquid theme can render <link rel="alternate"> tags.
 """
 
+import json
 import logging
 from django.utils import timezone
 from django.utils.functional import SimpleLazyObject
@@ -32,6 +33,45 @@ from .mutations import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _graphql_error_detail(result):
+    """Extract GraphQL error messages from SDK http_logs when available."""
+    raw = getattr(result, "raw", None)
+    if raw is None:
+        return result.log_detail or ""
+    for http_log in getattr(raw, "http_logs", None) or []:
+        res = getattr(http_log, "res", None)
+        body = getattr(res, "body", None) if res is not None else None
+        if not body:
+            continue
+        try:
+            payload = json.loads(body)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        errors = payload.get("errors") or []
+        if errors:
+            return "; ".join(
+                err.get("message", str(err)) for err in errors if isinstance(err, dict)
+            )
+    return result.log_detail or ""
+
+
+def _article_mutation_fields(page):
+    """
+    Build ArticleCreateInput / ArticleUpdateInput fields.
+
+    Shopify does not accept publishedAt on write inputs; use isPublished only.
+    published_at is kept on the Wagtail page for editorial use.
+    """
+    return {
+        'title': page.title,
+        'body': _render_streamfield_html(page.body),
+        'summary': page.summary or '',
+        'author': {'name': page.author or 'Author'},
+        'tags': list(page.tags.values_list('name', flat=True)),
+        'isPublished': page.live,
+    }
 
 
 def _get_shop():
@@ -339,9 +379,10 @@ def sync_collection_page(page):
 
     result = execute_admin_graphql(COLLECTION_UPDATE, shop=shop, variables=variables)
     if not result.ok:
+        detail = _graphql_error_detail(result)
         logger.error(
-            'collectionUpdate failed shop=%s pk=%s error=%s',
-            shop, page.pk, result.error_code,
+            'collectionUpdate failed shop=%s pk=%s error=%s detail=%s',
+            shop, page.pk, result.error_code, detail,
         )
         return False
 
@@ -439,19 +480,7 @@ def sync_article_page(page):
         return False
 
     shop = _get_shop()
-    body_html = _render_streamfield_html(page.body)
-
-    author_input = {'name': page.author or 'Author'}
-
-    common_fields = {
-        'title': page.title,
-        'body': body_html,
-        'summary': page.summary or '',
-        'author': author_input,
-        'tags': list(page.tags.values_list('name', flat=True)),
-        'publishedAt': page.published_at.isoformat() if page.published_at else None,
-        'isPublished': page.live,
-    }
+    common_fields = _article_mutation_fields(page)
 
     if page.shopify_id:
         variables = {'id': page.shopify_id, 'article': common_fields}
@@ -468,9 +497,10 @@ def sync_article_page(page):
         mutation_key = 'articleCreate'
 
     if not result.ok:
+        detail = _graphql_error_detail(result)
         logger.error(
-            '%s failed shop=%s pk=%s error=%s',
-            mutation_key, shop, page.pk, result.error_code,
+            '%s failed shop=%s pk=%s error=%s detail=%s',
+            mutation_key, shop, page.pk, result.error_code, detail,
         )
         return False
 

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 load_dotenv(".env", override=True)
@@ -22,10 +23,25 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET')
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-if os.environ.get('SHOPIFY_APP_DOMAIN'):
-    ALLOWED_HOSTS.append(os.environ.get('SHOPIFY_APP_DOMAIN'))
-    CSRF_TRUSTED_ORIGINS = [os.environ.get('SHOPIFY_APP_URL')] # Allow CSRF protection for the app
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://localhost:3458',
+    'https://127.0.0.1:3458',
+]
+
+_shopify_app_url = os.environ.get('SHOPIFY_APP_URL', '').rstrip('/')
+_shopify_app_domain = os.environ.get('SHOPIFY_APP_DOMAIN')
+if not _shopify_app_domain and _shopify_app_url:
+    _shopify_app_domain = urlparse(_shopify_app_url).hostname
+
+if _shopify_app_domain:
+    ALLOWED_HOSTS.append(_shopify_app_domain)
+if _shopify_app_url:
+    CSRF_TRUSTED_ORIGINS.append(_shopify_app_url)
+
+# Shopify CLI --use-localhost terminates TLS and proxies to Django over HTTP.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
@@ -65,6 +81,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'core.debug_middleware.ShopifyLocalProxyMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -177,8 +194,8 @@ IPYTHON_KERNEL_DISPLAY_NAME = 'Django Kernel'
 
 SHOPIFY_API_KEY = os.environ.get('SHOPIFY_API_KEY')
 SHOPIFY_API_SECRET = os.environ.get('SHOPIFY_API_SECRET')
-SHOPIFY_APP_DOMAIN = os.environ.get('SHOPIFY_APP_DOMAIN')
-SHOPIFY_APP_URL = os.environ.get('SHOPIFY_APP_URL')
+SHOPIFY_APP_DOMAIN = _shopify_app_domain
+SHOPIFY_APP_URL = _shopify_app_url or None
 SHOPIFY_SCOPES = os.environ.get('SHOPIFY_SCOPES')
 SHOPIFY_ADMIN_API_VERSION = os.environ.get('SHOPIFY_ADMIN_API_VERSION', '2025-04')
 

@@ -2,8 +2,8 @@
 GraphQL write mutations for pushing Wagtail content to Shopify Admin.
 
 Verified against Shopify Admin API 2025-04 schema:
-  - articleCreate(article: ArticleCreateInput!) — fields: title, author (required), blogId, body, summary, ...
-  - articleUpdate(id: ID!, article: ArticleUpdateInput!)
+  - articleCreate(article: ArticleCreateInput!) — fields: title, author (required), blogId, body, summary, isPublished
+  - articleUpdate(id: ID!, article: ArticleUpdateInput!) — publishedAt is read-only; not accepted on write inputs
   - blogCreate(blog: BlogCreateInput!) — fields: title (required), handle, commentPolicy
   - blogUpdate(id: ID!, blog: BlogUpdateInput!)
   - Article has no native seo field → use metafieldsSet for global.title_tag / global.description_tag
@@ -78,7 +78,6 @@ mutation CollectionUpdate($input: CollectionInput!) {
     userErrors {
       field
       message
-      code
     }
   }
 }
