@@ -14,11 +14,14 @@ from wagtail import urls as wagtail_urls
 from wagtail.admin import urls as wagtailadmin_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
+from api.main import api
+
 urlpatterns = [
     path("", HomeView.as_view(), name="home"),
     path("core/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
 
+    path('api/v1/', api.urls),
 
     path('admin/', include(wagtailadmin_urls)),
     path('documents/', include(wagtaildocs_urls)),

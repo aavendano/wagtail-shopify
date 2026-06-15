@@ -98,3 +98,4 @@ Caddyfile
 .vscode/
 staticfiles/
 .cursor/settings.json
+.claude/

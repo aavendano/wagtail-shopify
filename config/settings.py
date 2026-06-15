@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'core.apps.CoreConfig',
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
+    'api',
 ]
 
 MIDDLEWARE = [
