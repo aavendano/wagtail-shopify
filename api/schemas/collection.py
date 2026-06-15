@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields
 
 
 SORT_ORDER_DESCRIPTION = (
@@ -19,7 +19,7 @@ SORT_ORDER_DESCRIPTION = (
 )
 
 
-class CollectionIn(Schema):
+class CollectionIn(LocaleCreateFields):
     title: str = Field(
         ...,
         description=(
@@ -91,7 +91,7 @@ class CollectionIn(Schema):
     )
 
 
-class CollectionPatch(Schema):
+class CollectionPatch(LocalePatchFields):
     title: Optional[str] = Field(
         None,
         description="Update the collection title. Omit to leave unchanged.",
@@ -149,7 +149,7 @@ class CollectionPatch(Schema):
     )
 
 
-class CollectionOut(Schema):
+class CollectionOut(LocaleOutFields):
     id: int = Field(
         ...,
         description="Wagtail page ID. Use this as page_id in all /collections/{page_id}/ endpoints.",
@@ -192,6 +192,11 @@ class CollectionOut(Schema):
     url: Optional[str] = Field(None, description="Full public URL of this page. Null if the site is not configured.")
     first_published_at: Optional[datetime] = Field(None, description="UTC timestamp when this page was first published.")
     last_published_at: Optional[datetime] = Field(None, description="UTC timestamp of the most recent publish.")
+
+    @staticmethod
+    def resolve_translation_page_ids(obj):
+        from ..locale_utils import resolve_translation_page_ids
+        return resolve_translation_page_ids(obj)
 
     @staticmethod
     def resolve_description(obj):

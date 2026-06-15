@@ -12,6 +12,12 @@ from shopify_content.sync.inbound import import_collections, _get_shop
 
 from ..schemas.collection import CollectionIn, CollectionPatch, CollectionOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -37,13 +43,7 @@ def list_collections(
     qs = CollectionPage.objects.select_related('locale').prefetch_related('metafields')
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     return list(qs[offset:offset + limit])
 
 
@@ -72,6 +72,7 @@ def create_collection(request, data: CollectionIn):
     page = CollectionPage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         sort_order=data.sort_order or 'MANUAL',
@@ -82,6 +83,9 @@ def create_collection(request, data: CollectionIn):
 
     if data.description:
         page.description = json.dumps(data.description)
+
+    source = apply_translation_link(page, data.translation_of, CollectionPage)
+    inherit_shopify_id_from_source(page, source)
 
     parent.add_child(instance=page)
 
@@ -197,6 +201,11 @@ def update_collection(request, page_id: int, data: CollectionPatch):
         page.seo_title = data.seo_title
     if data.search_description is not None:
         page.search_description = data.search_description
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, CollectionPage)
+        inherit_shopify_id_from_source(page, source)
     if data.description is not None:
         page.description = json.dumps(data.description)
 

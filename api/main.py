@@ -50,9 +50,16 @@ Authorization: Bearer <your_api_key>
 API keys are created in Django admin under **API > API Keys**.
 
 ## Localization
-Content exists in multiple locales: `en-US` (primary), `es-US`, `en-CA`, `fr-CA`.
+Content exists in four market-locale variants: `en-US` (primary), `es-US`, `en-CA`, `fr-CA`.
 Filter by `?locale=es-US` to retrieve locale-specific pages.
+
+When creating pages via POST, set `locale` to target the correct market (defaults to `en-US`).
+Link variants with `translation_of` (Wagtail page ID of an existing variant in another locale)
+for hreflang grouping and shared `shopify_id` inheritance.
+
 Translations are registered in Shopify via the translationsRegister mutation on sync.
+Wagtail admin shows all locale variants via the locale switcher; use `simple_translation`
+for optional manual copy-to-locale from the UI.
 """
 
 api = NinjaAPI(

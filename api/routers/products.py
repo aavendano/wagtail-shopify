@@ -12,6 +12,12 @@ from shopify_content.sync.inbound import import_products, _get_shop
 
 from ..schemas.product import ProductIn, ProductPatch, ProductOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -41,13 +47,7 @@ def list_products(
     )
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     if status:
         qs = qs.filter(status=status)
     return list(qs[offset:offset + limit])
@@ -78,6 +78,7 @@ def create_product(request, data: ProductIn):
     page = ProductPage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         status=data.status or 'ACTIVE',
@@ -90,6 +91,9 @@ def create_product(request, data: ProductIn):
 
     if data.body:
         page.body = json.dumps(data.body)
+
+    source = apply_translation_link(page, data.translation_of, ProductPage)
+    inherit_shopify_id_from_source(page, source)
 
     parent.add_child(instance=page)
 
@@ -228,6 +232,11 @@ def update_product(request, page_id: int, data: ProductPatch):
         page.seo_title = data.seo_title
     if data.search_description is not None:
         page.search_description = data.search_description
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, ProductPage)
+        inherit_shopify_id_from_source(page, source)
     if data.body is not None:
         page.body = json.dumps(data.body)
 

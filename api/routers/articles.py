@@ -13,6 +13,12 @@ from shopify_content.sync.inbound import import_blogs_and_articles, _get_shop
 
 from ..schemas.article import ArticleIn, ArticlePatch, ArticleOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -46,13 +52,7 @@ def list_articles(
     )
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     if blog_id:
         qs = qs.child_of(BlogPage.objects.filter(pk=blog_id).first() or BlogPage())
     return list(qs[offset:offset + limit])
@@ -86,6 +86,7 @@ def create_article(request, data: ArticleIn):
     page = ArticlePage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         author=data.author or '',
@@ -102,10 +103,13 @@ def create_article(request, data: ArticleIn):
     if data.body:
         page.body = json.dumps(data.body)
 
+    source = apply_translation_link(page, data.translation_of, ArticlePage)
+    inherit_shopify_id_from_source(page, source)
+
     blog_page.add_child(instance=page)
 
     if data.tags:
-        page.tags.set(*data.tags)
+        page.tags.set(data.tags)
 
     if data.metafields:
         for mf in data.metafields:
@@ -242,11 +246,16 @@ def update_article(request, page_id: int, data: ArticlePatch):
         page.seo_title = data.seo_title
     if data.search_description is not None:
         page.search_description = data.search_description
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, ArticlePage)
+        inherit_shopify_id_from_source(page, source)
     if data.body is not None:
         page.body = json.dumps(data.body)
 
     if data.tags is not None:
-        page.tags.set(*data.tags)
+        page.tags.set(data.tags)
 
     if data.metafields is not None:
         page.metafields.all().delete()

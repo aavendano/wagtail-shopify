@@ -17,7 +17,7 @@ from wagtail.documents import urls as wagtaildocs_urls
 from api.main import api
 
 urlpatterns = [
-    path("", HomeView.as_view(), name="home"),
+    path("shopify-admin", HomeView.as_view(), name="home"),
     path("core/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
 

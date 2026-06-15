@@ -10,6 +10,12 @@ from shopify_content.sync.inbound import import_blogs_and_articles, _get_shop
 
 from ..schemas.blog import BlogIn, BlogPatch, BlogOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -36,13 +42,7 @@ def list_blogs(
     qs = BlogPage.objects.select_related('locale')
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     return list(qs[offset:offset + limit])
 
 
@@ -69,11 +69,15 @@ def create_blog(request, data: BlogIn):
     page = BlogPage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         comment_policy=data.comment_policy or 'CLOSED',
         sync_enabled=data.sync_enabled if data.sync_enabled is not None else True,
     )
+
+    source = apply_translation_link(page, data.translation_of, BlogPage)
+    inherit_shopify_id_from_source(page, source)
 
     parent.add_child(instance=page)
     page.refresh_from_db()
@@ -181,6 +185,11 @@ def update_blog(request, page_id: int, data: BlogPatch):
         page.comment_policy = data.comment_policy
     if data.sync_enabled is not None:
         page.sync_enabled = data.sync_enabled
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, BlogPage)
+        inherit_shopify_id_from_source(page, source)
 
     if data.publish:
         revision = page.save_revision()

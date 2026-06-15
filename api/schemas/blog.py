@@ -3,6 +3,8 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
+from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields
+
 
 COMMENT_POLICY_DESCRIPTION = (
     "Shopify Blog comment policy controlling visitor comment permissions. "
@@ -12,7 +14,7 @@ COMMENT_POLICY_DESCRIPTION = (
 )
 
 
-class BlogIn(Schema):
+class BlogIn(LocaleCreateFields):
     title: str = Field(
         ...,
         description=(
@@ -51,7 +53,7 @@ class BlogIn(Schema):
     )
 
 
-class BlogPatch(Schema):
+class BlogPatch(LocalePatchFields):
     title: Optional[str] = Field(
         None,
         description="Update the blog title. Omit to leave unchanged.",
@@ -87,7 +89,7 @@ class BlogPatch(Schema):
     )
 
 
-class BlogOut(Schema):
+class BlogOut(LocaleOutFields):
     id: int = Field(
         ...,
         description="Wagtail page ID. Use this as page_id in all /blogs/{page_id}/ endpoints.",
@@ -121,6 +123,11 @@ class BlogOut(Schema):
         ...,
         description="Number of published ArticlePage children nested under this blog.",
     )
+
+    @staticmethod
+    def resolve_translation_page_ids(obj):
+        from ..locale_utils import resolve_translation_page_ids
+        return resolve_translation_page_ids(obj)
 
     @staticmethod
     def resolve_article_count(obj):

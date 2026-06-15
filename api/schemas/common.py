@@ -1,6 +1,40 @@
-from typing import Optional
+from typing import List, Optional
 from ninja import Schema
 from pydantic import Field
+
+from ..locale_utils import LOCALE_FIELD_DESCRIPTION, TRANSLATION_OF_FIELD_DESCRIPTION
+
+
+class LocaleCreateFields(Schema):
+    locale: Optional[str] = Field(
+        None,
+        description=LOCALE_FIELD_DESCRIPTION,
+    )
+    translation_of: Optional[int] = Field(
+        None,
+        description=TRANSLATION_OF_FIELD_DESCRIPTION,
+    )
+
+
+class LocalePatchFields(Schema):
+    locale: Optional[str] = Field(
+        None,
+        description=LOCALE_FIELD_DESCRIPTION + " Omit to leave unchanged.",
+    )
+    translation_of: Optional[int] = Field(
+        None,
+        description=TRANSLATION_OF_FIELD_DESCRIPTION + " Omit to leave unchanged.",
+    )
+
+
+class LocaleOutFields(Schema):
+    translation_page_ids: List[int] = Field(
+        ...,
+        description=(
+            "Wagtail page IDs of all locale variants in this translation group, "
+            "including this page. Used to correlate market-specific variants."
+        ),
+    )
 
 
 class MetafieldSchema(Schema):
