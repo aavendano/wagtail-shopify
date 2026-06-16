@@ -216,30 +216,35 @@ def _push_hreflang_metafields(page, shop, owner_gid):
 def _register_shopify_translations(page, shop, resource_id, translatable_fields):
     """
     Push translated field values to Shopify via translationsRegister mutation.
-    translatable_fields: dict of {shopify_key: wagtail_attr_name}
 
-    Called for each non-primary locale translation of a page.
-    Shopify locale codes use 2-letter + optional region: 'es', 'fr', 'en-CA'.
+    translatable_fields: dict of {shopify_key: getter}
+      getter can be:
+        - str  → attribute name on the translation page (field or method)
+        - callable(translation_page) → str value
+
+    Shopify locale codes: 'es' (es-US), 'en-CA', 'fr-CA'. Primary locale (en-US) is skipped.
     """
     try:
         translations = page.get_translations().live().select_related('locale')
         for t in translations:
-            locale_code = t.locale.language_code
-            # Map en-US → en, es-US → es, en-CA → en-CA, fr-CA → fr-CA
-            shopify_locale = _wagtail_locale_to_shopify(locale_code)
+            shopify_locale = _wagtail_locale_to_shopify(t.locale.language_code)
             if not shopify_locale:
                 continue
 
             translation_inputs = []
-            for shopify_key, attr_name in translatable_fields.items():
-                value = getattr(t, attr_name, None) or ''
-                if callable(value):
-                    value = value()
+            for shopify_key, getter in translatable_fields.items():
+                if callable(getter):
+                    value = getter(t)
+                else:
+                    value = getattr(t, getter, None) or ''
+                    if callable(value):
+                        value = value()
+                value = str(value) if value else ''
                 if value:
                     translation_inputs.append({
                         'key': shopify_key,
                         'locale': shopify_locale,
-                        'value': str(value),
+                        'value': value,
                     })
 
             if translation_inputs:
@@ -347,7 +352,10 @@ def sync_product_page(page):
     # Register Shopify translations for non-primary locales
     _register_shopify_translations(
         page, shop, page.shopify_id,
-        {'title': 'title', 'body_html': 'get_description_html'},
+        {
+            'title': 'title',
+            'body_html': lambda t: _render_streamfield_html(t.body),
+        },
     )
 
     _mark_synced(type(page), page.pk)
@@ -394,6 +402,13 @@ def sync_collection_page(page):
     mf_inputs = _collect_inline_metafields(page, page.shopify_id)
     _push_metafields(shop, mf_inputs)
     _push_hreflang_metafields(page, shop, page.shopify_id)
+    _register_shopify_translations(
+        page, shop, page.shopify_id,
+        {
+            'title': 'title',
+            'body_html': lambda t: _render_streamfield_html(t.description),
+        },
+    )
     _mark_synced(type(page), page.pk)
     return True
 
@@ -536,6 +551,14 @@ def sync_article_page(page):
         _push_metafields(shop, mf_inputs)
 
         _push_hreflang_metafields(page, shop, page.shopify_id)
+        _register_shopify_translations(
+            page, shop, page.shopify_id,
+            {
+                'title': 'title',
+                'body_html': lambda t: _render_streamfield_html(t.body),
+                'summary_html': 'summary',
+            },
+        )
 
     _mark_synced(type(page), page.pk)
     return True
