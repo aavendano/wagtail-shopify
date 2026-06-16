@@ -9,7 +9,7 @@ from ninja.errors import HttpError
 from shopify_content.models import BlogPage, ArticlePage
 from shopify_content.models.blog import ArticlePageMetafield
 from shopify_content.sync.outbound import sync_article_page
-from shopify_content.sync.inbound import import_blogs_and_articles, _get_shop
+from shopify_content.sync.service import run_shopify_import_for_api
 
 from ..schemas.article import ArticleIn, ArticlePatch, ArticleOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
@@ -141,35 +141,15 @@ def pull_articles(request):
     New blogs/articles are created as draft pages.
 
     Prerequisites:
-    - A ShopifyRootPage must exist in the Wagtail page tree.
     - A ShopConfig with a valid Shopify offline access token must exist.
+    - The ShopifyRootPage for blogs (slug=blogs) is created automatically if missing.
 
     Returns article import counts (blogs are also imported as a side effect).
     """
     try:
-        shop = _get_shop()
+        return run_shopify_import_for_api('blogs', new_only=False)
     except RuntimeError as e:
         raise HttpError(400, str(e))
-
-    from shopify_content.models import ShopifyRootPage
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        raise HttpError(400, "No ShopifyRootPage found. Create one in Wagtail admin first.")
-
-    result = import_blogs_and_articles(shop, parent)
-    article_stats = result['articles']
-    blog_stats = result['blogs']
-    return {
-        "created": article_stats['created'],
-        "updated": article_stats['updated'],
-        "errors": article_stats['errors'],
-        "message": (
-            f"Article import complete. Articles — Created: {article_stats['created']}, "
-            f"Updated: {article_stats['updated']}, Errors: {article_stats['errors']}. "
-            f"Blogs — Created: {blog_stats['created']}, "
-            f"Updated: {blog_stats['updated']}, Errors: {blog_stats['errors']}."
-        ),
-    }
 
 
 @router.get('/{page_id}', response={200: ArticleOut, 404: ErrorSchema}, summary="Get Article")

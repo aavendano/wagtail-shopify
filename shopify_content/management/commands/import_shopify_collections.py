@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand, CommandError
 from wagtail.models import Page
 
 from shopify_content.sync.inbound import import_collections, _get_shop
+from shopify_content.sync.import_parents import resolve_shopify_import_parent
 from shopify_content.models import ShopifyRootPage
 
 
@@ -13,7 +14,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--parent-page-id',
             type=int,
-            help='Wagtail Page ID to use as parent. Defaults to the first ShopifyRootPage.',
+            help='Wagtail Page ID to use as parent. Defaults to ShopifyRootPage slug "collections" (auto-created if missing).',
         )
 
     def handle(self, *args, **options):
@@ -26,11 +27,10 @@ class Command(BaseCommand):
             except Page.DoesNotExist:
                 raise CommandError(f'Page id={parent_id} does not exist.')
         else:
-            parent = ShopifyRootPage.objects.first()
-            if not parent:
+            parent = resolve_shopify_import_parent('collections')
+            if not isinstance(parent, ShopifyRootPage):
                 raise CommandError(
-                    'No ShopifyRootPage found. Create one in Wagtail admin first, '
-                    'or pass --parent-page-id.'
+                    f'Page id={parent.pk} is not a ShopifyRootPage.'
                 )
 
         self.stdout.write(f'Importing collections for shop={shop}...')

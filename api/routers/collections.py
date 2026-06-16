@@ -5,10 +5,11 @@ from ninja import Router
 from django.utils.text import slugify
 from ninja.errors import HttpError
 
-from shopify_content.models import CollectionPage, ShopifyRootPage
+from shopify_content.models import CollectionPage
 from shopify_content.models.collection import CollectionPageMetafield
 from shopify_content.sync.outbound import sync_collection_page
-from shopify_content.sync.inbound import import_collections, _get_shop
+from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 from ..schemas.collection import CollectionIn, CollectionPatch, CollectionOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
@@ -61,11 +62,12 @@ def create_collection(request, data: CollectionIn):
     Alternatively, use POST /collections/pull/ to import all collections from Shopify automatically.
     The page is saved as a draft (unpublished). Call PATCH with publish=true to publish and sync.
 
-    Returns HTTP 400 if no ShopifyRootPage exists in the Wagtail page tree.
+    Returns HTTP 400 if the Wagtail site is not configured.
     """
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        return 400, {"detail": "No ShopifyRootPage found. Create one in Wagtail admin first."}
+    try:
+        parent = resolve_shopify_import_parent('collections')
+    except RuntimeError as e:
+        return 400, {"detail": str(e)}
 
     slug = slugify(data.handle or data.title)
 
@@ -117,25 +119,15 @@ def pull_collections(request):
     to make content changes.
 
     Prerequisites:
-    - A ShopifyRootPage must exist in the Wagtail page tree.
     - A ShopConfig with a valid Shopify offline access token must exist.
+    - The ShopifyRootPage for collections (slug=collections) is created automatically if missing.
 
     Returns counts of created, updated, and failed imports.
     """
     try:
-        shop = _get_shop()
+        return run_shopify_import_for_api('collections', new_only=False)
     except RuntimeError as e:
         raise HttpError(400, str(e))
-
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        raise HttpError(400, "No ShopifyRootPage found. Create one in Wagtail admin first.")
-
-    stats = import_collections(shop, parent)
-    return {
-        **stats,
-        "message": f"Import complete. Created: {stats['created']}, Updated: {stats['updated']}, Errors: {stats['errors']}",
-    }
 
 
 @router.get('/{page_id}', response={200: CollectionOut, 404: ErrorSchema}, summary="Get Collection")

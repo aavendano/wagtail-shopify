@@ -1,10 +1,20 @@
 from urllib.parse import urlencode
 
+import logging
+
 from django.conf import settings
+from django.contrib import messages
 from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
+
+from shopify_content.sync.service import (
+    VALID_IMPORT_RESOURCES,
+    import_error_count,
+    run_shopify_import,
+)
 
 from .embedded_redirects import (
     validate_parent_redirect_url,
@@ -20,6 +30,33 @@ from .utils import (
 )
 from .token_service import ensure_offline_token_lifecycle
 from shopify_requests.domains.shop import fetch_shop_admin_graphql
+
+logger = logging.getLogger(__name__)
+
+
+SYNC_RESOURCES = [
+    ('products', 'Importar productos nuevos'),
+    ('collections', 'Importar colecciones nuevas'),
+    ('blogs', 'Importar blogs y artículos nuevos'),
+    ('all', 'Importar todo lo nuevo'),
+]
+
+
+def _redirect_home_preserving_query(request):
+    url = reverse('home')
+    if request.GET:
+        url = f'{url}?{request.GET.urlencode()}'
+    return redirect(url)
+
+
+def _shop_config_context():
+    from .models import ShopConfig
+
+    config = ShopConfig.objects.first()
+    return {
+        'shop_configured': bool(config and config.access_token),
+        'shop_domain': config.shop if config else None,
+    }
 
 
 class PublicEntryView(TemplateView):
@@ -58,6 +95,8 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context.update(_shop_config_context())
+        context['sync_resources'] = SYNC_RESOURCES
         verification_result = getattr(self, "_verification_result", None)
         shop = getattr(verification_result, "shop", None) if verification_result else None
         self._admin_graphql_halt = None
@@ -75,6 +114,7 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
             elif gql.ok and gql.data:
                 shop_node = gql.data.get("shop") or {}
                 context["shopify_admin_shop_id"] = shop_node.get("id")
+                context["shopify_admin_shop_name"] = shop_node.get("name")
         return context
 
     def dispatch_after_verified(self, request, *args, **kwargs):
@@ -97,6 +137,47 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
             for key, value in response_headers.items():
                 response[key] = value
         return response
+
+
+class EmbeddedShopifySyncView(AppHomeVerifiedMixin, View):
+    """
+    Import new Shopify content into Wagtail from the embedded app home.
+    """
+
+    http_method_names = ['post']
+
+    def dispatch_after_verified(self, request, *args, **kwargs):
+        token_result = ensure_offline_token_lifecycle(
+            self._verification_result, self._shopify_app
+        )
+        if token_result is not None:
+            return shopify_result_to_django_response(token_result)
+        return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        resource = request.POST.get('resource')
+        if resource not in VALID_IMPORT_RESOURCES:
+            messages.error(request, 'Recurso de importación no válido.')
+            return _redirect_home_preserving_query(request)
+
+        try:
+            result = run_shopify_import(resource, new_only=True)
+            stats = result['stats']
+            errors = import_error_count(stats, resource)
+            if errors > 0:
+                messages.warning(request, result['message'])
+            else:
+                messages.success(request, result['message'])
+        except RuntimeError as exc:
+            messages.error(request, str(exc))
+        except Exception:
+            logger.exception('Embedded Shopify sync failed resource=%s', resource)
+            messages.error(
+                request,
+                'Error inesperado durante la importación. Consulta los logs del servidor.',
+            )
+
+        return _redirect_home_preserving_query(request)
 
 
 class AuthPatchIdTokenView(TemplateView):

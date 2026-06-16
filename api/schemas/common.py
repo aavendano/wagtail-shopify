@@ -93,6 +93,7 @@ class SyncResultSchema(Schema):
 class ImportResultSchema(Schema):
     created: int = Field(..., description="New Wagtail pages created from Shopify data.")
     updated: int = Field(..., description="Existing Wagtail pages updated from Shopify data.")
+    skipped: int = Field(0, description="Existing pages skipped when new_only import is used.")
     errors: int = Field(..., description="Resources that failed to import. Check server logs for details.")
     message: str = Field(..., description="Summary of the import operation.")
 

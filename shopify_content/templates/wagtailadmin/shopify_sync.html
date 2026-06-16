@@ -1,0 +1,46 @@
+{% extends "wagtailadmin/base.html" %}
+{% load i18n wagtailadmin_tags %}
+
+{% block titletag %}Shopify Sync{% endblock %}
+
+{% block content %}
+    {% trans "Sincronizar desde Shopify" as sync_title %}
+    {% include "wagtailadmin/shared/header.html" with title=sync_title icon="download" %}
+
+    <div class="nice-padding">
+        <p>
+            Importa contenido desde tu tienda Shopify hacia Wagtail.
+            Solo se crean páginas que aún no existen en Wagtail; el contenido ya importado no se modifica.
+        </p>
+
+        {% if shop_configured %}
+            <p>
+                <strong>Tienda conectada:</strong> {{ shop_domain }}
+            </p>
+
+            <div class="w-mt-6">
+                {% for resource_key, resource_label in resources %}
+                    <form method="post" action="{% url 'shopify_sync' %}" class="w-mb-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="resource" value="{{ resource_key }}">
+                        <button type="submit" class="button">
+                            {{ resource_label }}
+                        </button>
+                    </form>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="help-block help-warning">
+                <p>
+                    No hay una tienda Shopify conectada o falta el token de acceso.
+                    Instala la app en Shopify y completa el flujo de autenticación antes de importar.
+                </p>
+                <p>
+                    <a href="{% url 'core:install' %}" class="button button-secondary" target="_blank" rel="noopener">
+                        Conectar tienda Shopify
+                    </a>
+                </p>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

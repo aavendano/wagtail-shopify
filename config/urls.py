@@ -1,7 +1,7 @@
 
 from django.contrib import admin
 from django.urls import path, include
-from core.views import HomeView
+from core.views import HomeView, EmbeddedShopifySyncView
 
 from django.urls import include, path
 from django.conf.urls.static import static
@@ -18,6 +18,7 @@ from api.main import api
 
 urlpatterns = [
     path("shopify-admin", HomeView.as_view(), name="home"),
+    path("shopify-admin/sync", EmbeddedShopifySyncView.as_view(), name="shopify_embedded_sync"),
     path("core/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
 

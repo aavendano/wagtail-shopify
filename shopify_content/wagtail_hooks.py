@@ -10,10 +10,32 @@ direct call with a background task (Celery, Django-Q, etc.).
 """
 
 import logging
+
+from django.urls import path, reverse
 from wagtail import hooks
 from wagtail.admin import messages as wagtail_messages
+from wagtail.admin.menu import MenuItem
+
+from .admin.sync_views import ShopifySyncView
 
 logger = logging.getLogger(__name__)
+
+
+@hooks.register('register_admin_urls')
+def register_shopify_sync_urls():
+    return [
+        path('shopify-sync/', ShopifySyncView.as_view(), name='shopify_sync'),
+    ]
+
+
+@hooks.register('register_settings_menu_item')
+def register_shopify_sync_menu_item():
+    return MenuItem(
+        'Shopify Sync',
+        reverse('shopify_sync'),
+        icon_name='download',
+        order=100,
+    )
 
 
 @hooks.register('after_publish_page')
