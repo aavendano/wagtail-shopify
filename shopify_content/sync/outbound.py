@@ -470,6 +470,24 @@ def sync_blog_page(page):
             )
             page.shopify_id = new_id
 
+    # Blog has no native description or seo fields — push as metafields
+    if page.shopify_id:
+        blog_metafields = []
+        if page.description:
+            blog_metafields.append({
+                'ownerId': page.shopify_id,
+                'namespace': 'descriptors',
+                'key': 'description',
+                'type': 'multi_line_text_field',
+                'value': page.description,
+            })
+        _push_metafields(shop, blog_metafields)
+        _push_seo_metafields(
+            shop, page.shopify_id,
+            page.get_seo_title(),
+            page.get_seo_description(),
+        )
+
     _mark_synced(type(page), page.pk)
     return True
 
