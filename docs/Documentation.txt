@@ -48,9 +48,13 @@ Atributos:
   name (str)
   description (str)
   fields (list[MetaobjectFieldSpec])
+  display_name_field (str | None)   — campo cuyo valor muestra el nombre en Shopify Admin
+  capabilities (dict | None)        — capacidades: publishable, onlineStore, renderable
+  access (dict | None)              — control de acceso al storefront: {'storefront': 'PUBLIC_READ'|'NONE'}
 
 Métodos:
-  to_shopify_input() — payload para metaobjectDefinitionCreate
+  to_shopify_input() — payload para metaobjectDefinitionCreate;
+      incluye displayNameField, capabilities y access si están presentes
   from_dict(data) — desde respuesta GraphQL o dict manual
   from_dataclass(dc_type, *, type, name, description, handle_field="handle")
       — genera schema desde dataclass; excluye el campo handle
@@ -111,8 +115,8 @@ Mapeo de tipos Python → Shopify
 Override: field(metadata={"shopify_type": "multi_line_text_field"})
 
 
-Ejemplo completo
-----------------
+Ejemplo completo — desde dataclass
+-----------------------------------
 
   from dataclasses import dataclass
   from metaobjects import MetaobjectClient, MetaobjectDefinitionSpec
@@ -130,6 +134,42 @@ Ejemplo completo
   )
   client.sync(
       FabricSpec("main-cotton", "Classic Cotton", 2, True),
+      definition=definition,
+  )
+
+
+Ejemplo completo — merchant-owned con capacidades de storefront
+---------------------------------------------------------------
+
+  from metaobjects import MetaobjectClient, MetaobjectDefinitionSpec, MetaobjectFieldSpec
+
+  definition = MetaobjectDefinitionSpec(
+      type='location_page',
+      name='Location Page',
+      description='Página de ubicación gestionada en Wagtail CMS',
+      display_name_field='titulo',
+      capabilities={
+          'publishable': {'enabled': True},
+          'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location-page'}},
+          'renderable': {'enabled': True, 'data': {
+              'metaTitleField': 'titulo',
+              'metaDescriptionField': 'subtitulo',
+          }},
+      },
+      access={'storefront': 'PUBLIC_READ'},
+      fields=[
+          MetaobjectFieldSpec(key='titulo', name='Título', type='single_line_text_field', required=True),
+          MetaobjectFieldSpec(key='subtitulo', name='Subtítulo', type='single_line_text_field'),
+          MetaobjectFieldSpec(key='city', name='City', type='single_line_text_field'),
+      ],
+  )
+
+  client = MetaobjectClient('mi-tienda.myshopify.com')
+  # Crear o verificar la definición en el store (idempotente)
+  client.ensure_definition(definition)
+  # Upsert de una instancia
+  client.sync(
+      {'handle': 'austin-tx', 'titulo': 'Austin', 'city': 'Austin'},
       definition=definition,
   )
 

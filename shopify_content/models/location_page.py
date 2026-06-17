@@ -14,11 +14,11 @@ from .mixins import FAQItem, SHOPIFY_SYNC_PANELS
 
 class LocationPage(Page):
     """
-    Wagtail page that syncs to a Shopify app-owned metaobject.
+    Wagtail page that syncs to a Shopify merchant-owned metaobject (type: location_page).
 
-    Shopify type: $app:location-page
-    Definition lives in shopify.app.wagtail-cms.toml (app extension).
-    On publish, upserted via metaobjectUpsert; no ensure_definition needed.
+    The definition is created/verified at runtime via MetaobjectClient.ensure_definition().
+    On publish, synced via MetaobjectClient.sync() with ensure_definition=True.
+    Bootstrap the definition with: python manage.py ensure_metaobject_definitions
     """
 
     # Shopify sync fields
