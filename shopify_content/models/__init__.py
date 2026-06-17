@@ -5,6 +5,7 @@ from .blog import (
     BlogPage, BlogPageFAQ,
     ArticlePage, ArticlePageFAQ, ArticlePageMetafield, ArticlePageTag,
 )
+from .location_page import LocationPage, LocationPageFAQ
 from .root import ShopifyRootPage
 
 __all__ = [
@@ -23,5 +24,7 @@ __all__ = [
     'ArticlePageFAQ',
     'ArticlePageMetafield',
     'ArticlePageTag',
+    'LocationPage',
+    'LocationPageFAQ',
     'ShopifyRootPage',
 ]

@@ -45,12 +45,13 @@ def sync_to_shopify_on_publish(request, page):
     push the changes to Shopify Admin.
     """
     # Lazy imports keep the Shopify SDK out of the startup path.
-    from .models import ProductPage, CollectionPage, BlogPage, ArticlePage
+    from .models import ProductPage, CollectionPage, BlogPage, ArticlePage, LocationPage
     from .sync.outbound import (
         sync_product_page,
         sync_collection_page,
         sync_blog_page,
         sync_article_page,
+        sync_location_page,
     )
 
     page_sync_map = {
@@ -58,6 +59,7 @@ def sync_to_shopify_on_publish(request, page):
         CollectionPage: sync_collection_page,
         BlogPage: sync_blog_page,
         ArticlePage: sync_article_page,
+        LocationPage: sync_location_page,
     }
 
     specific_page = page.specific

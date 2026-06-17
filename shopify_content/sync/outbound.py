@@ -30,6 +30,7 @@ from .mutations import (
     ARTICLE_UPDATE,
     METAFIELDS_SET,
     TRANSLATIONS_REGISTER,
+    METAOBJECT_UPSERT,
 )
 
 logger = logging.getLogger(__name__)
@@ -595,6 +596,89 @@ def sync_article_page(page):
                 'summary_html': 'summary',
             },
         )
+
+    _mark_synced(type(page), page.pk)
+    return True
+
+
+def sync_location_page(page):
+    """
+    Push LocationPage → Shopify metaobjectUpsert with type $app:location_page.
+
+    Definition is app-owned (registered in shopify.app.wagtail-cms.toml).
+    We never call ensure_definition — the TOML handles definition creation.
+    Handle is page.handle if set, otherwise page.slug.
+    Rich text fields are pushed as multi_line_text_field (HTML string).
+    """
+    if not page.sync_enabled:
+        return False
+
+    shop = _get_shop()
+    handle = page.handle or page.slug
+
+    # Build field list; skip blank optional values
+    raw_fields = [
+        ('titulo', page.titulo),
+        ('subtitulo', page.subtitulo),
+        ('intro', page.intro),
+        ('country', page.country),
+        ('state', page.state),
+        ('city', page.city),
+        ('titulo_2', page.titulo_2),
+        ('subtitulo_h2', page.subtitulo_h2),
+        ('content_2', page.content_2),
+        ('titulo_3', page.titulo_3),
+        ('subtitulo_3', page.subtitulo_3),
+        ('content_3', page.content_3),
+        ('brand_section_title', page.brand_section_title),
+        ('brand_section_subtitle', page.brand_section_subtitle),
+        ('brand_section_content', page.brand_section_content),
+        ('map_title', page.map_title),
+        ('map_content', page.map_content),
+        ('after_page_content', page.after_page_content),
+    ]
+    if page.shopify_locale:
+        raw_fields.append(('locale', page.shopify_locale))
+
+    fields = [{'key': k, 'value': v} for k, v in raw_fields if v]
+
+    # FAQs as JSON array
+    faq_items = list(page.faqs.order_by('sort_order'))
+    if faq_items:
+        faq_data = [{'question': f.question, 'answer': f.answer} for f in faq_items]
+        fields.append({'key': 'faqs', 'value': json.dumps(faq_data, ensure_ascii=False)})
+
+    variables = {
+        'handle': {
+            'type': '$app:location_page',
+            'handle': handle,
+        },
+        'metaobject': {
+            'fields': fields,
+        },
+    }
+
+    result = execute_admin_graphql(METAOBJECT_UPSERT, shop=shop, variables=variables)
+    if not result.ok:
+        detail = _graphql_error_detail(result)
+        logger.error(
+            'metaobjectUpsert failed shop=%s pk=%s error=%s detail=%s',
+            shop, page.pk, result.error_code, detail,
+        )
+        return False
+
+    payload = (result.data or {}).get('metaobjectUpsert', {})
+    user_errors = payload.get('userErrors') or []
+    if user_errors:
+        logger.error('metaobjectUpsert userErrors pk=%s: %s', page.pk, user_errors)
+        return False
+
+    # Persist shopify_id on first upsert
+    metaobject_data = payload.get('metaobject') or {}
+    new_id = metaobject_data.get('id')
+    if new_id and not page.shopify_id:
+        type(page).objects.filter(pk=page.pk).update(shopify_id=new_id)
+        page.shopify_id = new_id
 
     _mark_synced(type(page), page.pk)
     return True
