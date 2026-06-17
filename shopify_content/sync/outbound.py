@@ -151,6 +151,24 @@ def _push_metafields(shop, metafield_inputs):
     return True
 
 
+def _push_faq_metafield(shop, owner_gid, faq_queryset):
+    """
+    Push FAQ items as a single JSON metafield custom.faqs.
+    Value: [{"question": "...", "answer": "..."}, ...]
+    """
+    items = list(faq_queryset.order_by('sort_order'))
+    if not items:
+        return True
+    faq_data = [{'question': f.question, 'answer': f.answer} for f in items]
+    return _push_metafields(shop, [{
+        'ownerId': owner_gid,
+        'namespace': 'custom',
+        'key': 'faqs',
+        'type': 'json',
+        'value': json.dumps(faq_data, ensure_ascii=False),
+    }])
+
+
 def _push_seo_metafields(shop, owner_gid, seo_title, seo_description):
     """
     Push SEO data as Shopify metafields.
@@ -345,11 +363,8 @@ def sync_product_page(page):
     mf_inputs = _collect_inline_metafields(page, page.shopify_id)
     mf_inputs += _collect_streamfield_metafields(page.body, page.shopify_id)
     _push_metafields(shop, mf_inputs)
-
-    # hreflang metafields for Liquid theme
+    _push_faq_metafield(shop, page.shopify_id, page.faqs)
     _push_hreflang_metafields(page, shop, page.shopify_id)
-
-    # Register Shopify translations for non-primary locales
     _register_shopify_translations(
         page, shop, page.shopify_id,
         {
@@ -401,6 +416,7 @@ def sync_collection_page(page):
 
     mf_inputs = _collect_inline_metafields(page, page.shopify_id)
     _push_metafields(shop, mf_inputs)
+    _push_faq_metafield(shop, page.shopify_id, page.faqs)
     _push_hreflang_metafields(page, shop, page.shopify_id)
     _register_shopify_translations(
         page, shop, page.shopify_id,
@@ -482,6 +498,7 @@ def sync_blog_page(page):
                 'value': page.description,
             })
         _push_metafields(shop, blog_metafields)
+        _push_faq_metafield(shop, page.shopify_id, page.faqs)
         _push_seo_metafields(
             shop, page.shopify_id,
             page.get_seo_title(),
@@ -567,6 +584,7 @@ def sync_article_page(page):
         mf_inputs = _collect_inline_metafields(page, page.shopify_id)
         mf_inputs += _collect_streamfield_metafields(page.body, page.shopify_id)
         _push_metafields(shop, mf_inputs)
+        _push_faq_metafield(shop, page.shopify_id, page.faqs)
 
         _push_hreflang_metafields(page, shop, page.shopify_id)
         _register_shopify_translations(

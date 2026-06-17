@@ -1,4 +1,5 @@
 from django.db import models
+from wagtail.models import Orderable
 from wagtail.admin.panels import FieldPanel, MultiFieldPanel
 
 
@@ -12,6 +13,27 @@ SHOPIFY_SYNC_PANELS = [
         FieldPanel('last_synced_at', read_only=True),
     ], heading='Shopify Sync'),
 ]
+
+
+class FAQItem(Orderable):
+    """
+    Abstract FAQ entry (question + answer) for any page type.
+    Each concrete subclass adds a ParentalKey to its parent page.
+    Synced to Shopify as metafield custom.faqs (JSON array).
+    """
+    question = models.CharField(max_length=500, verbose_name='Question')
+    answer = models.TextField(verbose_name='Answer')
+
+    panels = [
+        FieldPanel('question'),
+        FieldPanel('answer'),
+    ]
+
+    class Meta(Orderable.Meta):
+        abstract = True
+
+    def __str__(self):
+        return self.question[:80]
 
 
 class ShopifyMetafield(models.Model):

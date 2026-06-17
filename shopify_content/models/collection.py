@@ -10,8 +10,16 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
 from ..blocks import COLLECTION_BODY_BLOCKS
+
+
+class CollectionPageFAQ(FAQItem):
+    page = ParentalKey(
+        'shopify_content.CollectionPage',
+        on_delete=models.CASCADE,
+        related_name='faqs',
+    )
 
 
 class CollectionPageMetafield(ShopifyMetafield):
@@ -81,6 +89,7 @@ class CollectionPage(Page):
     content_panels = Page.content_panels + [
         FieldPanel('sort_order'),
         FieldPanel('description'),
+        InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]
 

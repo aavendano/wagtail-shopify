@@ -12,7 +12,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
 from ..blocks import PRODUCT_BODY_BLOCKS
 
 
@@ -21,6 +21,14 @@ class ProductPageTag(TaggedItemBase):
         'shopify_content.ProductPage',
         related_name='tagged_items',
         on_delete=models.CASCADE,
+    )
+
+
+class ProductPageFAQ(FAQItem):
+    page = ParentalKey(
+        'shopify_content.ProductPage',
+        on_delete=models.CASCADE,
+        related_name='faqs',
     )
 
 
@@ -108,6 +116,7 @@ class ProductPage(Page):
             FieldPanel('status'),
         ], heading='Shopify Product Details'),
         FieldPanel('body'),
+        InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]
 

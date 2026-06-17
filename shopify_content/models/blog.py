@@ -11,7 +11,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
 
 
@@ -77,6 +77,7 @@ class BlogPage(Page):
     content_panels = Page.content_panels + [
         FieldPanel('comment_policy'),
         FieldPanel('description'),
+        InlinePanel('faqs', label='FAQs'),
     ]
 
     promote_panels = [
@@ -107,6 +108,14 @@ class BlogPage(Page):
         return self.search_description or self.description or ''
 
 
+class BlogPageFAQ(FAQItem):
+    page = ParentalKey(
+        'shopify_content.BlogPage',
+        on_delete=models.CASCADE,
+        related_name='faqs',
+    )
+
+
 # ---------------------------------------------------------------------------
 # Article
 # ---------------------------------------------------------------------------
@@ -116,6 +125,14 @@ class ArticlePageTag(TaggedItemBase):
         'shopify_content.ArticlePage',
         related_name='tagged_items',
         on_delete=models.CASCADE,
+    )
+
+
+class ArticlePageFAQ(FAQItem):
+    page = ParentalKey(
+        'shopify_content.ArticlePage',
+        on_delete=models.CASCADE,
+        related_name='faqs',
     )
 
 
@@ -208,6 +225,7 @@ class ArticlePage(Page):
         FieldPanel('featured_image'),
         FieldPanel('summary'),
         FieldPanel('body'),
+        InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]
 
