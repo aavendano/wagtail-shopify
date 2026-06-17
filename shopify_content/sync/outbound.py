@@ -603,7 +603,7 @@ def sync_article_page(page):
 
 def sync_location_page(page):
     """
-    Push LocationPage → Shopify metaobjectUpsert with type $app:location_page.
+    Push LocationPage → Shopify metaobjectUpsert with type $app:location-page.
 
     Definition is app-owned (registered in shopify.app.wagtail-cms.toml).
     We never call ensure_definition — the TOML handles definition creation.
@@ -650,7 +650,7 @@ def sync_location_page(page):
 
     variables = {
         'handle': {
-            'type': '$app:location_page',
+            'type': '$app:location-page',
             'handle': handle,
         },
         'metaobject': {

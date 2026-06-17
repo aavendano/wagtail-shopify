@@ -9,6 +9,7 @@ from .embedded_redirects import (
 )
 from .forms import ShopConfigForm
 from .models import ShopConfig
+from .shop_config_lookup import get_shop_config, shop_has_access_token
 
 
 class ShopConfigFormTests(TestCase):
@@ -625,3 +626,59 @@ class EmbeddedShopifySyncViewTests(TestCase):
         self.assertContains(response, "Sincronizar contenido a Wagtail")
         self.assertContains(response, "Importar productos nuevos")
         self.assertContains(response, reverse("shopify_embedded_sync"))
+
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_home_renders_sync_buttons_when_shop_domain_formats_differ(
+        self, mock_gs, _mock_token, mock_raw_gql
+    ):
+        """Token stored as short subdomain; embedded app verifies full myshopify.com."""
+        mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop.myshopify.com",
+            id_token=SimpleNamespace(exchangeable=False),
+            new_id_token_response=SimpleNamespace(status=401, body="", headers={}),
+            response=SimpleNamespace(headers={}),
+            log=SimpleNamespace(code="verified", detail=""),
+        )
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop.myshopify.com",
+            data={"shop": {"id": "gid://shopify/Shop/1", "name": "Test Shop"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+
+        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Importar productos nuevos")
+        self.assertNotContains(response, "No hay token de acceso configurado")
+
+
+class ShopConfigLookupTests(TestCase):
+    def test_prefers_record_with_token_when_multiple_shop_formats_exist(self):
+        ShopConfig.objects.create(shop="demo", is_online=False, access_token=None)
+        ShopConfig.objects.create(
+            shop="demo.myshopify.com", is_online=False, access_token="tok"
+        )
+
+        self.assertTrue(shop_has_access_token("demo.myshopify.com"))
+        self.assertEqual(get_shop_config("demo").access_token, "tok")
+
+    def test_get_shop_config_without_shop_prefers_row_with_token(self):
+        ShopConfig.objects.create(shop="empty-shop", is_online=False, access_token=None)
+        ShopConfig.objects.create(
+            shop="ready-shop", is_online=False, access_token="tok"
+        )
+
+        config = get_shop_config()
+        self.assertEqual(config.shop, "ready-shop")
+        self.assertTrue(shop_has_access_token())

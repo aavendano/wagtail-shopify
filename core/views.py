@@ -21,6 +21,7 @@ from .embedded_redirects import (
     validate_relative_app_path,
 )
 from .forms import ShopConfigForm
+from .shop_config_lookup import get_shop_config, shop_has_access_token
 from .mixins import AppHomeVerifiedMixin
 from .utils import (
     get_shopify_app,
@@ -49,12 +50,10 @@ def _redirect_home_preserving_query(request):
     return redirect(url)
 
 
-def _shop_config_context():
-    from .models import ShopConfig
-
-    config = ShopConfig.objects.first()
+def _shop_config_context(shop=None):
+    config = get_shop_config(shop)
     return {
-        'shop_configured': bool(config and config.access_token),
+        'shop_configured': shop_has_access_token(shop),
         'shop_domain': config.shop if config else None,
     }
 
@@ -95,11 +94,14 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update(_shop_config_context())
-        context['sync_resources'] = SYNC_RESOURCES
         verification_result = getattr(self, "_verification_result", None)
-        shop = getattr(verification_result, "shop", None) if verification_result else None
+        verified_shop = (
+            getattr(verification_result, "shop", None) if verification_result else None
+        )
+        context.update(_shop_config_context(verified_shop))
+        context['sync_resources'] = SYNC_RESOURCES
         self._admin_graphql_halt = None
+        shop = verified_shop
         if shop:
             gql = fetch_shop_admin_graphql(
                 shop,

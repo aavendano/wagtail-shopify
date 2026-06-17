@@ -16,7 +16,7 @@ class LocationPage(Page):
     """
     Wagtail page that syncs to a Shopify app-owned metaobject.
 
-    Shopify type: $app:location_page
+    Shopify type: $app:location-page
     Definition lives in shopify.app.wagtail-cms.toml (app extension).
     On publish, upserted via metaobjectUpsert; no ensure_definition needed.
     """

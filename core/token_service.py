@@ -2,7 +2,10 @@ from dataclasses import asdict, is_dataclass
 
 from django.utils.dateparse import parse_datetime
 
+from webhooks.utils import shop_lookup_variants
+
 from .models import ShopConfig
+from .shop_config_lookup import get_shop_config
 from .utils import _get_attr, get_shopify_app, log_shopify_result
 
 
@@ -35,14 +38,23 @@ def _parse_optional_datetime(value):
     return parse_datetime(str(value))
 
 
+def _canonical_shop(shop):
+    for variant in shop_lookup_variants(shop):
+        if variant.endswith(".myshopify.com"):
+            return variant
+    variants = shop_lookup_variants(shop)
+    return variants[0] if variants else shop
+
+
 def _clear_tokens(shop):
-    ShopConfig.objects.filter(shop=shop).update(
-        access_token=None,
-        refresh_token=None,
-        refresh_token_expires=None,
-        expires=None,
-        scope=None,
-    )
+    for variant in shop_lookup_variants(shop):
+        ShopConfig.objects.filter(shop=variant).update(
+            access_token=None,
+            refresh_token=None,
+            refresh_token_expires=None,
+            expires=None,
+            scope=None,
+        )
 
 
 def clear_shop_tokens(shop):
@@ -50,7 +62,7 @@ def clear_shop_tokens(shop):
 
 
 def refresh_stored_token_if_possible(shopify_app, shop):
-    record = ShopConfig.objects.filter(shop=shop).first()
+    record = get_shop_config(shop)
     if not record:
         return None
     return _refresh_token_if_possible(shopify_app, record)
@@ -58,7 +70,7 @@ def refresh_stored_token_if_possible(shopify_app, shop):
 
 def persist_access_token(access_token, fallback_shop=None):
     payload = _to_dict(access_token)
-    shop = payload.get("shop") or fallback_shop
+    shop = _canonical_shop(payload.get("shop") or fallback_shop)
     if not shop:
         return None
 
@@ -115,7 +127,7 @@ def ensure_offline_token_lifecycle(verification_result, shopify_app=None):
         return None
 
     shopify_app = shopify_app or get_shopify_app()
-    token_record = ShopConfig.objects.filter(shop=shop).first()
+    token_record = get_shop_config(shop)
     if token_record:
         refresh_result = _refresh_token_if_possible(shopify_app, token_record)
         if refresh_result is not None:

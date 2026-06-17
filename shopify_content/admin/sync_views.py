@@ -10,6 +10,7 @@ from django.views.generic import TemplateView
 from wagtail.admin import messages as wagtail_messages
 from wagtail.admin.views.generic import WagtailAdminTemplateMixin
 
+from core.shop_config_lookup import get_shop_config, shop_has_access_token
 from shopify_content.sync.service import (
     VALID_IMPORT_RESOURCES,
     import_error_count,
@@ -28,10 +29,8 @@ class ShopifySyncView(WagtailAdminTemplateMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        from core.models import ShopConfig
-
-        config = ShopConfig.objects.first()
-        context['shop_configured'] = bool(config and config.access_token)
+        config = get_shop_config()
+        context['shop_configured'] = shop_has_access_token()
         context['shop_domain'] = config.shop if config else None
         context['resources'] = [
             ('products', 'Importar productos nuevos'),
