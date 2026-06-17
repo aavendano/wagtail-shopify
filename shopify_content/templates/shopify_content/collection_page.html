@@ -7,5 +7,8 @@
 </head>
 <body>
 <h1>{{ page.title }}</h1>
+{% if page.image_url %}
+<img src="{{ page.image_url }}" alt="{{ page.image_alt_text }}" loading="lazy">
+{% endif %}
 </body>
 </html>

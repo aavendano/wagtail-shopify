@@ -11,6 +11,8 @@ from wagtail.search import index
 
 from .mixins import FAQItem, SHOPIFY_SYNC_PANELS
 
+from config.settings import ALLOWED_LOCALE_CODES
+
 
 class LocationPage(Page):
     """
@@ -91,6 +93,7 @@ class LocationPage(Page):
     shopify_locale = models.CharField(
         max_length=20, blank=True, verbose_name='Shopify Locale',
         help_text='Shopify locale code pushed to the locale field (e.g. "es", "en-CA").',
+        choices=ALLOWED_LOCALE_CODES,
     )
 
     template = 'shopify_content/location_page.html'

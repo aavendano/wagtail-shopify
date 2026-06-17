@@ -26,7 +26,7 @@ class MetaobjectClient:
                 result.log_detail or "Failed to fetch metaobject definition",
                 error_code=result.error_code,
             )
-        definition_data = (result.data or {}).get("metaobjectDefinition")
+        definition_data = (result.data or {}).get("metaobjectDefinitionByType")
         if not definition_data:
             return None
         return MetaobjectDefinitionSpec.from_dict(definition_data)
@@ -75,7 +75,7 @@ class MetaobjectClient:
                 result.log_detail or "Failed to fetch metaobject",
                 error_code=result.error_code,
             )
-        metaobject_data = (result.data or {}).get("metaobject")
+        metaobject_data = (result.data or {}).get("metaobjectByHandle")
         if not metaobject_data:
             return None
         return Metaobject.from_shopify_data(metaobject_data)

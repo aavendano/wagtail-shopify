@@ -142,7 +142,7 @@ mutation {
       {
         name: "Answer",
         key: "answer",
-        type: "multi_line_text_field",
+        type: "rich_text_field",
         validations: [{ name: "max", value: "250" }]
       }
     ]

@@ -9,8 +9,9 @@ App principal del CMS. Gestiona los modelos de página Wagtail que se sincroniza
 `shopify_content` convierte Wagtail en un CMS headless para Shopify:
 
 - Los editores crean y editan contenido en Wagtail Admin.
-- Al publicar una página, el hook `after_publish_page` dispara la función de sync correspondiente.
-- El sync empuja el contenido al recurso equivalente en Shopify vía `execute_admin_graphql`.
+- Al publicar una página, el hook `after_publish_page` **encola** la sincronización outbound vía Celery (no bloquea el publish).
+- Las importaciones inbound (Wagtail admin, app embebida, API `POST */pull`) también se ejecutan en background.
+- El estado de cada job se registra en `ShopifySyncRun` (Django Admin). Ver README → sección Celery para worker/beat.
 - El storefront de Shopify sigue sirviendo al cliente final.
 
 El proyecto es **single-tenant**: una instalación Wagtail = una tienda Shopify. El `shop` se resuelve desde `ShopConfig.objects.first().shop`; no se almacena en cada página.
@@ -69,7 +70,8 @@ Todos los modelos de página (excepto `ShopifyRootPage`) heredan de `ShopifyPage
 | `body` | `descriptionHtml` | StreamField → HTML renderizado |
 | `seo_title` (Page) | `seo.title` | Campo SEO built-in de Wagtail |
 | `search_description` (Page) | `seo.description` | Campo SEO built-in de Wagtail |
-| `metafields` | `metafields` | InlinePanel → `metafieldsSet` |
+| `shopify_images` | `images` (pull) | InlinePanel → URLs absolutas CDN (máx. 10) |
+| `metafields` | `metafields` | InlinePanel → `metafieldsSet` (solo outbound / edición manual) |
 | `faqs` | metafield `custom.faqs` | InlinePanel → JSON |
 
 ---
@@ -84,7 +86,9 @@ Todos los modelos de página (excepto `ShopifyRootPage`) heredan de `ShopifyPage
 | `description` | `descriptionHtml` | StreamField → HTML |
 | `seo_title` (Page) | `seo.title` | |
 | `search_description` (Page) | `seo.description` | |
-| `metafields` | `metafields` | |
+| `image_url` | `image.url` (pull) | URL absoluta CDN |
+| `image_alt_text` | `image.altText` (pull) | |
+| `metafields` | `metafields` | Solo outbound / edición manual en pull |
 | `faqs` | metafield `custom.faqs` | |
 
 ---
@@ -116,9 +120,12 @@ Todos los modelos de página (excepto `ShopifyRootPage`) heredan de `ShopifyPage
 | `summary` | `summary` | TextField HTML |
 | `published_at` | `publishedAt` | DateTimeField |
 | `tags` | `tags` | |
-| `seo_title` (Page) | metafield `global.title_tag` | La API Article no tiene campo `seo` nativo |
-| `search_description` (Page) | metafield `global.description_tag` | |
-| `metafields` | `metafields` | |
+| `featured_image_url` | `image.url` (pull) | URL absoluta CDN |
+| `featured_image_alt` | `image.altText` (pull) | |
+| `featured_image` | — | FK Wagtail Image (manual/API; pull no lo toca) |
+| `seo_title` (Page) | metafield `global.title_tag` | No se importa en pull |
+| `search_description` (Page) | metafield `global.description_tag` | No se importa en pull |
+| `metafields` | `metafields` | Solo outbound / edición manual en pull |
 | `faqs` | metafield `custom.faqs` | |
 
 El `blogId` del padre (`ArticlePage.get_parent().specific.shopify_id`) se pasa en `articleCreate`.
@@ -293,6 +300,20 @@ El tema Liquid lee estos metafields para emitir las etiquetas de hreflang dinám
 
 Los management commands de import crean páginas Wagtail desde recursos existentes en Shopify. El body HTML se importa como un único `HtmlBlock` en el StreamField. Los editores pueden convertirlo a bloques estructurados posteriormente.
 
+**Pull ligero:** el import inbound no descarga imágenes a `wagtailimages` ni importa metafields. Las imágenes se guardan como URLs absolutas en base de datos local:
+
+| Recurso | Almacenamiento | Límite |
+|---------|----------------|--------|
+| `ProductPage` | `ProductPageImage` (InlinePanel `shopify_images`) | Máx. 10 URLs por producto |
+| `CollectionPage` | `image_url`, `image_alt_text` | 1 imagen destacada |
+| `ArticlePage` | `featured_image_url`, `featured_image_alt` | 1 imagen destacada |
+
+El FK `ArticlePage.featured_image` a `wagtailimages.Image` se conserva para uso manual o vía API; el pull no lo modifica.
+
+Los metafields (`ProductPageMetafield`, `CollectionPageMetafield`, artículos) **no se importan** en el pull. Los paneles del editor y el sync outbound al publicar siguen disponibles para metafields editados en Wagtail.
+
+El SEO de artículos (`seo_title`, `search_description`) **no** se rellena automáticamente en el pull (antes venía de metafields `global.title_tag` / `global.description_tag`).
+
 ### `sync/inbound.py`
 
 | Función | Descripción |
@@ -312,6 +333,7 @@ Los management commands de import crean páginas Wagtail desde recursos existent
 | `import_shopify_collections` | Importa colecciones → `CollectionPage` |
 | `import_shopify_blogs` | Importa blogs y artículos → `BlogPage` / `ArticlePage` |
 | `setup_locales` | Crea los 4 objetos `Locale` de Wagtail (en-US, es-US, en-CA, fr-CA) |
+| `setup_celery_beat_schedules` | Crea la tarea periódica de importación inbound (deshabilitada por defecto) |
 | `ensure_metaobject_definitions` | Crea o verifica definiciones de metaobjetos merchant-owned en Shopify (idempotente) |
 
 ---

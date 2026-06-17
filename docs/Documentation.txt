@@ -112,7 +112,7 @@ Mapeo de tipos Python → Shopify
   bool → boolean
   dict, list → json
 
-Override: field(metadata={"shopify_type": "multi_line_text_field"})
+Override: field(metadata={"shopify_type": "rich_text_field"})
 
 
 Ejemplo completo — desde dataclass

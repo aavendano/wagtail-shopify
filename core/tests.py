@@ -576,21 +576,25 @@ class EmbeddedShopifySyncViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("home"))
 
-    @patch("core.views.run_shopify_import")
+    @patch("core.views.enqueue_shopify_import")
     @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
     @patch("core.mixins.get_shopify_app")
-    def test_post_triggers_new_only_import(self, mock_gs, _mock_token, mock_run_import):
+    def test_post_triggers_new_only_import(self, mock_gs, _mock_token, mock_enqueue):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
             shop="test-shop",
             is_online=False,
             access_token="tok",
         )
-        mock_run_import.return_value = {
-            "resource": "products",
-            "stats": {"created": 2, "updated": 0, "skipped": 1, "errors": 0},
-            "message": "Productos — Creados: 2, Omitidos: 1, Errores: 0",
-        }
+        from shopify_content.models import ShopifySyncRun
+
+        sync_run = ShopifySyncRun.objects.create(
+            kind=ShopifySyncRun.KIND_INBOUND,
+            resource="products",
+            new_only=True,
+            status=ShopifySyncRun.STATUS_PENDING,
+        )
+        mock_enqueue.return_value = sync_run
 
         response = self.client.post(
             reverse("shopify_embedded_sync"),
@@ -599,7 +603,7 @@ class EmbeddedShopifySyncViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("home"))
-        mock_run_import.assert_called_once_with("products", new_only=True)
+        mock_enqueue.assert_called_once_with("products", new_only=True)
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
     @patch("core.views.ensure_offline_token_lifecycle", return_value=None)

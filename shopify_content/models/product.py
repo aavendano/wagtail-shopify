@@ -40,6 +40,38 @@ class ProductPageMetafield(ShopifyMetafield):
     )
 
 
+class ProductPageImage(models.Model):
+    """Shopify product image URL stored locally (no wagtailimages download)."""
+
+    page = ParentalKey(
+        'shopify_content.ProductPage',
+        on_delete=models.CASCADE,
+        related_name='shopify_images',
+    )
+    shopify_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Shopify MediaImage GID.',
+    )
+    url = models.URLField(
+        max_length=2048,
+        help_text='Absolute CDN URL for use in img src.',
+    )
+    alt_text = models.CharField(max_length=255, blank=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+        verbose_name = 'Shopify product image'
+        verbose_name_plural = 'Shopify product images'
+
+    panels = [
+        FieldPanel('url'),
+        FieldPanel('alt_text'),
+        FieldPanel('sort_order'),
+    ]
+
+
 class ProductPage(Page):
     """
     Mirrors a Shopify Product.
@@ -53,7 +85,7 @@ class ProductPage(Page):
       tags            → tags (ClusterTaggableManager)
       status          → status
       seo.title       → seo_title
-      seo.description → seo_description
+      seo.description → search_description
       metafields      → metafields InlinePanel (ProductPageMetafield)
     """
 
@@ -116,6 +148,7 @@ class ProductPage(Page):
             FieldPanel('status'),
         ], heading='Shopify Product Details'),
         FieldPanel('body'),
+        InlinePanel('shopify_images', label='Shopify Images (URLs)'),
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]

@@ -8,11 +8,11 @@ from ninja.errors import HttpError
 from shopify_content.models import ProductPage
 from shopify_content.models.product import ProductPageMetafield
 from shopify_content.sync.outbound import sync_product_page
-from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.task_dispatch import enqueue_shopify_import, sync_run_to_task_response
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 from ..schemas.product import ProductIn, ProductPatch, ProductOut
-from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..schemas.common import SyncResultSchema, ImportResultSchema, ImportTaskSchema, ErrorSchema
 from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
@@ -44,7 +44,7 @@ def list_products(
     Returns an empty list if no products match the filters.
     """
     qs = ProductPage.objects.select_related('locale').prefetch_related(
-        'metafields', 'tagged_items__tag'
+        'metafields', 'tagged_items__tag', 'shopify_images'
     )
     if live_only:
         qs = qs.live()
@@ -116,7 +116,7 @@ def create_product(request, data: ProductIn):
     return 201, page
 
 
-@router.get('/pull', response=ImportResultSchema, summary="Pull Products from Shopify")
+@router.get('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Products from Shopify")
 def pull_products_get(request):
     """
     Alias for POST /products/pull — provided for agent discoverability.
@@ -125,7 +125,7 @@ def pull_products_get(request):
     return _do_pull_products()
 
 
-@router.post('/pull', response=ImportResultSchema, summary="Pull Products from Shopify")
+@router.post('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Products from Shopify")
 def pull_products(request):
     """
     Import all products from the connected Shopify store into Wagtail as ProductPage instances.
@@ -142,15 +142,16 @@ def pull_products(request):
     - A ShopConfig with a valid Shopify offline access token must exist.
     - The ShopifyRootPage for products (slug=root) is created automatically if missing.
 
-    Returns counts of created, updated, and failed imports.
-    Failures are logged server-side; the operation continues despite individual errors.
+    Returns a 202 response with sync_run_id and celery_task_id. Poll ShopifySyncRun
+    in Django admin or wait for the Celery worker to complete the job.
     """
     return _do_pull_products()
 
 
 def _do_pull_products():
     try:
-        return run_shopify_import_for_api('products', new_only=False)
+        sync_run = enqueue_shopify_import('products', new_only=False)
+        return 202, sync_run_to_task_response(sync_run)
     except RuntimeError as e:
         raise HttpError(400, str(e))
 
@@ -171,7 +172,7 @@ def get_product(request, page_id: int):
         page = (
             ProductPage.objects
             .select_related('locale')
-            .prefetch_related('metafields', 'tagged_items__tag')
+            .prefetch_related('metafields', 'tagged_items__tag', 'shopify_images')
             .get(pk=page_id)
         )
         return page
@@ -199,7 +200,7 @@ def update_product(request, page_id: int, data: ProductPatch):
         page = (
             ProductPage.objects
             .select_related('locale')
-            .prefetch_related('metafields', 'tagged_items__tag')
+            .prefetch_related('metafields', 'tagged_items__tag', 'shopify_images')
             .get(pk=page_id)
         )
     except ProductPage.DoesNotExist:

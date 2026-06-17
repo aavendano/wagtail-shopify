@@ -13,6 +13,11 @@ SEO is pushed as metafields: namespace=global, key=title_tag / description_tag.
 hreflang metafields: after each sync, all live locale translations of a page
 are pushed as metafields (namespace=seo, keys=hreflang_en_us, etc.) so the
 Shopify Liquid theme can render <link rel="alternate"> tags.
+
+Primary locale (en-US): outbound sync always pushes en-US content to the
+primary Shopify resource, even when triggered from another locale. Non-primary
+locales are registered via translationsRegister for every live variant in the
+translation group (including the page that triggered sync).
 """
 
 import json
@@ -33,6 +38,8 @@ from .mutations import (
 )
 
 logger = logging.getLogger(__name__)
+
+PRIMARY_LOCALE = 'en-US'
 
 
 def _graphql_error_detail(result):
@@ -194,6 +201,44 @@ def _push_seo_metafields(shop, owner_gid, seo_title, seo_description):
     return _push_metafields(shop, inputs)
 
 
+def _resolve_primary_page(page):
+    """
+    Return the en-US variant for primary Shopify resource content.
+
+    When sync is triggered from a translated page (e.g. es-US), the primary
+    Shopify resource should still receive en-US content. Falls back to `page`
+    when no live en-US sibling exists in the translation group.
+    """
+    if page.locale.language_code == PRIMARY_LOCALE:
+        return page
+    try:
+        en_us = (
+            page.get_translations(inclusive=True)
+            .filter(locale__language_code=PRIMARY_LOCALE, live=True)
+            .select_related('locale')
+            .first()
+        )
+        if en_us is not None:
+            return en_us.specific
+    except Exception:
+        pass
+    return page
+
+
+def _live_translation_variants(page):
+    """All live pages in the translation group, including the given page."""
+    return page.get_translations(inclusive=True).live().select_related('locale')
+
+
+def _translation_field_value(variant_page, getter):
+    if callable(getter):
+        return getter(variant_page)
+    value = getattr(variant_page, getter, None) or ''
+    if callable(value):
+        value = value()
+    return str(value) if value else ''
+
+
 def _push_hreflang_metafields(page, shop, owner_gid):
     """
     Push alternate locale URLs as metafields for theme-side hreflang rendering.
@@ -201,9 +246,8 @@ def _push_hreflang_metafields(page, shop, owner_gid):
     Only called when wagtail-localize translations exist.
     """
     try:
-        translations = page.get_translations().live().select_related('locale')
         inputs = []
-        for t in translations:
+        for t in _live_translation_variants(page):
             lang_key = t.locale.language_code.replace('-', '_').lower()
             url = t.full_url
             if url:
@@ -214,17 +258,6 @@ def _push_hreflang_metafields(page, shop, owner_gid):
                     'type': 'url',
                     'value': url,
                 })
-        # Also include current page's own locale
-        current_url = page.full_url
-        if current_url:
-            current_lang_key = page.locale.language_code.replace('-', '_').lower()
-            inputs.append({
-                'ownerId': owner_gid,
-                'namespace': 'seo',
-                'key': f'hreflang_{current_lang_key}',
-                'type': 'url',
-                'value': current_url,
-            })
         _push_metafields(shop, inputs)
     except Exception:
         # Translations may not be set up yet; skip silently
@@ -235,6 +268,9 @@ def _register_shopify_translations(page, shop, resource_id, translatable_fields)
     """
     Push translated field values to Shopify via translationsRegister mutation.
 
+    Registers every live non-primary locale in the translation group, including
+    the page that triggered sync (not only its siblings).
+
     translatable_fields: dict of {shopify_key: getter}
       getter can be:
         - str  → attribute name on the translation page (field or method)
@@ -243,21 +279,15 @@ def _register_shopify_translations(page, shop, resource_id, translatable_fields)
     Shopify locale codes: 'es' (es-US), 'en-CA', 'fr-CA'. Primary locale (en-US) is skipped.
     """
     try:
-        translations = page.get_translations().live().select_related('locale')
-        for t in translations:
-            shopify_locale = _wagtail_locale_to_shopify(t.locale.language_code)
+        for variant in _live_translation_variants(page):
+            shopify_locale = _wagtail_locale_to_shopify(variant.locale.language_code)
             if not shopify_locale:
                 continue
 
+            specific = variant.specific
             translation_inputs = []
             for shopify_key, getter in translatable_fields.items():
-                if callable(getter):
-                    value = getter(t)
-                else:
-                    value = getattr(t, getter, None) or ''
-                    if callable(value):
-                        value = value()
-                value = str(value) if value else ''
+                value = _translation_field_value(specific, getter)
                 if value:
                     translation_inputs.append({
                         'key': shopify_key,
@@ -328,20 +358,22 @@ def sync_product_page(page):
         return False
 
     shop = _get_shop()
-    body_html = _render_streamfield_html(page.body)
+    primary = _resolve_primary_page(page)
+    shopify_id = page.shopify_id
+    body_html = _render_streamfield_html(primary.body)
 
     variables = {
         'input': {
-            'id': page.shopify_id,
-            'title': page.title,
+            'id': shopify_id,
+            'title': primary.title,
             'descriptionHtml': body_html,
-            'vendor': page.vendor,
-            'productType': page.product_type,
-            'tags': list(page.tags.values_list('name', flat=True)),
-            'status': page.status,
+            'vendor': primary.vendor,
+            'productType': primary.product_type,
+            'tags': list(primary.tags.values_list('name', flat=True)),
+            'status': primary.status,
             'seo': {
-                'title': page.get_seo_title(),
-                'description': page.get_seo_description(),
+                'title': primary.get_seo_title(),
+                'description': primary.get_seo_description(),
             },
         }
     }
@@ -360,13 +392,13 @@ def sync_product_page(page):
         return False
 
     # Metafields (inline panel + streamfield blocks)
-    mf_inputs = _collect_inline_metafields(page, page.shopify_id)
-    mf_inputs += _collect_streamfield_metafields(page.body, page.shopify_id)
+    mf_inputs = _collect_inline_metafields(primary, shopify_id)
+    mf_inputs += _collect_streamfield_metafields(primary.body, shopify_id)
     _push_metafields(shop, mf_inputs)
-    _push_faq_metafield(shop, page.shopify_id, page.faqs)
-    _push_hreflang_metafields(page, shop, page.shopify_id)
+    _push_faq_metafield(shop, shopify_id, primary.faqs)
+    _push_hreflang_metafields(page, shop, shopify_id)
     _register_shopify_translations(
-        page, shop, page.shopify_id,
+        page, shop, shopify_id,
         {
             'title': 'title',
             'body_html': lambda t: _render_streamfield_html(t.body),
@@ -386,16 +418,18 @@ def sync_collection_page(page):
         return False
 
     shop = _get_shop()
-    description_html = _render_streamfield_html(page.description)
+    primary = _resolve_primary_page(page)
+    shopify_id = page.shopify_id
+    description_html = _render_streamfield_html(primary.description)
 
     variables = {
         'input': {
-            'id': page.shopify_id,
-            'title': page.title,
+            'id': shopify_id,
+            'title': primary.title,
             'descriptionHtml': description_html,
             'seo': {
-                'title': page.get_seo_title(),
-                'description': page.get_seo_description(),
+                'title': primary.get_seo_title(),
+                'description': primary.get_seo_description(),
             },
         }
     }
@@ -414,12 +448,12 @@ def sync_collection_page(page):
         logger.error('collectionUpdate userErrors pk=%s: %s', page.pk, user_errors)
         return False
 
-    mf_inputs = _collect_inline_metafields(page, page.shopify_id)
+    mf_inputs = _collect_inline_metafields(primary, shopify_id)
     _push_metafields(shop, mf_inputs)
-    _push_faq_metafield(shop, page.shopify_id, page.faqs)
-    _push_hreflang_metafields(page, shop, page.shopify_id)
+    _push_faq_metafield(shop, shopify_id, primary.faqs)
+    _push_hreflang_metafields(page, shop, shopify_id)
     _register_shopify_translations(
-        page, shop, page.shopify_id,
+        page, shop, shopify_id,
         {
             'title': 'title',
             'body_html': lambda t: _render_streamfield_html(t.description),
@@ -438,14 +472,15 @@ def sync_blog_page(page):
         return False
 
     shop = _get_shop()
+    primary = _resolve_primary_page(page)
 
     if page.shopify_id:
         variables = {
             'id': page.shopify_id,
             'blog': {
-                'title': page.title,
-                'handle': page.handle or None,
-                'commentPolicy': page.comment_policy,
+                'title': primary.title,
+                'handle': primary.handle or None,
+                'commentPolicy': primary.comment_policy,
             },
         }
         result = execute_admin_graphql(BLOG_UPDATE, shop=shop, variables=variables)
@@ -453,9 +488,9 @@ def sync_blog_page(page):
     else:
         variables = {
             'blog': {
-                'title': page.title,
-                'handle': page.handle or None,
-                'commentPolicy': page.comment_policy,
+                'title': primary.title,
+                'handle': primary.handle or None,
+                'commentPolicy': primary.comment_policy,
             },
         }
         result = execute_admin_graphql(BLOG_CREATE, shop=shop, variables=variables)
@@ -489,20 +524,20 @@ def sync_blog_page(page):
     # Blog has no native description or seo fields — push as metafields
     if page.shopify_id:
         blog_metafields = []
-        if page.description:
+        if primary.description:
             blog_metafields.append({
                 'ownerId': page.shopify_id,
                 'namespace': 'descriptors',
                 'key': 'description',
-                'type': 'multi_line_text_field',
-                'value': page.description,
+                'type': 'rich_text_field',
+                'value': primary.description,
             })
         _push_metafields(shop, blog_metafields)
-        _push_faq_metafield(shop, page.shopify_id, page.faqs)
+        _push_faq_metafield(shop, page.shopify_id, primary.faqs)
         _push_seo_metafields(
             shop, page.shopify_id,
-            page.get_seo_title(),
-            page.get_seo_description(),
+            primary.get_seo_title(),
+            primary.get_seo_description(),
         )
 
     _mark_synced(type(page), page.pk)
@@ -530,7 +565,8 @@ def sync_article_page(page):
         return False
 
     shop = _get_shop()
-    common_fields = _article_mutation_fields(page)
+    primary = _resolve_primary_page(page)
+    common_fields = _article_mutation_fields(primary)
 
     if page.shopify_id:
         variables = {'id': page.shopify_id, 'article': common_fields}
@@ -576,15 +612,15 @@ def sync_article_page(page):
     if page.shopify_id:
         _push_seo_metafields(
             shop, page.shopify_id,
-            page.get_seo_title(),
-            page.get_seo_description(),
+            primary.get_seo_title(),
+            primary.get_seo_description(),
         )
 
         # Additional inline metafields
-        mf_inputs = _collect_inline_metafields(page, page.shopify_id)
-        mf_inputs += _collect_streamfield_metafields(page.body, page.shopify_id)
+        mf_inputs = _collect_inline_metafields(primary, page.shopify_id)
+        mf_inputs += _collect_streamfield_metafields(primary.body, page.shopify_id)
         _push_metafields(shop, mf_inputs)
-        _push_faq_metafield(shop, page.shopify_id, page.faqs)
+        _push_faq_metafield(shop, page.shopify_id, primary.faqs)
 
         _push_hreflang_metafields(page, shop, page.shopify_id)
         _register_shopify_translations(
@@ -615,30 +651,30 @@ def _location_page_definition():
             'publishable': {'enabled': True},
             'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location-page'}},
             'renderable': {'enabled': True, 'data': {
-                'metaTitleField': 'titulo',
-                'metaDescriptionField': 'subtitulo',
+                'metaTitleKey': 'titulo',
+                'metaDescriptionKey': 'subtitulo',
             }},
         },
         access={'storefront': 'PUBLIC_READ'},
         fields=[
             MetaobjectFieldSpec(key='titulo',                 name='Título',                type='single_line_text_field', required=True),
             MetaobjectFieldSpec(key='subtitulo',              name='Subtítulo',             type='single_line_text_field'),
-            MetaobjectFieldSpec(key='intro',                  name='Intro',                 type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='intro',                  name='Intro',                 type='rich_text_field'),
             MetaobjectFieldSpec(key='country',                name='Country',               type='single_line_text_field'),
             MetaobjectFieldSpec(key='state',                  name='State / Province',      type='single_line_text_field'),
             MetaobjectFieldSpec(key='city',                   name='City',                  type='single_line_text_field'),
             MetaobjectFieldSpec(key='titulo_2',               name='Título 2',              type='single_line_text_field'),
             MetaobjectFieldSpec(key='subtitulo_h2',           name='Subtítulo H2',          type='single_line_text_field'),
-            MetaobjectFieldSpec(key='content_2',              name='Content 2',             type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='content_2',              name='Content 2',             type='rich_text_field'),
             MetaobjectFieldSpec(key='titulo_3',               name='Título 3',              type='single_line_text_field'),
             MetaobjectFieldSpec(key='subtitulo_3',            name='Subtítulo 3',           type='single_line_text_field'),
-            MetaobjectFieldSpec(key='content_3',              name='Content 3',             type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='content_3',              name='Content 3',             type='rich_text_field'),
             MetaobjectFieldSpec(key='brand_section_title',    name='Brand Section Title',   type='single_line_text_field'),
             MetaobjectFieldSpec(key='brand_section_subtitle', name='Brand Section Subtitle',type='single_line_text_field'),
-            MetaobjectFieldSpec(key='brand_section_content',  name='Brand Section Content', type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='brand_section_content',  name='Brand Section Content', type='rich_text_field'),
             MetaobjectFieldSpec(key='map_title',              name='Map Title',             type='single_line_text_field'),
-            MetaobjectFieldSpec(key='map_content',            name='Map Content',           type='multi_line_text_field'),
-            MetaobjectFieldSpec(key='after_page_content',     name='After Page Content',    type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='map_content',            name='Map Content',           type='rich_text_field'),
+            MetaobjectFieldSpec(key='after_page_content',     name='After Page Content',    type='rich_text_field'),
             MetaobjectFieldSpec(key='faqs',                   name='FAQs',                  type='json'),
             MetaobjectFieldSpec(key='locale',                 name='Locale',               type='single_line_text_field'),
         ],
@@ -652,7 +688,7 @@ def sync_location_page(page):
     Uses MetaobjectClient.sync() which calls ensure_definition() on every sync
     (one extra GET per publish — safe and self-healing if definition is deleted).
     Handle defaults to page.slug if page.handle is not set.
-    Rich text fields (RichTextField HTML) are stored as multi_line_text_field.
+    Rich text fields (RichTextField HTML) are stored as rich_text_field.
     FAQs list is detected by to_shopify_fields() and serialized as json.dumps().
     """
     if not page.sync_enabled:

@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -213,3 +214,17 @@ SHOPIFY_PARENT_REDIRECT_ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+ALLOWED_LOCALE_CODES = {
+    'en-US': 'English (United States)',
+    'es-US': 'Spanish (United States)',
+    'en-CA': 'English (Canada)',
+    'fr-CA': 'French (Canada)',
+}
+
+# Celery
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'false').lower() == 'true'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'

@@ -17,3 +17,6 @@ requests>=2.25.0
 wagtail
 wagtail-localize>=1.8
 django-ninja>=1.3
+celery>=5.4
+django-celery-beat>=2.9
+redis>=5.0

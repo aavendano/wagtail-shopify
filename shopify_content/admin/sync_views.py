@@ -11,11 +11,8 @@ from wagtail.admin import messages as wagtail_messages
 from wagtail.admin.views.generic import WagtailAdminTemplateMixin
 
 from core.shop_config_lookup import get_shop_config, shop_has_access_token
-from shopify_content.sync.service import (
-    VALID_IMPORT_RESOURCES,
-    import_error_count,
-    run_shopify_import,
-)
+from shopify_content.sync.service import VALID_IMPORT_RESOURCES
+from shopify_content.sync.task_dispatch import enqueue_shopify_import
 
 logger = logging.getLogger(__name__)
 
@@ -47,21 +44,15 @@ class ShopifySyncView(WagtailAdminTemplateMixin, TemplateView):
             return redirect(reverse('shopify_sync'))
 
         try:
-            result = run_shopify_import(resource, new_only=True)
-            stats = result['stats']
-            errors = import_error_count(stats, resource)
-            if errors > 0:
-                wagtail_messages.warning(
-                    request,
-                    result['message'],
-                    extra_tags='shopify-sync',
-                )
-            else:
-                wagtail_messages.success(
-                    request,
-                    result['message'],
-                    extra_tags='shopify-sync',
-                )
+            sync_run = enqueue_shopify_import(resource, new_only=True)
+            wagtail_messages.success(
+                request,
+                (
+                    f'Importación en cola (id={sync_run.pk}). '
+                    'Consulta el estado en Django Admin → Shopify sync runs.'
+                ),
+                extra_tags='shopify-sync',
+            )
         except RuntimeError as exc:
             wagtail_messages.error(request, str(exc), extra_tags='shopify-sync-error')
         except Exception:

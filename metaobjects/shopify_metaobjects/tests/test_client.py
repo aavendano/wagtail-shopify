@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from metaobjects.shopify_metaobjects.client import MetaobjectClient
-from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec
+from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
 from metaobjects.shopify_metaobjects.exceptions import UpsertError
 from metaobjects.shopify_metaobjects.metaobject import Metaobject
 from shopify_requests.graphql_service import AdminGraphqlResult
@@ -93,6 +93,39 @@ class MetaobjectSerializationTests(TestCase):
 
 
 class MetaobjectDefinitionSpecTests(TestCase):
+    def test_to_shopify_input_uses_admin_api_field_names(self):
+        definition = MetaobjectDefinitionSpec(
+            type="location_page",
+            name="Location Page",
+            description="Test",
+            display_name_field="titulo",
+            capabilities={
+                "renderable": {
+                    "enabled": True,
+                    "data": {
+                        "metaTitleField": "titulo",
+                        "metaDescriptionField": "subtitulo",
+                    },
+                },
+            },
+            fields=[
+                MetaobjectFieldSpec(
+                    key="titulo",
+                    name="Título",
+                    type="single_line_text_field",
+                    required=True,
+                ),
+            ],
+        )
+        payload = definition.to_shopify_input()
+        self.assertIn("fieldDefinitions", payload)
+        self.assertNotIn("fields", payload)
+        self.assertEqual(payload["displayNameKey"], "titulo")
+        self.assertNotIn("displayNameField", payload)
+        renderable_data = payload["capabilities"]["renderable"]["data"]
+        self.assertEqual(renderable_data["metaTitleKey"], "titulo")
+        self.assertEqual(renderable_data["metaDescriptionKey"], "subtitulo")
+
     def test_from_dataclass_excludes_handle(self):
         definition = MetaobjectDefinitionSpec.from_dataclass(
             FabricSpec,
@@ -111,7 +144,7 @@ class MetaobjectClientTests(TestCase):
     def test_ensure_definition_returns_existing(self, mock_execute):
         mock_execute.return_value = _ok_result(
             {
-                "metaobjectDefinition": {
+                "metaobjectDefinitionByType": {
                     "type": "fabric",
                     "name": "Fabric",
                     "description": "Existing",
@@ -133,7 +166,7 @@ class MetaobjectClientTests(TestCase):
     @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
     def test_ensure_definition_creates_when_missing(self, mock_execute):
         mock_execute.side_effect = [
-            _ok_result({"metaobjectDefinition": None}),
+            _ok_result({"metaobjectDefinitionByType": None}),
             _ok_result(
                 {
                     "metaobjectDefinitionCreate": {
@@ -225,7 +258,7 @@ class MetaobjectClientTests(TestCase):
     @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
     def test_sync_end_to_end(self, mock_execute):
         mock_execute.side_effect = [
-            _ok_result({"metaobjectDefinition": None}),
+            _ok_result({"metaobjectDefinitionByType": None}),
             _ok_result(
                 {
                     "metaobjectDefinitionCreate": {

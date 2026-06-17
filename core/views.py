@@ -10,11 +10,8 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
-from shopify_content.sync.service import (
-    VALID_IMPORT_RESOURCES,
-    import_error_count,
-    run_shopify_import,
-)
+from shopify_content.sync.service import VALID_IMPORT_RESOURCES
+from shopify_content.sync.task_dispatch import enqueue_shopify_import
 
 from .embedded_redirects import (
     validate_parent_redirect_url,
@@ -163,13 +160,14 @@ class EmbeddedShopifySyncView(AppHomeVerifiedMixin, View):
             return _redirect_home_preserving_query(request)
 
         try:
-            result = run_shopify_import(resource, new_only=True)
-            stats = result['stats']
-            errors = import_error_count(stats, resource)
-            if errors > 0:
-                messages.warning(request, result['message'])
-            else:
-                messages.success(request, result['message'])
+            sync_run = enqueue_shopify_import(resource, new_only=True)
+            messages.success(
+                request,
+                (
+                    f'Importación en cola (id={sync_run.pk}). '
+                    'Se procesará en segundo plano.'
+                ),
+            )
         except RuntimeError as exc:
             messages.error(request, str(exc))
         except Exception:

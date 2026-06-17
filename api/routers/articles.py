@@ -9,10 +9,10 @@ from ninja.errors import HttpError
 from shopify_content.models import BlogPage, ArticlePage
 from shopify_content.models.blog import ArticlePageMetafield
 from shopify_content.sync.outbound import sync_article_page
-from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.task_dispatch import enqueue_shopify_import, sync_run_to_task_response
 
 from ..schemas.article import ArticleIn, ArticlePatch, ArticleOut
-from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..schemas.common import SyncResultSchema, ImportResultSchema, ImportTaskSchema, ErrorSchema
 from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
@@ -125,7 +125,7 @@ def create_article(request, data: ArticleIn):
     return 201, page
 
 
-@router.post('/pull', response=ImportResultSchema, summary="Pull Articles from Shopify")
+@router.post('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Articles from Shopify")
 def pull_articles(request):
     """
     Import all blogs and articles from the connected Shopify store into Wagtail.
@@ -144,10 +144,11 @@ def pull_articles(request):
     - A ShopConfig with a valid Shopify offline access token must exist.
     - The ShopifyRootPage for blogs (slug=blogs) is created automatically if missing.
 
-    Returns article import counts (blogs are also imported as a side effect).
+    Returns 202 with sync_run_id and celery_task_id for async import tracking.
     """
     try:
-        return run_shopify_import_for_api('blogs', new_only=False)
+        sync_run = enqueue_shopify_import('blogs', new_only=False)
+        return 202, sync_run_to_task_response(sync_run)
     except RuntimeError as e:
         raise HttpError(400, str(e))
 

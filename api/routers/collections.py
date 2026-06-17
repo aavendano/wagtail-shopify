@@ -8,11 +8,11 @@ from ninja.errors import HttpError
 from shopify_content.models import CollectionPage
 from shopify_content.models.collection import CollectionPageMetafield
 from shopify_content.sync.outbound import sync_collection_page
-from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.task_dispatch import enqueue_shopify_import, sync_run_to_task_response
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 from ..schemas.collection import CollectionIn, CollectionPatch, CollectionOut
-from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..schemas.common import SyncResultSchema, ImportResultSchema, ImportTaskSchema, ErrorSchema
 from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
@@ -105,7 +105,7 @@ def create_collection(request, data: CollectionIn):
     return 201, page
 
 
-@router.post('/pull', response=ImportResultSchema, summary="Pull Collections from Shopify")
+@router.post('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Collections from Shopify")
 def pull_collections(request):
     """
     Import all collections from the connected Shopify store into Wagtail as CollectionPage instances.
@@ -122,10 +122,11 @@ def pull_collections(request):
     - A ShopConfig with a valid Shopify offline access token must exist.
     - The ShopifyRootPage for collections (slug=collections) is created automatically if missing.
 
-    Returns counts of created, updated, and failed imports.
+    Returns 202 with sync_run_id and celery_task_id for async import tracking.
     """
     try:
-        return run_shopify_import_for_api('collections', new_only=False)
+        sync_run = enqueue_shopify_import('collections', new_only=False)
+        return 202, sync_run_to_task_response(sync_run)
     except RuntimeError as e:
         raise HttpError(400, str(e))
 

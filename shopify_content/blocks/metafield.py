@@ -3,7 +3,7 @@ from wagtail.blocks import StructBlock, CharBlock, TextBlock, ChoiceBlock
 
 SHOPIFY_METAFIELD_TYPES = [
     ('single_line_text_field', 'Single Line Text'),
-    ('multi_line_text_field', 'Multi Line Text'),
+    ('rich_text_field', 'Multi Line Text'),
     ('json', 'JSON'),
     ('number_integer', 'Integer'),
     ('number_decimal', 'Decimal'),

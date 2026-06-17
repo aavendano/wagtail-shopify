@@ -81,6 +81,49 @@ python manage.py import_shopify_collections
 | `import_shopify_collections` | Importa colecciones → `CollectionPage` |
 | `import_shopify_blogs` | Importa blogs y artículos → `BlogPage` / `ArticlePage` |
 | `setup_locales` | Crea los 4 objetos `Locale` de Wagtail (en-US, es-US, en-CA, fr-CA) |
+| `setup_celery_beat_schedules` | Crea la tarea periódica de importación (deshabilitada por defecto) |
+
+---
+
+## Celery (sync asíncrono)
+
+Las importaciones inbound (Wagtail admin, app embebida, API `POST */pull`) y el sync outbound al publicar páginas se ejecutan en **background** vía Celery. El estado de cada job se guarda en `ShopifySyncRun` (Django Admin → Shopify sync runs).
+
+### Variables de entorno
+
+```env
+CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0
+# CELERY_TASK_ALWAYS_EAGER=true   # dev sin worker (ejecuta inline)
+```
+
+### Procesos
+
+```bash
+# Redis debe estar corriendo
+redis-server
+
+# Worker
+celery -A config worker -l info
+
+# Beat (tareas periódicas en DB)
+celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+# Desarrollo: worker + beat en un solo proceso
+celery -A config worker --beat --scheduler django --loglevel=info
+```
+
+### Setup
+
+```bash
+python manage.py migrate django_celery_beat
+python manage.py migrate
+python manage.py setup_celery_beat_schedules
+```
+
+Habilita la tarea periódica en **Django Admin → Periodic tasks** (`Importar contenido nuevo desde Shopify`, cron 03:00 America/Toronto).
+
+Los management commands `import_shopify_*` siguen siendo **síncronos** (útiles para ops sin worker).
 
 ---
 
@@ -172,7 +215,7 @@ from dataclasses import dataclass, field
 @dataclass
 class ArticleTeaser:
     handle: str
-    body: str = field(metadata={'shopify_type': 'multi_line_text_field'})
+    body: str = field(metadata={'shopify_type': 'rich_text_field'})
 ```
 
 ### Errores

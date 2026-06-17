@@ -59,7 +59,7 @@ class MetafieldSchema(Schema):
         description=(
             "Shopify metafield type controlling validation and display. "
             "'single_line_text_field' — plain text ≤255 chars; "
-            "'multi_line_text_field' — long text; "
+            "'rich_text_field' — long text; "
             "'json' — structured JSON (pass a JSON string as value); "
             "'url' — fully-qualified URL; "
             "'number_integer' — whole number as string; "
@@ -98,5 +98,19 @@ class ImportResultSchema(Schema):
     message: str = Field(..., description="Summary of the import operation.")
 
 
+class ImportTaskSchema(Schema):
+    sync_run_id: int = Field(..., description="ShopifySyncRun primary key for status tracking.")
+    celery_task_id: str = Field(..., description="Celery task ID.")
+    status: str = Field(..., description="Job status: pending, running, success, or failed.")
+    message: str = Field(..., description="Human-readable status message.")
+
+
 class ErrorSchema(Schema):
     detail: str = Field(..., description="Human-readable error message describing what went wrong.")
+
+
+class ShopifyImageUrlSchema(Schema):
+    shopify_id: str = Field('', description="Shopify MediaImage GID.")
+    url: str = Field(..., description="Absolute CDN URL for img src.")
+    alt_text: str = Field('', description="Image alt text.")
+    sort_order: int = Field(0, description="Display order (products only).")
