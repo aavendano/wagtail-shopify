@@ -4,12 +4,19 @@ from ninja import Router
 from django.utils.text import slugify
 from ninja.errors import HttpError
 
-from shopify_content.models import BlogPage, ShopifyRootPage
+from shopify_content.models import BlogPage
 from shopify_content.sync.outbound import sync_blog_page
-from shopify_content.sync.inbound import import_blogs_and_articles, _get_shop
+from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 from ..schemas.blog import BlogIn, BlogPatch, BlogOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -36,13 +43,7 @@ def list_blogs(
     qs = BlogPage.objects.select_related('locale')
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     return list(qs[offset:offset + limit])
 
 
@@ -58,22 +59,27 @@ def create_blog(request, data: BlogIn):
     The page is saved as a draft (unpublished). Call PATCH with publish=true to publish.
     After publishing with sync_enabled=true, the blog is created/updated in Shopify.
 
-    Returns HTTP 400 if no ShopifyRootPage exists in the Wagtail page tree.
+    Returns HTTP 400 if the Wagtail site is not configured.
     """
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        return 400, {"detail": "No ShopifyRootPage found. Create one in Wagtail admin first."}
+    try:
+        parent = resolve_shopify_import_parent('blogs')
+    except RuntimeError as e:
+        return 400, {"detail": str(e)}
 
     slug = slugify(data.handle or data.title)
 
     page = BlogPage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         comment_policy=data.comment_policy or 'CLOSED',
         sync_enabled=data.sync_enabled if data.sync_enabled is not None else True,
     )
+
+    source = apply_translation_link(page, data.translation_of, BlogPage)
+    inherit_shopify_id_from_source(page, source)
 
     parent.add_child(instance=page)
     page.refresh_from_db()
@@ -100,34 +106,15 @@ def pull_blogs(request):
     POST /articles/pull separately.
 
     Prerequisites:
-    - A ShopifyRootPage must exist in the Wagtail page tree.
     - A ShopConfig with a valid Shopify offline access token must exist.
+    - The ShopifyRootPage for blogs (slug=blogs) is created automatically if missing.
 
     Returns blog import counts (articles are imported as a side effect).
     """
     try:
-        shop = _get_shop()
+        return run_shopify_import_for_api('blogs', new_only=False)
     except RuntimeError as e:
         raise HttpError(400, str(e))
-
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        raise HttpError(400, "No ShopifyRootPage found. Create one in Wagtail admin first.")
-
-    result = import_blogs_and_articles(shop, parent)
-    blog_stats = result['blogs']
-    article_stats = result['articles']
-    return {
-        "created": blog_stats['created'],
-        "updated": blog_stats['updated'],
-        "errors": blog_stats['errors'],
-        "message": (
-            f"Blog import complete. Blogs — Created: {blog_stats['created']}, "
-            f"Updated: {blog_stats['updated']}, Errors: {blog_stats['errors']}. "
-            f"Articles — Created: {article_stats['created']}, "
-            f"Updated: {article_stats['updated']}, Errors: {article_stats['errors']}."
-        ),
-    }
 
 
 @router.get('/{page_id}', response={200: BlogOut, 404: ErrorSchema}, summary="Get Blog")
@@ -181,6 +168,11 @@ def update_blog(request, page_id: int, data: BlogPatch):
         page.comment_policy = data.comment_policy
     if data.sync_enabled is not None:
         page.sync_enabled = data.sync_enabled
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, BlogPage)
+        inherit_shopify_id_from_source(page, source)
 
     if data.publish:
         revision = page.save_revision()

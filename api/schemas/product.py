@@ -3,10 +3,10 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields
 
 
-class ProductIn(Schema):
+class ProductIn(LocaleCreateFields):
     title: str = Field(
         ...,
         description=(
@@ -108,7 +108,7 @@ class ProductIn(Schema):
     )
 
 
-class ProductPatch(Schema):
+class ProductPatch(LocalePatchFields):
     title: Optional[str] = Field(
         None,
         description="Update the product title. Omit to leave unchanged.",
@@ -174,7 +174,7 @@ class ProductPatch(Schema):
     )
 
 
-class ProductOut(Schema):
+class ProductOut(LocaleOutFields):
     id: int = Field(..., description="Wagtail page ID. Use this as the page_id in all /products/{page_id}/ endpoints.")
     shopify_id: str = Field(
         ...,
@@ -207,6 +207,11 @@ class ProductOut(Schema):
     url: Optional[str] = Field(None, description="Full public URL of this page. Null if the site is not configured.")
     first_published_at: Optional[datetime] = Field(None, description="UTC timestamp when this page was first published.")
     last_published_at: Optional[datetime] = Field(None, description="UTC timestamp of the most recent publish.")
+
+    @staticmethod
+    def resolve_translation_page_ids(obj):
+        from ..locale_utils import resolve_translation_page_ids
+        return resolve_translation_page_ids(obj)
 
     @staticmethod
     def resolve_tags(obj):

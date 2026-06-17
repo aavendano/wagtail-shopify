@@ -3,10 +3,10 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields
 
 
-class ArticleIn(Schema):
+class ArticleIn(LocaleCreateFields):
     title: str = Field(
         ...,
         description=(
@@ -124,7 +124,7 @@ class ArticleIn(Schema):
     )
 
 
-class ArticlePatch(Schema):
+class ArticlePatch(LocalePatchFields):
     title: Optional[str] = Field(
         None,
         description="Update the article title. Omit to leave unchanged.",
@@ -204,7 +204,7 @@ class ArticlePatch(Schema):
     )
 
 
-class ArticleOut(Schema):
+class ArticleOut(LocaleOutFields):
     id: int = Field(
         ...,
         description="Wagtail page ID. Use this as page_id in all /articles/{page_id}/ endpoints.",
@@ -270,12 +270,17 @@ class ArticleOut(Schema):
     )
 
     @staticmethod
+    def resolve_translation_page_ids(obj):
+        from ..locale_utils import resolve_translation_page_ids
+        return resolve_translation_page_ids(obj)
+
+    @staticmethod
     def resolve_tags(obj):
         return list(obj.tags.values_list('name', flat=True))
 
     @staticmethod
     def resolve_body(obj):
-        return list(obj.body.stream_data) if obj.body else []
+        return list(obj.body.raw_data) if obj.body else []
 
     @staticmethod
     def resolve_metafields(obj):

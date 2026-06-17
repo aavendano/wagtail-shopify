@@ -1,8 +1,7 @@
-# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "5045aa8f0d16fbd8e6ee66207cb39a8e"
 name = "Wagtail-CMS"
-application_url = "https://monkey-tight-lab.ngrok-free.app/"
+application_url = "https://wagtail-dev.aadigitalbusiness.com/shopify-admin"
 embedded = true
 
 [build]
@@ -12,8 +11,127 @@ automatically_update_urls_on_dev = true
 api_version = "2026-07"
 
 [access_scopes]
-# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_content,read_online_store_pages,write_content,write_online_store_pages,read_products,write_products"
 
 [auth]
-redirect_urls = [ "https://monkey-tight-lab.ngrok-free.app/auth/callback/" ]
+redirect_urls = [ "https://wagtail-dev.aadigitalbusiness.com/auth/callback" ]
+
+# ---------------------------------------------------------------------------
+# App-owned metaobject definitions
+# Shopify type prefix: $app:<handle>
+# deploy with: shopify app deploy
+# ---------------------------------------------------------------------------
+
+[[extensions]]
+type = "metaobject_definition"
+handle = "location-page"
+name = "Location Page"
+display_name_field = "titulo"
+
+  [extensions.access]
+  storefront = "public_read"
+
+  [extensions.capabilities.onlineStore]
+
+  [extensions.capabilities.renderable]
+
+  [[extensions.field_definitions]]
+  key = "titulo"
+  name = "Título"
+  type = "single_line_text_field"
+  required = true
+
+  [[extensions.field_definitions]]
+  key = "subtitulo"
+  name = "Subtítulo"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "intro"
+  name = "Intro"
+  type = "multi_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "country"
+  name = "Country"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "state"
+  name = "State / Province"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "city"
+  name = "City"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "titulo_2"
+  name = "Título 2"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "subtitulo_h2"
+  name = "Subtítulo H2"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "content_2"
+  name = "Content 2"
+  type = "multi_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "titulo_3"
+  name = "Título 3"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "subtitulo_3"
+  name = "Subtítulo 3"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "content_3"
+  name = "Content 3"
+  type = "multi_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "brand_section_title"
+  name = "Brand Section Title"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "brand_section_subtitle"
+  name = "Brand Section Subtitle"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "brand_section_content"
+  name = "Brand Section Content"
+  type = "multi_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "map_title"
+  name = "Map Title"
+  type = "single_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "map_content"
+  name = "Map Content"
+  type = "multi_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "after_page_content"
+  name = "After Page Content"
+  type = "multi_line_text_field"
+
+  [[extensions.field_definitions]]
+  key = "faqs"
+  name = "FAQs"
+  type = "json"
+
+  [[extensions.field_definitions]]
+  key = "locale"
+  name = "Locale"
+  type = "single_line_text_field"

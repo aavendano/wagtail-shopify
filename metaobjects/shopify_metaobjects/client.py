@@ -1,0 +1,160 @@
+from dataclasses import is_dataclass
+from typing import Any
+
+from shopify_requests.graphql_service import execute_admin_graphql
+
+from .definition import MetaobjectDefinitionSpec
+from .exceptions import DefinitionError, UpsertError
+from .metaobject import Metaobject
+from .mutations import METAOBJECT_DEFINITION_CREATE, METAOBJECT_UPSERT
+from .queries import METAOBJECT_BY_HANDLE, METAOBJECT_DEFINITION_BY_TYPE
+from .validation import validate_metaobject
+
+
+class MetaobjectClient:
+    def __init__(self, shop: str):
+        self.shop = shop
+
+    def get_definition(self, type: str) -> MetaobjectDefinitionSpec | None:
+        result = execute_admin_graphql(
+            METAOBJECT_DEFINITION_BY_TYPE,
+            shop=self.shop,
+            variables={"type": type},
+        )
+        if not result.ok:
+            raise DefinitionError(
+                result.log_detail or "Failed to fetch metaobject definition",
+                error_code=result.error_code,
+            )
+        definition_data = (result.data or {}).get("metaobjectDefinition")
+        if not definition_data:
+            return None
+        return MetaobjectDefinitionSpec.from_dict(definition_data)
+
+    def ensure_definition(
+        self, spec: MetaobjectDefinitionSpec
+    ) -> MetaobjectDefinitionSpec:
+        existing = self.get_definition(spec.type)
+        if existing:
+            return existing
+        return self.create_definition(spec)
+
+    def create_definition(
+        self, spec: MetaobjectDefinitionSpec
+    ) -> MetaobjectDefinitionSpec:
+        result = execute_admin_graphql(
+            METAOBJECT_DEFINITION_CREATE,
+            shop=self.shop,
+            variables={"definition": spec.to_shopify_input()},
+        )
+        if not result.ok:
+            raise DefinitionError(
+                result.log_detail or "Failed to create metaobject definition",
+                error_code=result.error_code,
+            )
+        payload = (result.data or {}).get("metaobjectDefinitionCreate", {})
+        user_errors = payload.get("userErrors") or []
+        if user_errors:
+            raise DefinitionError(
+                "; ".join(error.get("message", str(error)) for error in user_errors),
+                user_errors=user_errors,
+            )
+        definition_data = payload.get("metaobjectDefinition")
+        if not definition_data:
+            raise DefinitionError("metaobjectDefinitionCreate returned no definition")
+        return MetaobjectDefinitionSpec.from_dict(definition_data)
+
+    def get_by_handle(self, type: str, handle: str) -> Metaobject | None:
+        result = execute_admin_graphql(
+            METAOBJECT_BY_HANDLE,
+            shop=self.shop,
+            variables={"handle": handle, "type": type},
+        )
+        if not result.ok:
+            raise UpsertError(
+                result.log_detail or "Failed to fetch metaobject",
+                error_code=result.error_code,
+            )
+        metaobject_data = (result.data or {}).get("metaobject")
+        if not metaobject_data:
+            return None
+        return Metaobject.from_shopify_data(metaobject_data)
+
+    def upsert(
+        self,
+        metaobject: Metaobject,
+        *,
+        definition: MetaobjectDefinitionSpec | None = None,
+        validate: bool = True,
+    ) -> Metaobject:
+        if validate and definition is not None:
+            errors = validate_metaobject(metaobject, definition)
+            if errors:
+                raise UpsertError("; ".join(errors))
+
+        variables = {
+            "handle": {
+                "type": metaobject.type,
+                "handle": metaobject.handle,
+            },
+            "metaobject": {
+                "fields": metaobject.to_shopify_fields(),
+            },
+        }
+        result = execute_admin_graphql(
+            METAOBJECT_UPSERT,
+            shop=self.shop,
+            variables=variables,
+        )
+        if not result.ok:
+            raise UpsertError(
+                result.log_detail or "Failed to upsert metaobject",
+                error_code=result.error_code,
+            )
+        payload = (result.data or {}).get("metaobjectUpsert", {})
+        user_errors = payload.get("userErrors") or []
+        if user_errors:
+            raise UpsertError(
+                "; ".join(error.get("message", str(error)) for error in user_errors),
+                user_errors=user_errors,
+            )
+        metaobject_data = payload.get("metaobject")
+        if not metaobject_data:
+            raise UpsertError("metaobjectUpsert returned no metaobject")
+        return Metaobject.from_shopify_data(metaobject_data)
+
+    def upsert_many(
+        self,
+        metaobjects: list[Metaobject],
+        *,
+        definition: MetaobjectDefinitionSpec | None = None,
+        validate: bool = True,
+    ) -> dict[str, int]:
+        stats = {"upserted": 0, "failed": 0}
+        for metaobject in metaobjects:
+            try:
+                self.upsert(metaobject, definition=definition, validate=validate)
+                stats["upserted"] += 1
+            except UpsertError:
+                stats["failed"] += 1
+        return stats
+
+    def sync(
+        self,
+        data: Any,
+        *,
+        definition: MetaobjectDefinitionSpec,
+        ensure_definition: bool = True,
+        validate: bool = True,
+    ) -> Metaobject:
+        if ensure_definition:
+            self.ensure_definition(definition)
+        if is_dataclass(data):
+            metaobject = Metaobject.from_dataclass(data, type=definition.type)
+        elif isinstance(data, dict):
+            metaobject = Metaobject.from_dict(data, type=definition.type)
+        elif isinstance(data, Metaobject):
+            metaobject = data
+        else:
+            raise TypeError("data must be a dict, dataclass instance, or Metaobject")
+        return self.upsert(metaobject, definition=definition, validate=validate)

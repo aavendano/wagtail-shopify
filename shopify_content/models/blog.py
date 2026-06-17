@@ -11,7 +11,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
 
 
@@ -28,6 +28,12 @@ class BlogPage(Page):
       handle        → handle
       title         → Page.title
       commentPolicy → comment_policy
+
+    No native description or seo fields in Shopify Blog API.
+    Synced as metafields:
+      description        → descriptors.description
+      seo_title          → global.title_tag
+      search_description → global.description_tag
     """
 
     # Shopify sync fields
@@ -50,20 +56,43 @@ class BlogPage(Page):
         help_text='Maps to Shopify Blog commentPolicy.',
     )
 
+    description = models.TextField(
+        blank=True,
+        help_text='Blog description (HTML allowed). Synced as metafield descriptors.description.',
+    )
+
+    # seo_title and search_description inherited from Page.
+    # Synced as metafields global.title_tag / global.description_tag
+    # (Blog has no native seo field in Shopify Admin GraphQL API.)
+
     template = 'shopify_content/blog_page.html'
     parent_page_types = ['wagtailcore.Page', 'shopify_content.ShopifyRootPage']
     subpage_types = ['shopify_content.ArticlePage']
 
     search_fields = Page.search_fields + [
         index.FilterField('shopify_id'),
+        index.SearchField('description'),
     ]
 
     content_panels = Page.content_panels + [
         FieldPanel('comment_policy'),
+        FieldPanel('description'),
+        InlinePanel('faqs', label='FAQs'),
+    ]
+
+    promote_panels = [
+        MultiFieldPanel([
+            FieldPanel('seo_title'),
+            FieldPanel('search_description'),
+        ], heading='SEO (synced as Shopify metafields global.title_tag / description_tag)'),
+        MultiFieldPanel([
+            FieldPanel('slug'),
+        ], heading='Wagtail Internal'),
     ]
 
     edit_handler = TabbedInterface([
         ObjectList(content_panels, heading='Content'),
+        ObjectList(promote_panels, heading='SEO / Promote'),
         ObjectList(SHOPIFY_SYNC_PANELS, heading='Shopify'),
         ObjectList(Page.settings_panels, heading='Settings'),
     ])
@@ -71,6 +100,20 @@ class BlogPage(Page):
     class Meta:
         verbose_name = 'Blog'
         verbose_name_plural = 'Blogs'
+
+    def get_seo_title(self):
+        return self.seo_title or self.title
+
+    def get_seo_description(self):
+        return self.search_description or self.description or ''
+
+
+class BlogPageFAQ(FAQItem):
+    page = ParentalKey(
+        'shopify_content.BlogPage',
+        on_delete=models.CASCADE,
+        related_name='faqs',
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +125,14 @@ class ArticlePageTag(TaggedItemBase):
         'shopify_content.ArticlePage',
         related_name='tagged_items',
         on_delete=models.CASCADE,
+    )
+
+
+class ArticlePageFAQ(FAQItem):
+    page = ParentalKey(
+        'shopify_content.ArticlePage',
+        on_delete=models.CASCADE,
+        related_name='faqs',
     )
 
 
@@ -174,6 +225,7 @@ class ArticlePage(Page):
         FieldPanel('featured_image'),
         FieldPanel('summary'),
         FieldPanel('body'),
+        InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]
 

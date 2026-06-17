@@ -5,13 +5,20 @@ from ninja import Router
 from django.utils.text import slugify
 from ninja.errors import HttpError
 
-from shopify_content.models import CollectionPage, ShopifyRootPage
+from shopify_content.models import CollectionPage
 from shopify_content.models.collection import CollectionPageMetafield
 from shopify_content.sync.outbound import sync_collection_page
-from shopify_content.sync.inbound import import_collections, _get_shop
+from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 from ..schemas.collection import CollectionIn, CollectionPatch, CollectionOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -37,13 +44,7 @@ def list_collections(
     qs = CollectionPage.objects.select_related('locale').prefetch_related('metafields')
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     return list(qs[offset:offset + limit])
 
 
@@ -61,17 +62,19 @@ def create_collection(request, data: CollectionIn):
     Alternatively, use POST /collections/pull/ to import all collections from Shopify automatically.
     The page is saved as a draft (unpublished). Call PATCH with publish=true to publish and sync.
 
-    Returns HTTP 400 if no ShopifyRootPage exists in the Wagtail page tree.
+    Returns HTTP 400 if the Wagtail site is not configured.
     """
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        return 400, {"detail": "No ShopifyRootPage found. Create one in Wagtail admin first."}
+    try:
+        parent = resolve_shopify_import_parent('collections')
+    except RuntimeError as e:
+        return 400, {"detail": str(e)}
 
     slug = slugify(data.handle or data.title)
 
     page = CollectionPage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         sort_order=data.sort_order or 'MANUAL',
@@ -82,6 +85,9 @@ def create_collection(request, data: CollectionIn):
 
     if data.description:
         page.description = json.dumps(data.description)
+
+    source = apply_translation_link(page, data.translation_of, CollectionPage)
+    inherit_shopify_id_from_source(page, source)
 
     parent.add_child(instance=page)
 
@@ -113,25 +119,15 @@ def pull_collections(request):
     to make content changes.
 
     Prerequisites:
-    - A ShopifyRootPage must exist in the Wagtail page tree.
     - A ShopConfig with a valid Shopify offline access token must exist.
+    - The ShopifyRootPage for collections (slug=collections) is created automatically if missing.
 
     Returns counts of created, updated, and failed imports.
     """
     try:
-        shop = _get_shop()
+        return run_shopify_import_for_api('collections', new_only=False)
     except RuntimeError as e:
         raise HttpError(400, str(e))
-
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        raise HttpError(400, "No ShopifyRootPage found. Create one in Wagtail admin first.")
-
-    stats = import_collections(shop, parent)
-    return {
-        **stats,
-        "message": f"Import complete. Created: {stats['created']}, Updated: {stats['updated']}, Errors: {stats['errors']}",
-    }
 
 
 @router.get('/{page_id}', response={200: CollectionOut, 404: ErrorSchema}, summary="Get Collection")
@@ -197,6 +193,11 @@ def update_collection(request, page_id: int, data: CollectionPatch):
         page.seo_title = data.seo_title
     if data.search_description is not None:
         page.search_description = data.search_description
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, CollectionPage)
+        inherit_shopify_id_from_source(page, source)
     if data.description is not None:
         page.description = json.dumps(data.description)
 

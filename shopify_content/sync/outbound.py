@@ -30,6 +30,7 @@ from .mutations import (
     ARTICLE_UPDATE,
     METAFIELDS_SET,
     TRANSLATIONS_REGISTER,
+    METAOBJECT_UPSERT,
 )
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,24 @@ def _push_metafields(shop, metafield_inputs):
     return True
 
 
+def _push_faq_metafield(shop, owner_gid, faq_queryset):
+    """
+    Push FAQ items as a single JSON metafield custom.faqs.
+    Value: [{"question": "...", "answer": "..."}, ...]
+    """
+    items = list(faq_queryset.order_by('sort_order'))
+    if not items:
+        return True
+    faq_data = [{'question': f.question, 'answer': f.answer} for f in items]
+    return _push_metafields(shop, [{
+        'ownerId': owner_gid,
+        'namespace': 'custom',
+        'key': 'faqs',
+        'type': 'json',
+        'value': json.dumps(faq_data, ensure_ascii=False),
+    }])
+
+
 def _push_seo_metafields(shop, owner_gid, seo_title, seo_description):
     """
     Push SEO data as Shopify metafields.
@@ -216,30 +235,35 @@ def _push_hreflang_metafields(page, shop, owner_gid):
 def _register_shopify_translations(page, shop, resource_id, translatable_fields):
     """
     Push translated field values to Shopify via translationsRegister mutation.
-    translatable_fields: dict of {shopify_key: wagtail_attr_name}
 
-    Called for each non-primary locale translation of a page.
-    Shopify locale codes use 2-letter + optional region: 'es', 'fr', 'en-CA'.
+    translatable_fields: dict of {shopify_key: getter}
+      getter can be:
+        - str  → attribute name on the translation page (field or method)
+        - callable(translation_page) → str value
+
+    Shopify locale codes: 'es' (es-US), 'en-CA', 'fr-CA'. Primary locale (en-US) is skipped.
     """
     try:
         translations = page.get_translations().live().select_related('locale')
         for t in translations:
-            locale_code = t.locale.language_code
-            # Map en-US → en, es-US → es, en-CA → en-CA, fr-CA → fr-CA
-            shopify_locale = _wagtail_locale_to_shopify(locale_code)
+            shopify_locale = _wagtail_locale_to_shopify(t.locale.language_code)
             if not shopify_locale:
                 continue
 
             translation_inputs = []
-            for shopify_key, attr_name in translatable_fields.items():
-                value = getattr(t, attr_name, None) or ''
-                if callable(value):
-                    value = value()
+            for shopify_key, getter in translatable_fields.items():
+                if callable(getter):
+                    value = getter(t)
+                else:
+                    value = getattr(t, getter, None) or ''
+                    if callable(value):
+                        value = value()
+                value = str(value) if value else ''
                 if value:
                     translation_inputs.append({
                         'key': shopify_key,
                         'locale': shopify_locale,
-                        'value': str(value),
+                        'value': value,
                     })
 
             if translation_inputs:
@@ -340,14 +364,14 @@ def sync_product_page(page):
     mf_inputs = _collect_inline_metafields(page, page.shopify_id)
     mf_inputs += _collect_streamfield_metafields(page.body, page.shopify_id)
     _push_metafields(shop, mf_inputs)
-
-    # hreflang metafields for Liquid theme
+    _push_faq_metafield(shop, page.shopify_id, page.faqs)
     _push_hreflang_metafields(page, shop, page.shopify_id)
-
-    # Register Shopify translations for non-primary locales
     _register_shopify_translations(
         page, shop, page.shopify_id,
-        {'title': 'title', 'body_html': 'get_description_html'},
+        {
+            'title': 'title',
+            'body_html': lambda t: _render_streamfield_html(t.body),
+        },
     )
 
     _mark_synced(type(page), page.pk)
@@ -393,7 +417,15 @@ def sync_collection_page(page):
 
     mf_inputs = _collect_inline_metafields(page, page.shopify_id)
     _push_metafields(shop, mf_inputs)
+    _push_faq_metafield(shop, page.shopify_id, page.faqs)
     _push_hreflang_metafields(page, shop, page.shopify_id)
+    _register_shopify_translations(
+        page, shop, page.shopify_id,
+        {
+            'title': 'title',
+            'body_html': lambda t: _render_streamfield_html(t.description),
+        },
+    )
     _mark_synced(type(page), page.pk)
     return True
 
@@ -454,6 +486,25 @@ def sync_blog_page(page):
                 handle=new_handle or page.handle,
             )
             page.shopify_id = new_id
+
+    # Blog has no native description or seo fields — push as metafields
+    if page.shopify_id:
+        blog_metafields = []
+        if page.description:
+            blog_metafields.append({
+                'ownerId': page.shopify_id,
+                'namespace': 'descriptors',
+                'key': 'description',
+                'type': 'multi_line_text_field',
+                'value': page.description,
+            })
+        _push_metafields(shop, blog_metafields)
+        _push_faq_metafield(shop, page.shopify_id, page.faqs)
+        _push_seo_metafields(
+            shop, page.shopify_id,
+            page.get_seo_title(),
+            page.get_seo_description(),
+        )
 
     _mark_synced(type(page), page.pk)
     return True
@@ -534,8 +585,100 @@ def sync_article_page(page):
         mf_inputs = _collect_inline_metafields(page, page.shopify_id)
         mf_inputs += _collect_streamfield_metafields(page.body, page.shopify_id)
         _push_metafields(shop, mf_inputs)
+        _push_faq_metafield(shop, page.shopify_id, page.faqs)
 
         _push_hreflang_metafields(page, shop, page.shopify_id)
+        _register_shopify_translations(
+            page, shop, page.shopify_id,
+            {
+                'title': 'title',
+                'body_html': lambda t: _render_streamfield_html(t.body),
+                'summary_html': 'summary',
+            },
+        )
+
+    _mark_synced(type(page), page.pk)
+    return True
+
+
+def sync_location_page(page):
+    """
+    Push LocationPage → Shopify metaobjectUpsert with type $app:location_page.
+
+    Definition is app-owned (registered in shopify.app.wagtail-cms.toml).
+    We never call ensure_definition — the TOML handles definition creation.
+    Handle is page.handle if set, otherwise page.slug.
+    Rich text fields are pushed as multi_line_text_field (HTML string).
+    """
+    if not page.sync_enabled:
+        return False
+
+    shop = _get_shop()
+    handle = page.handle or page.slug
+
+    # Build field list; skip blank optional values
+    raw_fields = [
+        ('titulo', page.titulo),
+        ('subtitulo', page.subtitulo),
+        ('intro', page.intro),
+        ('country', page.country),
+        ('state', page.state),
+        ('city', page.city),
+        ('titulo_2', page.titulo_2),
+        ('subtitulo_h2', page.subtitulo_h2),
+        ('content_2', page.content_2),
+        ('titulo_3', page.titulo_3),
+        ('subtitulo_3', page.subtitulo_3),
+        ('content_3', page.content_3),
+        ('brand_section_title', page.brand_section_title),
+        ('brand_section_subtitle', page.brand_section_subtitle),
+        ('brand_section_content', page.brand_section_content),
+        ('map_title', page.map_title),
+        ('map_content', page.map_content),
+        ('after_page_content', page.after_page_content),
+    ]
+    if page.shopify_locale:
+        raw_fields.append(('locale', page.shopify_locale))
+
+    fields = [{'key': k, 'value': v} for k, v in raw_fields if v]
+
+    # FAQs as JSON array
+    faq_items = list(page.faqs.order_by('sort_order'))
+    if faq_items:
+        faq_data = [{'question': f.question, 'answer': f.answer} for f in faq_items]
+        fields.append({'key': 'faqs', 'value': json.dumps(faq_data, ensure_ascii=False)})
+
+    variables = {
+        'handle': {
+            'type': '$app:location_page',
+            'handle': handle,
+        },
+        'metaobject': {
+            'fields': fields,
+        },
+    }
+
+    result = execute_admin_graphql(METAOBJECT_UPSERT, shop=shop, variables=variables)
+    if not result.ok:
+        detail = _graphql_error_detail(result)
+        logger.error(
+            'metaobjectUpsert failed shop=%s pk=%s error=%s detail=%s',
+            shop, page.pk, result.error_code, detail,
+        )
+        return False
+
+    payload = (result.data or {}).get('metaobjectUpsert', {})
+    user_errors = payload.get('userErrors') or []
+    if user_errors:
+        logger.error('metaobjectUpsert userErrors pk=%s: %s', page.pk, user_errors)
+        return False
+
+    # Persist shopify_id on first upsert
+    metaobject_data = payload.get('metaobject') or {}
+    new_id = metaobject_data.get('id')
+    if new_id and not page.shopify_id:
+        type(page).objects.filter(pk=page.pk).update(shopify_id=new_id)
+        page.shopify_id = new_id
 
     _mark_synced(type(page), page.pk)
     return True

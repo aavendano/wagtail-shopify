@@ -29,6 +29,7 @@ from ..models import (
     BlogPage,
     ArticlePage, ArticlePageMetafield,
 )
+from .import_parents import ensure_child_of_import_parent
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,10 @@ def _extract_metafields(node):
     ]
 
 
+def _empty_import_stats():
+    return {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
+
+
 def _get_or_create_page(model_class, shopify_id, shop):
     """
     Look up an existing page by shopify_id, or return a new unsaved instance.
@@ -103,17 +108,23 @@ def _get_or_create_page(model_class, shopify_id, shop):
 # Public import functions — called from management commands
 # ---------------------------------------------------------------------------
 
-def import_products(shop, parent_page):
+def import_products(shop, parent_page, new_only=False):
     """
     Fetch all Shopify Products and create/update ProductPage instances
     as children of parent_page.
+
+    When new_only is True, existing pages (matched by shopify_id) are skipped.
     """
-    stats = {'created': 0, 'updated': 0, 'errors': 0}
+    stats = _empty_import_stats()
 
     for node in _paginate(shop, LIST_PRODUCTS, 'products'):
         try:
             gid = node['id']
             page, is_new = _get_or_create_page(ProductPage, gid, shop)
+
+            if not is_new and new_only:
+                stats['skipped'] += 1
+                continue
 
             page.title = node.get('title', '')
             page.slug = node.get('handle', gid.rsplit('/', 1)[-1])
@@ -138,7 +149,7 @@ def import_products(shop, parent_page):
                 page.save_revision().publish()
 
             if tags:
-                page.tags.set(*tags)
+                page.tags.set(tags)
 
             # Sync metafields
             page.metafields.all().delete()
@@ -161,14 +172,22 @@ def import_products(shop, parent_page):
     return stats
 
 
-def import_collections(shop, parent_page):
-    """Fetch all Shopify Collections and create/update CollectionPage instances."""
-    stats = {'created': 0, 'updated': 0, 'errors': 0}
+def import_collections(shop, parent_page, new_only=False):
+    """
+    Fetch all Shopify Collections and create/update CollectionPage instances.
+
+    When new_only is True, existing pages (matched by shopify_id) are skipped.
+    """
+    stats = _empty_import_stats()
 
     for node in _paginate(shop, LIST_COLLECTIONS, 'collections'):
         try:
             gid = node['id']
             page, is_new = _get_or_create_page(CollectionPage, gid, shop)
+
+            if not is_new and new_only:
+                stats['skipped'] += 1
+                continue
 
             page.title = node.get('title', '')
             page.slug = node.get('handle', gid.rsplit('/', 1)[-1])
@@ -186,6 +205,7 @@ def import_collections(shop, parent_page):
             if is_new:
                 parent_page.add_child(instance=page)
             else:
+                ensure_child_of_import_parent(page, parent_page)
                 page.save_revision().publish()
 
             page.metafields.all().delete()
@@ -208,33 +228,43 @@ def import_collections(shop, parent_page):
     return stats
 
 
-def import_blogs_and_articles(shop, parent_page):
+def import_blogs_and_articles(shop, parent_page, new_only=False):
     """
     Fetch all Shopify Blogs and their Articles.
     Blogs become BlogPage instances; articles become ArticlePage children.
     Run this before import_products/import_collections if you want
     a clean page tree.
+
+    When new_only is True, existing blogs and articles are not updated;
+    new articles under existing blogs are still imported.
     """
-    blog_stats = {'created': 0, 'updated': 0, 'errors': 0}
-    article_stats = {'created': 0, 'updated': 0, 'errors': 0}
+    blog_stats = _empty_import_stats()
+    article_stats = _empty_import_stats()
 
     for blog_node in _paginate(shop, LIST_BLOGS, 'blogs'):
         try:
             gid = blog_node['id']
             blog_page, is_new = _get_or_create_page(BlogPage, gid, shop)
 
-            blog_page.title = blog_node.get('title', '')
-            blog_page.slug = blog_node.get('handle', gid.rsplit('/', 1)[-1])
-            blog_page.handle = blog_node.get('handle', '')
-            blog_page.comment_policy = blog_node.get('commentPolicy', 'CLOSED')
-
             if is_new:
+                blog_page.title = blog_node.get('title', '')
+                blog_page.slug = blog_node.get('handle', gid.rsplit('/', 1)[-1])
+                blog_page.handle = blog_node.get('handle', '')
+                blog_page.comment_policy = blog_node.get('commentPolicy', 'CLOSED')
                 parent_page.add_child(instance=blog_page)
+                type(blog_page).objects.filter(pk=blog_page.pk).update(last_synced_at=timezone.now())
+                blog_stats['created'] += 1
+            elif new_only:
+                blog_stats['skipped'] += 1
             else:
+                blog_page.title = blog_node.get('title', '')
+                blog_page.slug = blog_node.get('handle', gid.rsplit('/', 1)[-1])
+                blog_page.handle = blog_node.get('handle', '')
+                blog_page.comment_policy = blog_node.get('commentPolicy', 'CLOSED')
+                ensure_child_of_import_parent(blog_page, parent_page)
                 blog_page.save_revision().publish()
-
-            type(blog_page).objects.filter(pk=blog_page.pk).update(last_synced_at=timezone.now())
-            blog_stats['created' if is_new else 'updated'] += 1
+                type(blog_page).objects.filter(pk=blog_page.pk).update(last_synced_at=timezone.now())
+                blog_stats['updated'] += 1
 
             # Import articles for this blog
             for art_node in _paginate(
@@ -246,6 +276,10 @@ def import_blogs_and_articles(shop, parent_page):
                 try:
                     art_gid = art_node['id']
                     art_page, art_is_new = _get_or_create_page(ArticlePage, art_gid, shop)
+
+                    if not art_is_new and new_only:
+                        article_stats['skipped'] += 1
+                        continue
 
                     art_page.title = art_node.get('title', '')
                     art_page.slug = art_node.get('handle', art_gid.rsplit('/', 1)[-1])
@@ -273,10 +307,11 @@ def import_blogs_and_articles(shop, parent_page):
                     if art_is_new:
                         blog_page.add_child(instance=art_page)
                     else:
+                        ensure_child_of_import_parent(art_page, blog_page)
                         art_page.save_revision().publish()
 
                     if tags:
-                        art_page.tags.set(*tags)
+                        art_page.tags.set(tags)
 
                     art_page.metafields.all().delete()
                     for mf in _extract_metafields(art_node):

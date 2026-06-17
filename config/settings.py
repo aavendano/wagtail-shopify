@@ -23,11 +23,12 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET')
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'wagtail-dev.aadigitalbusiness.com']
 
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost:3458',
     'https://127.0.0.1:3458',
+    'https://wagtail-dev.aadigitalbusiness.com',
 ]
 
 _shopify_app_url = os.environ.get('SHOPIFY_APP_URL', '').rstrip('/')
@@ -48,8 +49,8 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 INSTALLED_APPS = [
     'custom.apps.CustomConfig',
 
-    'wagtail_localize',
-    'wagtail_localize.locales',
+    #'wagtail_localize',
+    'wagtail.locales',
 
     'wagtail.contrib.forms',
     'wagtail.contrib.redirects',
@@ -62,6 +63,7 @@ INSTALLED_APPS = [
     'wagtail.images',
     'wagtail.search',
     'wagtail.admin',
+
     'wagtail',
 
     'taggit',

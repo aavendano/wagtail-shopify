@@ -5,13 +5,20 @@ from ninja import Router
 from django.utils.text import slugify
 from ninja.errors import HttpError
 
-from shopify_content.models import ProductPage, ShopifyRootPage
+from shopify_content.models import ProductPage
 from shopify_content.models.product import ProductPageMetafield
 from shopify_content.sync.outbound import sync_product_page
-from shopify_content.sync.inbound import import_products, _get_shop
+from shopify_content.sync.service import run_shopify_import_for_api
+from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 from ..schemas.product import ProductIn, ProductPatch, ProductOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..locale_utils import (
+    resolve_locale,
+    apply_translation_link,
+    inherit_shopify_id_from_source,
+    filter_queryset_by_locale,
+)
 
 router = Router()
 
@@ -41,13 +48,7 @@ def list_products(
     )
     if live_only:
         qs = qs.live()
-    if locale:
-        from wagtail.models import Locale
-        try:
-            loc = Locale.objects.get(language_code=locale)
-            qs = qs.filter(locale=loc)
-        except Locale.DoesNotExist:
-            return []
+    qs = filter_queryset_by_locale(qs, locale)
     if status:
         qs = qs.filter(status=status)
     return list(qs[offset:offset + limit])
@@ -67,17 +68,19 @@ def create_product(request, data: ProductIn):
     Alternatively, use POST /products/pull/ to import all products from Shopify automatically.
     The page is saved as a draft (unpublished). Call PATCH with publish=true to publish and sync.
 
-    Returns HTTP 400 if no ShopifyRootPage exists in the Wagtail page tree (create one in Wagtail admin first).
+    Returns HTTP 400 if the Wagtail site is not configured or ShopConfig is missing.
     """
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        return 400, {"detail": "No ShopifyRootPage found. Create one in Wagtail admin first."}
+    try:
+        parent = resolve_shopify_import_parent('products')
+    except RuntimeError as e:
+        return 400, {"detail": str(e)}
 
     slug = slugify(data.handle or data.title)
 
     page = ProductPage(
         title=data.title,
         slug=slug,
+        locale=resolve_locale(data.locale),
         shopify_id=data.shopify_id or '',
         handle=data.handle or slug,
         status=data.status or 'ACTIVE',
@@ -91,10 +94,13 @@ def create_product(request, data: ProductIn):
     if data.body:
         page.body = json.dumps(data.body)
 
+    source = apply_translation_link(page, data.translation_of, ProductPage)
+    inherit_shopify_id_from_source(page, source)
+
     parent.add_child(instance=page)
 
     if data.tags:
-        page.tags.set(*data.tags)
+        page.tags.set(data.tags)
 
     if data.metafields:
         for mf in data.metafields:
@@ -133,8 +139,8 @@ def pull_products(request):
     to make content changes.
 
     Prerequisites:
-    - A ShopifyRootPage must exist in the Wagtail page tree.
     - A ShopConfig with a valid Shopify offline access token must exist.
+    - The ShopifyRootPage for products (slug=root) is created automatically if missing.
 
     Returns counts of created, updated, and failed imports.
     Failures are logged server-side; the operation continues despite individual errors.
@@ -144,19 +150,9 @@ def pull_products(request):
 
 def _do_pull_products():
     try:
-        shop = _get_shop()
+        return run_shopify_import_for_api('products', new_only=False)
     except RuntimeError as e:
         raise HttpError(400, str(e))
-
-    parent = ShopifyRootPage.objects.first()
-    if not parent:
-        raise HttpError(400, "No ShopifyRootPage found. Create one in Wagtail admin first.")
-
-    stats = import_products(shop, parent)
-    return {
-        **stats,
-        "message": f"Import complete. Created: {stats['created']}, Updated: {stats['updated']}, Errors: {stats['errors']}",
-    }
 
 
 @router.get('/{page_id}', response={200: ProductOut, 404: ErrorSchema}, summary="Get Product")
@@ -228,11 +224,16 @@ def update_product(request, page_id: int, data: ProductPatch):
         page.seo_title = data.seo_title
     if data.search_description is not None:
         page.search_description = data.search_description
+    if data.locale is not None:
+        page.locale = resolve_locale(data.locale)
+    if data.translation_of is not None:
+        source = apply_translation_link(page, data.translation_of, ProductPage)
+        inherit_shopify_id_from_source(page, source)
     if data.body is not None:
         page.body = json.dumps(data.body)
 
     if data.tags is not None:
-        page.tags.set(*data.tags)
+        page.tags.set(data.tags)
 
     if data.metafields is not None:
         page.metafields.all().delete()

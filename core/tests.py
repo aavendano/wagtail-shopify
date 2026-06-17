@@ -551,3 +551,77 @@ class EmbeddedRedirectViewTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         mock_gs.return_value.app_home_parent_redirect.assert_not_called()
+
+
+class EmbeddedShopifySyncViewTests(TestCase):
+    def _mock_verified_app_home(self, mock_gs):
+        mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            id_token=SimpleNamespace(exchangeable=False),
+            new_id_token_response=SimpleNamespace(status=401, body="", headers={}),
+            response=SimpleNamespace(headers={}),
+            log=SimpleNamespace(code="verified", detail=""),
+        )
+
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_post_rejects_invalid_resource(self, mock_gs, _mock_token):
+        self._mock_verified_app_home(mock_gs)
+        response = self.client.post(
+            reverse("shopify_embedded_sync"),
+            data={"resource": "invalid"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("home"))
+
+    @patch("core.views.run_shopify_import")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_post_triggers_new_only_import(self, mock_gs, _mock_token, mock_run_import):
+        self._mock_verified_app_home(mock_gs)
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        mock_run_import.return_value = {
+            "resource": "products",
+            "stats": {"created": 2, "updated": 0, "skipped": 1, "errors": 0},
+            "message": "Productos — Creados: 2, Omitidos: 1, Errores: 0",
+        }
+
+        response = self.client.post(
+            reverse("shopify_embedded_sync"),
+            data={"resource": "products"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("home"))
+        mock_run_import.assert_called_once_with("products", new_only=True)
+
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_home_renders_sync_buttons(self, mock_gs, _mock_token, mock_raw_gql):
+        self._mock_verified_app_home(mock_gs)
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            data={"shop": {"id": "gid://shopify/Shop/1", "name": "Test Shop"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+
+        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sincronizar contenido a Wagtail")
+        self.assertContains(response, "Importar productos nuevos")
+        self.assertContains(response, reverse("shopify_embedded_sync"))

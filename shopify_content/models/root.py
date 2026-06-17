@@ -13,6 +13,7 @@ class ShopifyRootPage(Page):
         'shopify_content.ProductPage',
         'shopify_content.CollectionPage',
         'shopify_content.BlogPage',
+        'shopify_content.LocationPage',
     ]
 
     template = 'shopify_content/root_page.html'
