@@ -30,7 +30,6 @@ from .mutations import (
     ARTICLE_UPDATE,
     METAFIELDS_SET,
     TRANSLATIONS_REGISTER,
-    METAOBJECT_UPSERT,
 )
 
 logger = logging.getLogger(__name__)
@@ -601,14 +600,60 @@ def sync_article_page(page):
     return True
 
 
+def _location_page_definition():
+    """
+    Build the MetaobjectDefinitionSpec for the merchant-owned location_page type.
+    Called lazily so the import only happens at sync time.
+    """
+    from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
+    return MetaobjectDefinitionSpec(
+        type='location_page',
+        name='Location Page',
+        description='Location-specific page content managed in Wagtail CMS',
+        display_name_field='titulo',
+        capabilities={
+            'publishable': {'enabled': True},
+            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location-page'}},
+            'renderable': {'enabled': True, 'data': {
+                'metaTitleField': 'titulo',
+                'metaDescriptionField': 'subtitulo',
+            }},
+        },
+        access={'storefront': 'PUBLIC_READ'},
+        fields=[
+            MetaobjectFieldSpec(key='titulo',                 name='Título',                type='single_line_text_field', required=True),
+            MetaobjectFieldSpec(key='subtitulo',              name='Subtítulo',             type='single_line_text_field'),
+            MetaobjectFieldSpec(key='intro',                  name='Intro',                 type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='country',                name='Country',               type='single_line_text_field'),
+            MetaobjectFieldSpec(key='state',                  name='State / Province',      type='single_line_text_field'),
+            MetaobjectFieldSpec(key='city',                   name='City',                  type='single_line_text_field'),
+            MetaobjectFieldSpec(key='titulo_2',               name='Título 2',              type='single_line_text_field'),
+            MetaobjectFieldSpec(key='subtitulo_h2',           name='Subtítulo H2',          type='single_line_text_field'),
+            MetaobjectFieldSpec(key='content_2',              name='Content 2',             type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='titulo_3',               name='Título 3',              type='single_line_text_field'),
+            MetaobjectFieldSpec(key='subtitulo_3',            name='Subtítulo 3',           type='single_line_text_field'),
+            MetaobjectFieldSpec(key='content_3',              name='Content 3',             type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='brand_section_title',    name='Brand Section Title',   type='single_line_text_field'),
+            MetaobjectFieldSpec(key='brand_section_subtitle', name='Brand Section Subtitle',type='single_line_text_field'),
+            MetaobjectFieldSpec(key='brand_section_content',  name='Brand Section Content', type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='map_title',              name='Map Title',             type='single_line_text_field'),
+            MetaobjectFieldSpec(key='map_content',            name='Map Content',           type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='after_page_content',     name='After Page Content',    type='multi_line_text_field'),
+            MetaobjectFieldSpec(key='faqs',                   name='FAQs',                  type='json'),
+            MetaobjectFieldSpec(key='locale',                 name='Locale',               type='single_line_text_field'),
+        ],
+    )
+
+
 def sync_location_page(page):
     """
-    Push LocationPage → Shopify metaobjectUpsert with type $app:location-page.
+    Push LocationPage → Shopify merchant-owned metaobject (type: location_page).
 
-    Definition is app-owned (registered in shopify.app.wagtail-cms.toml).
-    We never call ensure_definition — the TOML handles definition creation.
-    Handle is page.handle if set, otherwise page.slug.
-    Rich text fields are pushed as multi_line_text_field (HTML string).
+    Uses MetaobjectClient.sync() which calls ensure_definition() on every sync
+    (one extra GET per publish — safe and self-healing if definition is deleted).
+    Handle defaults to page.slug if page.handle is not set.
+    Rich text fields (RichTextField HTML) are stored as multi_line_text_field.
+    FAQs list is detected by to_shopify_fields() and serialized as json.dumps().
     """
     if not page.sync_enabled:
         return False
@@ -616,8 +661,9 @@ def sync_location_page(page):
     shop = _get_shop()
     handle = page.handle or page.slug
 
-    # Build field list; skip blank optional values
-    raw_fields = [
+    # Build field dict; exclude blank optional values; always keep handle
+    data: dict = {'handle': handle}
+    for key, value in [
         ('titulo', page.titulo),
         ('subtitulo', page.subtitulo),
         ('intro', page.intro),
@@ -636,49 +682,31 @@ def sync_location_page(page):
         ('map_title', page.map_title),
         ('map_content', page.map_content),
         ('after_page_content', page.after_page_content),
-    ]
+    ]:
+        if value:
+            data[key] = value
     if page.shopify_locale:
-        raw_fields.append(('locale', page.shopify_locale))
-
-    fields = [{'key': k, 'value': v} for k, v in raw_fields if v]
-
-    # FAQs as JSON array
+        data['locale'] = page.shopify_locale
     faq_items = list(page.faqs.order_by('sort_order'))
     if faq_items:
-        faq_data = [{'question': f.question, 'answer': f.answer} for f in faq_items]
-        fields.append({'key': 'faqs', 'value': json.dumps(faq_data, ensure_ascii=False)})
+        # Metaobject.to_shopify_fields() detects list → json.dumps() automatically
+        data['faqs'] = [{'question': f.question, 'answer': f.answer} for f in faq_items]
 
-    variables = {
-        'handle': {
-            'type': '$app:location-page',
-            'handle': handle,
-        },
-        'metaobject': {
-            'fields': fields,
-        },
-    }
+    from metaobjects.shopify_metaobjects.client import MetaobjectClient
+    from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
 
-    result = execute_admin_graphql(METAOBJECT_UPSERT, shop=shop, variables=variables)
-    if not result.ok:
-        detail = _graphql_error_detail(result)
-        logger.error(
-            'metaobjectUpsert failed shop=%s pk=%s error=%s detail=%s',
-            shop, page.pk, result.error_code, detail,
-        )
+    spec = _location_page_definition()
+    client = MetaobjectClient(shop=shop)
+
+    try:
+        result = client.sync(data, definition=spec, ensure_definition=True, validate=False)
+    except (DefinitionError, UpsertError) as exc:
+        logger.error('LocationPage sync failed pk=%s: %s', page.pk, exc)
         return False
 
-    payload = (result.data or {}).get('metaobjectUpsert', {})
-    user_errors = payload.get('userErrors') or []
-    if user_errors:
-        logger.error('metaobjectUpsert userErrors pk=%s: %s', page.pk, user_errors)
-        return False
-
-    # Persist shopify_id on first upsert
-    metaobject_data = payload.get('metaobject') or {}
-    new_id = metaobject_data.get('id')
-    if new_id and not page.shopify_id:
-        type(page).objects.filter(pk=page.pk).update(shopify_id=new_id)
-        page.shopify_id = new_id
+    if result.id and not page.shopify_id:
+        type(page).objects.filter(pk=page.pk).update(shopify_id=result.id)
+        page.shopify_id = result.id
 
     _mark_synced(type(page), page.pk)
     return True

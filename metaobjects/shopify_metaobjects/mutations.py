@@ -37,6 +37,7 @@ mutation createMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput
             type
             name
             description
+            displayNameField
             fieldDefinitions {
                 key
                 name
@@ -53,6 +54,7 @@ mutation createMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput
         userErrors {
             field
             message
+            code
         }
     }
 }

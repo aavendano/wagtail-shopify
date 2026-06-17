@@ -33,14 +33,24 @@ class MetaobjectDefinitionSpec:
     name: str
     description: str
     fields: list[MetaobjectFieldSpec]
+    display_name_field: str | None = None
+    capabilities: dict | None = None
+    access: dict | None = None
 
     def to_shopify_input(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "type": self.type,
             "name": self.name,
             "description": self.description,
             "fields": [field_spec.to_shopify_input() for field_spec in self.fields],
         }
+        if self.display_name_field:
+            payload["displayNameField"] = self.display_name_field
+        if self.capabilities:
+            payload["capabilities"] = self.capabilities
+        if self.access:
+            payload["access"] = self.access
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
