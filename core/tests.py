@@ -389,6 +389,52 @@ class TokenLifecycleTests(TestCase):
         self.assertIsNone(record.access_token)
         self.assertIsNone(record.refresh_token)
 
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("core.mixins.get_shopify_app")
+    def test_refresh_network_error_uses_existing_access_token(
+        self, mocked_get_shopify_app, mock_raw_gql
+    ):
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            data={"shop": {"id": "gid://shopify/Shop/1"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="existing-token",
+            refresh_token="refresh-token",
+        )
+        mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            id_token=SimpleNamespace(
+                exchangeable=True,
+                token="jwt-token",
+                claims={"dest": "https://test-shop.myshopify.com"},
+            ),
+            new_id_token_response=SimpleNamespace(status=401, body="", headers={}),
+            response=SimpleNamespace(headers={}),
+        )
+        mocked_get_shopify_app.return_value.refresh_token_exchanged_access_token.return_value = (
+            SimpleNamespace(
+                ok=False,
+                log=SimpleNamespace(code="network_error", detail="connection failed"),
+                response=SimpleNamespace(status=500, body="", headers={}),
+            )
+        )
+
+        response = self.client.get("/shopify-admin?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        record = ShopConfig.objects.get(shop="test-shop")
+        self.assertEqual(record.access_token, "existing-token")
+        self.assertEqual(record.refresh_token, "refresh-token")
+        mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_not_called()
+
 
 class EmbeddedRedirectValidationTests(TestCase):
     def test_validate_relative_rejects_protocol_relative(self):

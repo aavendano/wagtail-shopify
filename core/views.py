@@ -1,6 +1,8 @@
 from urllib.parse import urlencode
 
+import json
 import logging
+import time
 
 from django.conf import settings
 from django.contrib import messages
@@ -30,6 +32,33 @@ from .token_service import ensure_offline_token_lifecycle
 from shopify_requests.domains.shop import fetch_shop_admin_graphql
 
 logger = logging.getLogger(__name__)
+
+# #region agent log
+_DEBUG_LOG_PATH = "/home/alejandro/apps/wagtail-shopify/.cursor/debug-e48ec5.log"
+
+
+def _agent_log(location, message, data=None, hypothesis_id=""):
+    try:
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "sessionId": "e48ec5",
+                        "timestamp": int(time.time() * 1000),
+                        "location": location,
+                        "message": message,
+                        "data": data or {},
+                        "hypothesisId": hypothesis_id,
+                        "runId": "pre-fix",
+                    }
+                )
+                + "\n"
+            )
+    except OSError:
+        pass
+
+
+# #endregion
 
 
 SYNC_RESOURCES = [
@@ -90,39 +119,139 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
     template_name = "core/home.html"
 
     def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        verification_result = getattr(self, "_verification_result", None)
-        verified_shop = (
-            getattr(verification_result, "shop", None) if verification_result else None
-        )
-        context.update(_shop_config_context(verified_shop))
-        context['sync_resources'] = SYNC_RESOURCES
-        self._admin_graphql_halt = None
-        shop = verified_shop
-        if shop:
-            gql = fetch_shop_admin_graphql(
-                shop,
-                verification_result=verification_result,
-                invalid_token_response=getattr(
-                    verification_result, "new_id_token_response", None
-                ),
-                shopify_app=getattr(self, "_shopify_app", None),
+        # #region agent log
+        _agent_log("core/views.py:HomeView:get_context_data:entry", "Building home context", {}, "H2")
+        # #endregion
+        try:
+            context = super().get_context_data(**kwargs)
+            verification_result = getattr(self, "_verification_result", None)
+            verified_shop = (
+                getattr(verification_result, "shop", None) if verification_result else None
             )
-            if not gql.ok and gql.raw is not None:
-                self._admin_graphql_halt = gql.raw
-            elif gql.ok and gql.data:
-                shop_node = gql.data.get("shop") or {}
-                context["shopify_admin_shop_id"] = shop_node.get("id")
-                context["shopify_admin_shop_name"] = shop_node.get("name")
-        return context
+            context.update(_shop_config_context(verified_shop))
+            context['sync_resources'] = SYNC_RESOURCES
+            self._admin_graphql_halt = None
+            shop = verified_shop
+            if shop:
+                gql = fetch_shop_admin_graphql(
+                    shop,
+                    verification_result=verification_result,
+                    invalid_token_response=getattr(
+                        verification_result, "new_id_token_response", None
+                    ),
+                    shopify_app=getattr(self, "_shopify_app", None),
+                )
+                # #region agent log
+                _agent_log(
+                    "core/views.py:HomeView:get_context_data:graphql",
+                    "Shop admin GraphQL result",
+                    {"ok": gql.ok, "has_data": bool(gql.data), "has_halt": gql.raw is not None},
+                    "H2",
+                )
+                # #endregion
+                if not gql.ok and gql.raw is not None:
+                    self._admin_graphql_halt = gql.raw
+                elif gql.ok and gql.data:
+                    shop_node = gql.data.get("shop") or {}
+                    context["shopify_admin_shop_id"] = shop_node.get("id")
+                    context["shopify_admin_shop_name"] = shop_node.get("name")
+            # #region agent log
+            _agent_log(
+                "core/views.py:HomeView:get_context_data:exit",
+                "Home context ready",
+                {"shop_configured": context.get("shop_configured"), "shop": verified_shop},
+                "H2",
+            )
+            # #endregion
+            return context
+        except Exception as exc:
+            # #region agent log
+            _agent_log(
+                "core/views.py:HomeView:get_context_data:exception",
+                "Exception in get_context_data",
+                {"type": type(exc).__name__, "error": str(exc)},
+                "H2",
+            )
+            # #endregion
+            raise
 
     def dispatch_after_verified(self, request, *args, **kwargs):
-        token_result = ensure_offline_token_lifecycle(
-            self._verification_result, self._shopify_app
+        # #region agent log
+        _agent_log(
+            "core/views.py:HomeView:dispatch_after_verified:entry",
+            "Ensuring offline token lifecycle",
+            {"shop": getattr(self._verification_result, "shop", None)},
+            "H1",
         )
-        if token_result is not None:
-            return shopify_result_to_django_response(token_result)
-        return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
+        # #endregion
+        try:
+            token_result = ensure_offline_token_lifecycle(
+                self._verification_result, self._shopify_app
+            )
+            # #region agent log
+            _agent_log(
+                "core/views.py:HomeView:dispatch_after_verified:token",
+                "Token lifecycle result",
+                {
+                    "has_token_result": token_result is not None,
+                    "token_ok": getattr(token_result, "ok", None) if token_result else None,
+                },
+                "H1",
+            )
+            # #endregion
+            if token_result is not None:
+                # #region agent log
+                _resp = getattr(token_result, "response", None)
+                _log = getattr(token_result, "log", None)
+                _agent_log(
+                    "core/views.py:HomeView:dispatch_after_verified:return_token",
+                    "Returning SDK token failure response",
+                    {
+                        "token_ok": getattr(token_result, "ok", None),
+                        "log_code": getattr(_log, "code", None)
+                        if not isinstance(_log, dict)
+                        else _log.get("code"),
+                        "response_status": getattr(_resp, "status", None)
+                        if _resp is not None
+                        else None,
+                        "response_body_len": len(getattr(_resp, "body", "") or ""),
+                        "headers_type": type(getattr(_resp, "headers", None)).__name__,
+                    },
+                    "H1",
+                )
+                # #endregion
+                try:
+                    django_resp = shopify_result_to_django_response(token_result)
+                    # #region agent log
+                    _agent_log(
+                        "core/views.py:HomeView:dispatch_after_verified:django_resp",
+                        "Converted token result to Django response",
+                        {"status_code": django_resp.status_code, "body_len": len(django_resp.content)},
+                        "H2",
+                    )
+                    # #endregion
+                    return django_resp
+                except Exception as conv_exc:
+                    # #region agent log
+                    _agent_log(
+                        "core/views.py:HomeView:dispatch_after_verified:conv_exc",
+                        "shopify_result_to_django_response failed",
+                        {"type": type(conv_exc).__name__, "error": str(conv_exc)},
+                        "H2",
+                    )
+                    # #endregion
+                    raise
+            return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
+        except Exception as exc:
+            # #region agent log
+            _agent_log(
+                "core/views.py:HomeView:dispatch_after_verified:exception",
+                "Exception in dispatch_after_verified",
+                {"type": type(exc).__name__, "error": str(exc)},
+                "H1",
+            )
+            # #endregion
+            raise
 
     def render_to_response(self, context, **response_kwargs):
         halt = getattr(self, "_admin_graphql_halt", None)
