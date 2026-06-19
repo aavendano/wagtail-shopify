@@ -4,15 +4,14 @@ from typing import List, Optional
 from ninja import Router
 from django.utils.text import slugify
 from django.shortcuts import get_object_or_404
-from ninja.errors import HttpError
 
 from shopify_content.models import BlogPage, ArticlePage
 from shopify_content.models.blog import ArticlePageMetafield
 from shopify_content.sync.outbound import sync_article_page
-from shopify_content.sync.task_dispatch import enqueue_shopify_import, sync_run_to_task_response
-
+from ..sync import execute_pull
 from ..schemas.article import ArticleIn, ArticlePatch, ArticleOut
-from ..schemas.common import SyncResultSchema, ImportResultSchema, ImportTaskSchema, ErrorSchema
+from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..openapi_agent import agent_openapi_extra, capability_docstring
 from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
@@ -23,7 +22,14 @@ from ..locale_utils import (
 router = Router()
 
 
-@router.get('/', response=List[ArticleOut], summary="List Articles")
+@router.get(
+    '/',
+    response=List[ArticleOut],
+    summary="List Articles",
+    operation_id="list_articles",
+    description=capability_docstring("list_articles"),
+    openapi_extra=agent_openapi_extra("list_articles"),
+)
 def list_articles(
     request,
     live_only: bool = False,
@@ -32,19 +38,7 @@ def list_articles(
     limit: int = 50,
     offset: int = 0,
 ):
-    """
-    Retrieve a paginated list of Article pages from Wagtail.
-
-    Use this to discover all articles across all blogs, or filter by blog_id to list
-    articles for a specific blog. Each article is nested under a parent BlogPage.
-
-    Filter by blog_id (Wagtail page ID of the parent BlogPage) to get articles for a specific blog.
-    Filter by locale (e.g. 'en-US', 'es-US', 'fr-CA') to get locale-specific versions.
-    Set live_only=true to exclude unpublished drafts.
-
-    Pagination: use limit (default 50) and offset to page through results.
-    Returns an empty list if no articles match the filters.
-    """
+    """Discover articles; filter by blog_id for one blog."""
     qs = (
         ArticlePage.objects
         .select_related('locale', 'featured_image')
@@ -58,27 +52,16 @@ def list_articles(
     return list(qs[offset:offset + limit])
 
 
-@router.post('/', response={201: ArticleOut, 400: ErrorSchema}, summary="Create Article")
+@router.post(
+    '/',
+    response={201: ArticleOut, 400: ErrorSchema},
+    summary="Create Article",
+    operation_id="create_article",
+    description=capability_docstring("create_article"),
+    openapi_extra=agent_openapi_extra("create_article"),
+)
 def create_article(request, data: ArticleIn):
-    """
-    Create a new Article page in Wagtail as a child of the specified BlogPage.
-
-    This creates the Wagtail CMS entry only — it does NOT create an article in Shopify.
-    The article will be created in Shopify when POST /articles/{id}/push is called,
-    provided the parent BlogPage has a shopify_id.
-
-    Required: blog_id — Wagtail page ID of the parent BlogPage.
-    Use GET /blogs/ to find available blogs and their IDs.
-
-    Typical agent workflow:
-    1. Ensure the parent BlogPage exists and has a shopify_id (push it first if needed).
-    2. POST /articles/ with the content and blog_id.
-    3. PATCH /articles/{id} with publish=true to publish and sync to Shopify.
-
-    The page is saved as a draft (unpublished). Call PATCH with publish=true to publish and sync.
-
-    Returns HTTP 400 if the blog_id does not correspond to a BlogPage.
-    """
+    """Create article under parent BlogPage."""
     blog_page = get_object_or_404(BlogPage, pk=data.blog_id)
 
     slug = slugify(data.handle or data.title)
@@ -125,46 +108,29 @@ def create_article(request, data: ArticleIn):
     return 201, page
 
 
-@router.post('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Articles from Shopify")
+@router.post(
+    '/pull',
+    response={200: ImportResultSchema, 400: ErrorSchema},
+    summary="Pull Articles from Shopify (sync)",
+    operation_id="pull_articles_sync",
+    description=capability_docstring("pull_articles_sync"),
+    openapi_extra=agent_openapi_extra("pull_articles_sync"),
+)
 def pull_articles(request):
-    """
-    Import all blogs and articles from the connected Shopify store into Wagtail.
-
-    Articles are nested inside blogs in Shopify, so this endpoint imports both blogs
-    and their articles in one operation. BlogPage instances are created under ShopifyRootPage,
-    and ArticlePage instances are created as children of their respective BlogPage.
-
-    This is equivalent to POST /blogs/pull — both trigger the same blog+article import.
-    Use this endpoint when you specifically want to refresh article content.
-
-    Existing pages are matched by shopify_id and updated in place.
-    New blogs/articles are created as draft pages.
-
-    Prerequisites:
-    - A ShopConfig with a valid Shopify offline access token must exist.
-    - The ShopifyRootPage for blogs (slug=blogs) is created automatically if missing.
-
-    Returns 202 with sync_run_id and celery_task_id for async import tracking.
-    """
-    try:
-        sync_run = enqueue_shopify_import('blogs', new_only=False)
-        return 202, sync_run_to_task_response(sync_run)
-    except RuntimeError as e:
-        raise HttpError(400, str(e))
+    """Alias for blogs pull — imports blogs and articles together."""
+    return execute_pull('blogs')
 
 
-@router.get('/{page_id}', response={200: ArticleOut, 404: ErrorSchema}, summary="Get Article")
+@router.get(
+    '/{page_id}',
+    response={200: ArticleOut, 404: ErrorSchema},
+    summary="Get Article",
+    operation_id="get_article",
+    description=capability_docstring("get_article"),
+    openapi_extra=agent_openapi_extra("get_article"),
+)
 def get_article(request, page_id: int):
-    """
-    Retrieve a single Article page by its Wagtail page ID.
-
-    Returns full article data including body blocks, metafields, tags, author, published_at,
-    sync state, locale, blog_id (parent blog page ID), and blog_title.
-    Use the 'shopify_id' field to correlate with the corresponding Shopify Article.
-    The 'last_synced_at' timestamp shows when the article was last pushed to Shopify.
-
-    The page_id is the Wagtail integer page ID returned by GET /articles/ or POST /articles/.
-    """
+    """Get single article by Wagtail page ID."""
     try:
         page = (
             ArticlePage.objects
@@ -177,25 +143,16 @@ def get_article(request, page_id: int):
         return 404, {"detail": f"Article page {page_id} not found."}
 
 
-@router.patch('/{page_id}', response={200: ArticleOut, 404: ErrorSchema, 400: ErrorSchema}, summary="Update Article")
+@router.patch(
+    '/{page_id}',
+    response={200: ArticleOut, 404: ErrorSchema, 400: ErrorSchema},
+    summary="Update Article",
+    operation_id="update_article",
+    description=capability_docstring("update_article"),
+    openapi_extra=agent_openapi_extra("update_article"),
+)
 def update_article(request, page_id: int, data: ArticlePatch):
-    """
-    Partially update an Article page. Only fields included in the request body are changed.
-
-    Set publish=true to publish the page immediately. If sync_enabled=true on the page,
-    publishing will automatically trigger an outbound sync to Shopify via the publish hook.
-
-    If the article has no shopify_id, publishing with sync_enabled=true will CREATE the article
-    in Shopify (articleCreate mutation), provided the parent BlogPage has a shopify_id.
-    The returned Shopify GID is saved to the page automatically.
-
-    To update content without syncing to Shopify, set sync_enabled=false before patching,
-    or leave publish=false (default) to save as a draft only.
-
-    To replace all tags, pass the full desired tags list. To clear tags, pass an empty list [].
-    To replace all metafields, pass the full desired metafields list. To clear, pass [].
-    Omit any field from the request body to leave it unchanged.
-    """
+    """Partially update article; publish=true syncs when enabled."""
     try:
         page = (
             ArticlePage.objects
@@ -259,14 +216,16 @@ def update_article(request, page_id: int, data: ArticlePatch):
     return page
 
 
-@router.delete('/{page_id}', response={204: None, 404: ErrorSchema}, summary="Delete Article")
+@router.delete(
+    '/{page_id}',
+    response={204: None, 404: ErrorSchema},
+    summary="Delete Article",
+    operation_id="delete_article",
+    description=capability_docstring("delete_article"),
+    openapi_extra=agent_openapi_extra("delete_article"),
+)
 def delete_article(request, page_id: int):
-    """
-    Delete an Article page from Wagtail. This does NOT delete the article in Shopify.
-
-    Use this to remove a Wagtail page that should no longer be managed here.
-    The Shopify article remains untouched. This action is irreversible.
-    """
+    """Delete Wagtail article page only."""
     try:
         page = ArticlePage.objects.get(pk=page_id)
         page.delete()
@@ -275,26 +234,16 @@ def delete_article(request, page_id: int):
         return 404, {"detail": f"Article page {page_id} not found."}
 
 
-@router.post('/{page_id}/push', response={200: SyncResultSchema, 404: ErrorSchema, 400: ErrorSchema}, summary="Push Article to Shopify")
+@router.post(
+    '/{page_id}/push',
+    response={200: SyncResultSchema, 404: ErrorSchema, 400: ErrorSchema},
+    summary="Push Article to Shopify",
+    operation_id="push_article",
+    description=capability_docstring("push_article"),
+    openapi_extra=agent_openapi_extra("push_article"),
+)
 def push_article(request, page_id: int):
-    """
-    Push an Article page's content from Wagtail to Shopify Admin API.
-
-    Triggers an explicit outbound sync regardless of the page's publish state.
-    Pushes: title, body (HTML), summary, author, tags, published_at, isPublished,
-    SEO as metafields (global.title_tag, global.description_tag), and all inline metafields.
-
-    If the article has no shopify_id, this will CREATE a new article in Shopify (articleCreate)
-    using the parent BlogPage's shopify_id as the target blog. The returned Shopify GID
-    is saved to the page automatically. Re-fetch the page after creation to see the populated shopify_id.
-
-    Requirements:
-    - The parent BlogPage must have a shopify_id set. Push the blog first if needed.
-    - A ShopConfig with a valid Shopify access token must exist.
-
-    Returns success=false if Shopify returns errors or the parent blog is not synced.
-    Check the 'message' field for details on failures.
-    """
+    """Push article to Shopify; parent blog must have shopify_id."""
     try:
         page = ArticlePage.objects.get(pk=page_id)
     except ArticlePage.DoesNotExist:

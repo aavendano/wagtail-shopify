@@ -3,16 +3,16 @@ from typing import List, Optional
 
 from ninja import Router
 from django.utils.text import slugify
-from ninja.errors import HttpError
 
 from shopify_content.models import ProductPage
 from shopify_content.models.product import ProductPageMetafield
 from shopify_content.sync.outbound import sync_product_page
-from shopify_content.sync.task_dispatch import enqueue_shopify_import, sync_run_to_task_response
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
+from ..sync import execute_pull
 from ..schemas.product import ProductIn, ProductPatch, ProductOut
-from ..schemas.common import SyncResultSchema, ImportResultSchema, ImportTaskSchema, ErrorSchema
+from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..openapi_agent import agent_openapi_extra, capability_docstring
 from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
@@ -23,7 +23,14 @@ from ..locale_utils import (
 router = Router()
 
 
-@router.get('/', response=List[ProductOut], summary="List Products")
+@router.get(
+    '/',
+    response=List[ProductOut],
+    summary="List Products",
+    operation_id="list_products",
+    description=capability_docstring("list_products"),
+    openapi_extra=agent_openapi_extra("list_products"),
+)
 def list_products(
     request,
     live_only: bool = False,
@@ -32,17 +39,7 @@ def list_products(
     limit: int = 50,
     offset: int = 0,
 ):
-    """
-    Retrieve a paginated list of Product pages from Wagtail.
-
-    Use this to discover all products, check sync status, or find products by locale/status.
-    Filter by locale (e.g. 'en-US', 'es-US', 'fr-CA') to get locale-specific versions.
-    Filter by status='ACTIVE' to only see published Shopify products.
-    Set live_only=true to exclude unpublished drafts.
-
-    Pagination: use limit (default 50, max recommended 200) and offset to page through results.
-    Returns an empty list if no products match the filters.
-    """
+    """Discover products before read/update."""
     qs = ProductPage.objects.select_related('locale').prefetch_related(
         'metafields', 'tagged_items__tag', 'shopify_images'
     )
@@ -54,22 +51,16 @@ def list_products(
     return list(qs[offset:offset + limit])
 
 
-@router.post('/', response={201: ProductOut, 400: ErrorSchema}, summary="Create Product")
+@router.post(
+    '/',
+    response={201: ProductOut, 400: ErrorSchema},
+    summary="Create Product",
+    operation_id="create_product",
+    description=capability_docstring("create_product"),
+    openapi_extra=agent_openapi_extra("create_product"),
+)
 def create_product(request, data: ProductIn):
-    """
-    Create a new Product page in Wagtail under the ShopifyRootPage.
-
-    This creates the Wagtail CMS entry only — it does NOT create a product in Shopify.
-    Typical agent workflow:
-    1. Create product in Shopify first (via Shopify API or admin).
-    2. Set shopify_id to link this page to the Shopify product.
-    3. Call POST /products/{id}/push/ to push content to Shopify.
-
-    Alternatively, use POST /products/pull/ to import all products from Shopify automatically.
-    The page is saved as a draft (unpublished). Call PATCH with publish=true to publish and sync.
-
-    Returns HTTP 400 if the Wagtail site is not configured or ShopConfig is missing.
-    """
+    """Create Wagtail product page."""
     try:
         parent = resolve_shopify_import_parent('products')
     except RuntimeError as e:
@@ -116,58 +107,42 @@ def create_product(request, data: ProductIn):
     return 201, page
 
 
-@router.get('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Products from Shopify")
+@router.get(
+    '/pull',
+    response={200: ImportResultSchema, 400: ErrorSchema},
+    summary="Pull Products from Shopify (sync)",
+    operation_id="pull_products_sync",
+    description=capability_docstring("pull_products_sync"),
+    openapi_extra=agent_openapi_extra("pull_products_sync"),
+)
 def pull_products_get(request):
-    """
-    Alias for POST /products/pull — provided for agent discoverability.
-    Use POST /products/pull for the actual import operation.
-    """
-    return _do_pull_products()
+    """GET alias for POST /products/pull."""
+    return execute_pull('products')
 
 
-@router.post('/pull', response={202: ImportTaskSchema, 400: ErrorSchema}, summary="Pull Products from Shopify")
+@router.post(
+    '/pull',
+    response={200: ImportResultSchema, 400: ErrorSchema},
+    summary="Pull Products from Shopify (sync)",
+    operation_id="pull_products_sync_post",
+    description=capability_docstring("pull_products_sync_post"),
+    openapi_extra=agent_openapi_extra("pull_products_sync_post"),
+)
 def pull_products(request):
-    """
-    Import all products from the connected Shopify store into Wagtail as ProductPage instances.
-
-    Fetches all products from Shopify Admin API and creates or updates matching Wagtail pages
-    under the ShopifyRootPage. Existing pages are matched by shopify_id and updated in place.
-    New products are created as draft pages.
-
-    This is the recommended starting point for agents working with an existing Shopify store:
-    call this once to populate Wagtail with all Shopify products, then use PATCH and /push
-    to make content changes.
-
-    Prerequisites:
-    - A ShopConfig with a valid Shopify offline access token must exist.
-    - The ShopifyRootPage for products (slug=root) is created automatically if missing.
-
-    Returns a 202 response with sync_run_id and celery_task_id. Poll ShopifySyncRun
-    in Django admin or wait for the Celery worker to complete the job.
-    """
-    return _do_pull_products()
+    """Import all products from Shopify synchronously."""
+    return execute_pull('products')
 
 
-def _do_pull_products():
-    try:
-        sync_run = enqueue_shopify_import('products', new_only=False)
-        return 202, sync_run_to_task_response(sync_run)
-    except RuntimeError as e:
-        raise HttpError(400, str(e))
-
-
-@router.get('/{page_id}', response={200: ProductOut, 404: ErrorSchema}, summary="Get Product")
+@router.get(
+    '/{page_id}',
+    response={200: ProductOut, 404: ErrorSchema},
+    summary="Get Product",
+    operation_id="get_product",
+    description=capability_docstring("get_product"),
+    openapi_extra=agent_openapi_extra("get_product"),
+)
 def get_product(request, page_id: int):
-    """
-    Retrieve a single Product page by its Wagtail page ID.
-
-    Returns full product data including body blocks, metafields, tags, sync state, and locale.
-    Use the 'shopify_id' field to correlate with the corresponding Shopify product.
-    The 'last_synced_at' timestamp shows when content was last pushed to Shopify.
-    A null 'last_synced_at' means the product has never been synced to Shopify.
-
-    The page_id is the Wagtail integer page ID returned by GET /products/ or POST /products/.
-    """
+    """Get single product by Wagtail page ID."""
     try:
         page = (
             ProductPage.objects
@@ -180,22 +155,16 @@ def get_product(request, page_id: int):
         return 404, {"detail": f"Product page {page_id} not found."}
 
 
-@router.patch('/{page_id}', response={200: ProductOut, 404: ErrorSchema, 400: ErrorSchema}, summary="Update Product")
+@router.patch(
+    '/{page_id}',
+    response={200: ProductOut, 404: ErrorSchema, 400: ErrorSchema},
+    summary="Update Product",
+    operation_id="update_product",
+    description=capability_docstring("update_product"),
+    openapi_extra=agent_openapi_extra("update_product"),
+)
 def update_product(request, page_id: int, data: ProductPatch):
-    """
-    Partially update a Product page. Only fields included in the request body are changed.
-
-    Set publish=true to publish the page immediately. If sync_enabled=true on the page,
-    publishing will automatically trigger an outbound sync to Shopify via the publish hook.
-
-    To update content without syncing to Shopify, set sync_enabled=false before patching,
-    or leave publish=false (default) to save as a draft only.
-
-    To replace all tags, pass the full desired tags list. To clear tags, pass an empty list [].
-    To replace all metafields, pass the full desired metafields list. To clear, pass [].
-
-    Omit any field from the request body to leave it unchanged.
-    """
+    """Partially update product; publish=true triggers sync when enabled."""
     try:
         page = (
             ProductPage.objects
@@ -257,16 +226,16 @@ def update_product(request, page_id: int, data: ProductPatch):
     return page
 
 
-@router.delete('/{page_id}', response={204: None, 404: ErrorSchema}, summary="Delete Product")
+@router.delete(
+    '/{page_id}',
+    response={204: None, 404: ErrorSchema},
+    summary="Delete Product",
+    operation_id="delete_product",
+    description=capability_docstring("delete_product"),
+    openapi_extra=agent_openapi_extra("delete_product"),
+)
 def delete_product(request, page_id: int):
-    """
-    Delete a Product page from Wagtail. This does NOT delete the product in Shopify.
-
-    Use this to remove a Wagtail page that should no longer be managed here.
-    To archive a product in Shopify instead, use PATCH with status='ARCHIVED' and publish=true.
-
-    This action is irreversible. The Shopify product remains untouched.
-    """
+    """Delete Wagtail product page only."""
     try:
         page = ProductPage.objects.get(pk=page_id)
         page.delete()
@@ -275,23 +244,16 @@ def delete_product(request, page_id: int):
         return 404, {"detail": f"Product page {page_id} not found."}
 
 
-@router.post('/{page_id}/push', response={200: SyncResultSchema, 404: ErrorSchema, 400: ErrorSchema}, summary="Push Product to Shopify")
+@router.post(
+    '/{page_id}/push',
+    response={200: SyncResultSchema, 404: ErrorSchema, 400: ErrorSchema},
+    summary="Push Product to Shopify",
+    operation_id="push_product",
+    description=capability_docstring("push_product"),
+    openapi_extra=agent_openapi_extra("push_product"),
+)
 def push_product(request, page_id: int):
-    """
-    Push a Product page's content from Wagtail to Shopify Admin API.
-
-    Triggers an explicit outbound sync regardless of the page's publish state.
-    Pushes: title, descriptionHtml (rendered StreamField body), vendor, product_type,
-    tags, status, SEO fields, and all metafields.
-
-    Requirements:
-    - The page must have a shopify_id set (format: 'gid://shopify/Product/{id}').
-    - A ShopConfig with a valid Shopify access token must exist.
-
-    Returns success=false if Shopify returns errors or the token is invalid.
-    Check the 'message' field for details on failures.
-    Use POST /products/pull first if products have not yet been imported from Shopify.
-    """
+    """Push product content to Shopify Admin API."""
     try:
         page = ProductPage.objects.get(pk=page_id)
     except ProductPage.DoesNotExist:

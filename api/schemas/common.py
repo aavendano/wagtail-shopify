@@ -37,6 +37,18 @@ class LocaleOutFields(Schema):
     )
 
 
+class FAQSchema(Schema):
+    question: str = Field(
+        ...,
+        description="FAQ question text displayed on the location page.",
+        max_length=500,
+    )
+    answer: str = Field(
+        ...,
+        description="FAQ answer text. Plain text or HTML allowed.",
+    )
+
+
 class MetafieldSchema(Schema):
     namespace: str = Field(
         default='custom',
@@ -99,6 +111,8 @@ class ImportResultSchema(Schema):
 
 
 class ImportTaskSchema(Schema):
+    """Deprecated for API use — Celery async jobs only (Wagtail admin / embedded app)."""
+
     sync_run_id: int = Field(..., description="ShopifySyncRun primary key for status tracking.")
     celery_task_id: str = Field(..., description="Celery task ID.")
     status: str = Field(..., description="Job status: pending, running, success, or failed.")

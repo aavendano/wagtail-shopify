@@ -11,6 +11,15 @@ from .queries import METAOBJECT_BY_HANDLE, METAOBJECT_DEFINITION_BY_TYPE
 from .validation import validate_metaobject
 
 
+def _publishable_active_input(definition: MetaobjectDefinitionSpec | None) -> dict | None:
+    if definition is None or not definition.capabilities:
+        return None
+    publishable = definition.capabilities.get('publishable') or {}
+    if not publishable.get('enabled'):
+        return None
+    return {'publishable': {'status': 'ACTIVE'}}
+
+
 class MetaobjectClient:
     def __init__(self, shop: str):
         self.shop = shop
@@ -92,14 +101,22 @@ class MetaobjectClient:
             if errors:
                 raise UpsertError("; ".join(errors))
 
+        field_types = (
+            {field.key: field.type for field in definition.fields}
+            if definition is not None
+            else {}
+        )
+        shopify_fields = metaobject.to_shopify_fields(field_types)
+        metaobject_input: dict[str, Any] = {'fields': shopify_fields}
+        capabilities = _publishable_active_input(definition)
+        if capabilities:
+            metaobject_input['capabilities'] = capabilities
         variables = {
             "handle": {
                 "type": metaobject.type,
                 "handle": metaobject.handle,
             },
-            "metaobject": {
-                "fields": metaobject.to_shopify_fields(),
-            },
+            "metaobject": metaobject_input,
         }
         result = execute_admin_graphql(
             METAOBJECT_UPSERT,

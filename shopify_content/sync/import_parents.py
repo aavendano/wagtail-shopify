@@ -14,7 +14,7 @@ from ..models import ShopifyRootPage
 
 logger = logging.getLogger(__name__)
 
-ResourceType = Literal['products', 'collections', 'blogs']
+ResourceType = Literal['products', 'collections', 'blogs', 'locations']
 
 # Slugs reserved for single-resource ShopifyRootPage containers (not the main catalog root).
 RESOURCE_CONTAINER_SLUGS = frozenset({'collections', 'blogs'})
@@ -24,12 +24,14 @@ IMPORT_ROOT_SLUG = {
     'products': 'root',
     'collections': 'collections',
     'blogs': 'blogs',
+    'locations': 'root',
 }
 
 IMPORT_ROOT_TITLE = {
     'products': 'Root',
     'collections': 'Collections',
     'blogs': 'Blogs',
+    'locations': 'Root',
 }
 
 

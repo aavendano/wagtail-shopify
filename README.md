@@ -34,7 +34,7 @@ Shopify Storefront → Cliente final
 | `metaobjects` | Toolkit para metaobjetos Shopify; ver [`docs/Documentation.txt`](docs/Documentation.txt) |
 | `shopify_content` | Páginas Wagtail sincronizadas a Shopify; ver [`docs/shopify_content.md`](docs/shopify_content.md) |
 | `webhooks` | Receptores de webhooks Shopify |
-| `api` | API interna (django-ninja) |
+| `api` | API interna django-ninja para agentes AI — ver [`docs/api-agents.md`](docs/api-agents.md) |
 
 ---
 

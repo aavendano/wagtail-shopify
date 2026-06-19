@@ -13,6 +13,7 @@ from wagtail.admin import messages as wagtail_messages
 from wagtail.admin.menu import MenuItem
 
 from .admin.sync_views import ShopifySyncView
+from .sync.task_dispatch import enqueue_page_outbound_sync
 
 logger = logging.getLogger(__name__)
 

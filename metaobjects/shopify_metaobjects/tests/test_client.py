@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import patch
+import json
 
 from django.test import TestCase
 
@@ -8,6 +9,7 @@ from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
 from metaobjects.shopify_metaobjects.exceptions import UpsertError
 from metaobjects.shopify_metaobjects.metaobject import Metaobject
+from metaobjects.shopify_metaobjects.serialization import html_to_shopify_rich_text
 from shopify_requests.graphql_service import AdminGraphqlResult
 
 
@@ -65,6 +67,23 @@ class MetaobjectSerializationTests(TestCase):
         fields = {item["key"]: item["value"] for item in metaobject.to_shopify_fields()}
         self.assertEqual(fields["is_organic"], "true")
         self.assertEqual(fields["meta"], '{"a": 1}')
+
+    def test_to_shopify_fields_serializes_rich_text_html(self):
+        metaobject = Metaobject(
+            type="location_page",
+            handle="x",
+            fields={"intro": "<p>Hello <strong>world</strong></p>"},
+        )
+        field_types = {"intro": "rich_text_field"}
+        fields = {item["key"]: item["value"] for item in metaobject.to_shopify_fields(field_types)}
+        parsed = json.loads(fields["intro"])
+        self.assertEqual(parsed["type"], "root")
+        self.assertEqual(parsed["children"][0]["type"], "paragraph")
+
+    def test_html_to_shopify_rich_text_converts_paragraph(self):
+        doc = html_to_shopify_rich_text("<p>Hello</p>")
+        self.assertEqual(doc["type"], "root")
+        self.assertEqual(doc["children"][0]["children"][0]["value"], "Hello")
 
     def test_from_shopify_data_parses_metafield_edges(self):
         metaobject = Metaobject.from_shopify_data(

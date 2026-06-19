@@ -1,35 +1,9 @@
-import json
-import time
 from dataclasses import asdict, is_dataclass
 
+from datetime import timedelta
+
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-
-# #region agent log
-_DEBUG_LOG_PATH = "/home/alejandro/apps/wagtail-shopify/.cursor/debug-e48ec5.log"
-
-
-def _agent_log(location, message, data=None, hypothesis_id=""):
-    try:
-        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "sessionId": "e48ec5",
-                        "timestamp": int(time.time() * 1000),
-                        "location": location,
-                        "message": message,
-                        "data": data or {},
-                        "hypothesisId": hypothesis_id,
-                        "runId": "pre-fix",
-                    }
-                )
-                + "\n"
-            )
-    except OSError:
-        pass
-
-
-# #endregion
 
 from webhooks.utils import shop_lookup_variants
 
@@ -118,8 +92,14 @@ def persist_access_token(access_token, fallback_shop=None):
     return record
 
 
+def _record_needs_refresh(record):
+    if not record or not record.refresh_token or not record.expires:
+        return False
+    return record.expires <= timezone.now() + timedelta(seconds=60)
+
+
 def _refresh_token_if_possible(shopify_app, record):
-    if not record.refresh_token:
+    if not record.refresh_token or not _record_needs_refresh(record):
         return None
 
     access_mode = "online" if record.is_online else "offline"
@@ -142,7 +122,9 @@ def _refresh_token_if_possible(shopify_app, record):
     )
     log_shopify_result(refresh_result)
     if _get_attr(refresh_result, "ok", False):
-        persist_access_token(_get_attr(refresh_result, "access_token"), fallback_shop=record.shop)
+        new_access_token = _get_attr(refresh_result, "access_token")
+        if new_access_token:
+            persist_access_token(new_access_token, fallback_shop=record.shop)
         return None
 
     log_code = _get_attr(_get_attr(refresh_result, "log", {}), "code")
@@ -161,37 +143,9 @@ def ensure_offline_token_lifecycle(verification_result, shopify_app=None):
 
     shopify_app = shopify_app or get_shopify_app()
     token_record = get_shop_config(shop)
-    # #region agent log
-    _agent_log(
-        "core/token_service.py:ensure_offline_token_lifecycle:entry",
-        "Token lifecycle entry",
-        {
-            "shop": shop,
-            "has_token_record": token_record is not None,
-            "has_access_token": bool(token_record and token_record.access_token),
-            "has_refresh_token": bool(token_record and token_record.refresh_token),
-            "id_token_exchangeable": _get_attr(
-                _get_attr(verification_result, "id_token"), "exchangeable", None
-            ),
-        },
-        "H4",
-    )
-    # #endregion
     if token_record:
         refresh_result = _refresh_token_if_possible(shopify_app, token_record)
         if refresh_result is not None:
-            # #region agent log
-            _log = _get_attr(refresh_result, "log", {})
-            _agent_log(
-                "core/token_service.py:ensure_offline_token_lifecycle:refresh_fail",
-                "Refresh returned failure result",
-                {
-                    "ok": _get_attr(refresh_result, "ok", None),
-                    "log_code": _get_attr(_log, "code", None),
-                },
-                "H4",
-            )
-            # #endregion
             return refresh_result
         if token_record.access_token:
             return None
@@ -202,20 +156,6 @@ def ensure_offline_token_lifecycle(verification_result, shopify_app=None):
         invalid_token_response=_get_attr(verification_result, "new_id_token_response"),
     )
     log_shopify_result(exchange_result)
-    # #region agent log
-    _log = _get_attr(exchange_result, "log", {})
-    _resp = _get_attr(exchange_result, "response", None)
-    _agent_log(
-        "core/token_service.py:ensure_offline_token_lifecycle:exchange",
-        "Token exchange result",
-        {
-            "ok": _get_attr(exchange_result, "ok", None),
-            "log_code": _get_attr(_log, "code", None),
-            "response_status": _get_attr(_resp, "status", None),
-        },
-        "H3",
-    )
-    # #endregion
     if _get_attr(exchange_result, "ok", False):
         persist_access_token(
             _get_attr(exchange_result, "access_token"),

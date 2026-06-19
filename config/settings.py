@@ -10,13 +10,17 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 
-load_dotenv(".env", override=True)
-
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env", override=True)
+
+if "test" in sys.argv:
+    os.environ.setdefault("NINJA_SKIP_REGISTRY", "true")
 
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET')
@@ -47,6 +51,7 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'custom.apps.CustomConfig',
 
     #'wagtail_localize',
@@ -117,6 +122,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 
 
 # Database
@@ -204,6 +210,10 @@ SHOPIFY_ADMIN_API_VERSION = os.environ.get('SHOPIFY_ADMIN_API_VERSION', '2025-04
 
 WAGTAILADMIN_BASE_URL = os.environ.get('SHOPIFY_APP_URL', 'http://localhost:8000')
 WAGTAIL_SITE_NAME = 'Wagtail Shopify'
+
+_mcp_public_base = (SHOPIFY_APP_URL or WAGTAILADMIN_BASE_URL).rstrip('/')
+MCP_BASE_URL = f'{_mcp_public_base}/api/v1'
+MCP_DEFAULT_API_KEY = os.environ.get('MCP_DEFAULT_API_KEY', '')
 
 # Hostnames allowed for app_home_parent_redirect targets (comma-separated). Always includes
 # admin.shopify.com plus SHOPIFY_APP_URL / SHOPIFY_APP_DOMAIN hosts via embedded_redirects.parent_redirect_allowed_hosts.

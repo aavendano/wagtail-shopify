@@ -22,6 +22,7 @@ translation group (including the page that triggered sync).
 
 import json
 import logging
+import re
 from django.utils import timezone
 from django.utils.functional import SimpleLazyObject
 
@@ -38,6 +39,25 @@ from .mutations import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _wagtail_field_value(value):
+    """Normalize Wagtail RichText / plain values to a sync-ready scalar."""
+    if value is None:
+        return None
+    source = getattr(value, 'source', None)
+    if source is not None:
+        return source
+    return value
+
+
+def _has_meaningful_sync_value(value) -> bool:
+    coerced = _wagtail_field_value(value)
+    if coerced is None:
+        return False
+    if isinstance(coerced, str):
+        return bool(re.sub(r'<[^>]+>', '', coerced).strip())
+    return bool(coerced)
 
 PRIMARY_LOCALE = 'en-US'
 
@@ -688,7 +708,7 @@ def sync_location_page(page):
     Uses MetaobjectClient.sync() which calls ensure_definition() on every sync
     (one extra GET per publish — safe and self-healing if definition is deleted).
     Handle defaults to page.slug if page.handle is not set.
-    Rich text fields (RichTextField HTML) are stored as rich_text_field.
+    Rich text fields (RichTextField HTML) are converted to Shopify rich_text_field JSON.
     FAQs list is detected by to_shopify_fields() and serialized as json.dumps().
     """
     if not page.sync_enabled:
@@ -697,10 +717,13 @@ def sync_location_page(page):
     shop = _get_shop()
     handle = page.handle or page.slug
 
-    # Build field dict; exclude blank optional values; always keep handle
-    data: dict = {'handle': handle}
+    if not _has_meaningful_sync_value(page.titulo):
+        logger.error('LocationPage sync aborted pk=%s: titulo is required', page.pk)
+        return False
+
+    # Build field dict; always keep handle + required titulo
+    data: dict = {'handle': handle, 'titulo': str(_wagtail_field_value(page.titulo)).strip()}
     for key, value in [
-        ('titulo', page.titulo),
         ('subtitulo', page.subtitulo),
         ('intro', page.intro),
         ('country', page.country),
@@ -719,8 +742,8 @@ def sync_location_page(page):
         ('map_content', page.map_content),
         ('after_page_content', page.after_page_content),
     ]:
-        if value:
-            data[key] = value
+        if _has_meaningful_sync_value(value):
+            data[key] = _wagtail_field_value(value)
     if page.shopify_locale:
         data['locale'] = page.shopify_locale
     faq_items = list(page.faqs.order_by('sort_order'))
