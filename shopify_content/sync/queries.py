@@ -5,13 +5,27 @@ Field names use the Shopify Admin API 2025-04 schema:
   - Article.body  (HTML) — NOT bodyHtml
   - Article.summary (HTML) — NOT summaryHtml
   - Blog.commentPolicy — NOT commentable
+
+List/pull queries omit metafields and request only image URLs (no file download).
 """
 
 # ---------------------------------------------------------------------------
 # Products
 # ---------------------------------------------------------------------------
 
-PRODUCT_FIELDS = """
+PRODUCT_IMAGE_FIELDS = """
+  images(first: 10) {
+    edges {
+      node {
+        id
+        url
+        altText
+      }
+    }
+  }
+"""
+
+PRODUCT_LIST_FIELDS = """
   id
   handle
   title
@@ -24,29 +38,9 @@ PRODUCT_FIELDS = """
     title
     description
   }
-  images(first: 20) {
-    edges {
-      node {
-        id
-        url
-        altText
-        width
-        height
-      }
-    }
-  }
-  metafields(first: 50) {
-    edges {
-      node {
-        id
-        namespace
-        key
-        type
-        value
-      }
-    }
-  }
-"""
+""" + PRODUCT_IMAGE_FIELDS
+
+PRODUCT_FIELDS = PRODUCT_LIST_FIELDS
 
 GET_PRODUCT = """
 query GetProduct($id: ID!) {
@@ -71,7 +65,7 @@ query ListProducts($first: Int!, $after: String) {
     }
   }
 }
-""" % PRODUCT_FIELDS
+""" % PRODUCT_LIST_FIELDS
 
 GET_PRODUCT_BY_HANDLE = """
 query GetProductByHandle($handle: String!) {
@@ -85,7 +79,15 @@ query GetProductByHandle($handle: String!) {
 # Collections
 # ---------------------------------------------------------------------------
 
-COLLECTION_FIELDS = """
+COLLECTION_IMAGE_FIELDS = """
+  image {
+    id
+    url
+    altText
+  }
+"""
+
+COLLECTION_LIST_FIELDS = """
   id
   handle
   title
@@ -95,25 +97,9 @@ COLLECTION_FIELDS = """
     title
     description
   }
-  image {
-    id
-    url
-    altText
-    width
-    height
-  }
-  metafields(first: 50) {
-    edges {
-      node {
-        id
-        namespace
-        key
-        type
-        value
-      }
-    }
-  }
-"""
+""" + COLLECTION_IMAGE_FIELDS
+
+COLLECTION_FIELDS = COLLECTION_LIST_FIELDS
 
 GET_COLLECTION = """
 query GetCollection($id: ID!) {
@@ -138,7 +124,7 @@ query ListCollections($first: Int!, $after: String) {
     }
   }
 }
-""" % COLLECTION_FIELDS
+""" % COLLECTION_LIST_FIELDS
 
 GET_COLLECTION_BY_HANDLE = """
 query GetCollectionByHandle($handle: String!) {
@@ -152,23 +138,14 @@ query GetCollectionByHandle($handle: String!) {
 # Blogs
 # ---------------------------------------------------------------------------
 
-BLOG_FIELDS = """
+BLOG_LIST_FIELDS = """
   id
   handle
   title
   commentPolicy
-  metafields(first: 20) {
-    edges {
-      node {
-        id
-        namespace
-        key
-        type
-        value
-      }
-    }
-  }
 """
+
+BLOG_FIELDS = BLOG_LIST_FIELDS
 
 GET_BLOG = """
 query GetBlog($id: ID!) {
@@ -193,15 +170,21 @@ query ListBlogs($first: Int!, $after: String) {
     }
   }
 }
-""" % BLOG_FIELDS
+""" % BLOG_LIST_FIELDS
 
 # ---------------------------------------------------------------------------
 # Articles
-# Note: Article has no native seo field in Admin GraphQL API.
-#       SEO is stored as metafields (global.title_tag / global.description_tag).
 # ---------------------------------------------------------------------------
 
-ARTICLE_FIELDS = """
+ARTICLE_IMAGE_FIELDS = """
+  image {
+    id
+    url
+    altText
+  }
+"""
+
+ARTICLE_LIST_FIELDS = """
   id
   handle
   title
@@ -213,25 +196,9 @@ ARTICLE_FIELDS = """
   author {
     name
   }
-  image {
-    id
-    url
-    altText
-    width
-    height
-  }
-  metafields(first: 50) {
-    edges {
-      node {
-        id
-        namespace
-        key
-        type
-        value
-      }
-    }
-  }
-"""
+""" + ARTICLE_IMAGE_FIELDS
+
+ARTICLE_FIELDS = ARTICLE_LIST_FIELDS
 
 GET_ARTICLE = """
 query GetArticle($id: ID!) {
@@ -261,4 +228,4 @@ query ListArticles($blogId: ID!, $first: Int!, $after: String) {
     }
   }
 }
-""" % ARTICLE_FIELDS
+""" % ARTICLE_LIST_FIELDS

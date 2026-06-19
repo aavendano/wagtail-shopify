@@ -3,16 +3,16 @@ from typing import List, Optional
 
 from ninja import Router
 from django.utils.text import slugify
-from ninja.errors import HttpError
 
 from shopify_content.models import CollectionPage
 from shopify_content.models.collection import CollectionPageMetafield
 from shopify_content.sync.outbound import sync_collection_page
-from shopify_content.sync.service import run_shopify_import_for_api
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
+from ..sync import execute_pull
 from ..schemas.collection import CollectionIn, CollectionPatch, CollectionOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
+from ..openapi_agent import agent_openapi_extra, capability_docstring
 from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
@@ -23,7 +23,14 @@ from ..locale_utils import (
 router = Router()
 
 
-@router.get('/', response=List[CollectionOut], summary="List Collections")
+@router.get(
+    '/',
+    response=List[CollectionOut],
+    summary="List Collections",
+    operation_id="list_collections",
+    description=capability_docstring("list_collections"),
+    openapi_extra=agent_openapi_extra("list_collections"),
+)
 def list_collections(
     request,
     live_only: bool = False,
@@ -31,16 +38,7 @@ def list_collections(
     limit: int = 50,
     offset: int = 0,
 ):
-    """
-    Retrieve a paginated list of Collection pages from Wagtail.
-
-    Use this to discover all collections, check sync status, or find collections by locale.
-    Filter by locale (e.g. 'en-US', 'es-US', 'fr-CA') to get locale-specific versions.
-    Set live_only=true to exclude unpublished drafts.
-
-    Pagination: use limit (default 50) and offset to page through results.
-    Returns an empty list if no collections match the filters.
-    """
+    """Discover collections before read/update."""
     qs = CollectionPage.objects.select_related('locale').prefetch_related('metafields')
     if live_only:
         qs = qs.live()
@@ -48,22 +46,16 @@ def list_collections(
     return list(qs[offset:offset + limit])
 
 
-@router.post('/', response={201: CollectionOut, 400: ErrorSchema}, summary="Create Collection")
+@router.post(
+    '/',
+    response={201: CollectionOut, 400: ErrorSchema},
+    summary="Create Collection",
+    operation_id="create_collection",
+    description=capability_docstring("create_collection"),
+    openapi_extra=agent_openapi_extra("create_collection"),
+)
 def create_collection(request, data: CollectionIn):
-    """
-    Create a new Collection page in Wagtail under the ShopifyRootPage.
-
-    This creates the Wagtail CMS entry only — it does NOT create a collection in Shopify.
-    Typical agent workflow:
-    1. Create collection in Shopify first (via Shopify API or admin).
-    2. Set shopify_id to link this page to the Shopify collection.
-    3. Call POST /collections/{id}/push/ to push content to Shopify.
-
-    Alternatively, use POST /collections/pull/ to import all collections from Shopify automatically.
-    The page is saved as a draft (unpublished). Call PATCH with publish=true to publish and sync.
-
-    Returns HTTP 400 if the Wagtail site is not configured.
-    """
+    """Create Wagtail collection page."""
     try:
         parent = resolve_shopify_import_parent('collections')
     except RuntimeError as e:
@@ -105,43 +97,29 @@ def create_collection(request, data: CollectionIn):
     return 201, page
 
 
-@router.post('/pull', response=ImportResultSchema, summary="Pull Collections from Shopify")
+@router.post(
+    '/pull',
+    response={200: ImportResultSchema, 400: ErrorSchema},
+    summary="Pull Collections from Shopify (sync)",
+    operation_id="pull_collections_sync",
+    description=capability_docstring("pull_collections_sync"),
+    openapi_extra=agent_openapi_extra("pull_collections_sync"),
+)
 def pull_collections(request):
-    """
-    Import all collections from the connected Shopify store into Wagtail as CollectionPage instances.
-
-    Fetches all collections from Shopify Admin API and creates or updates matching Wagtail pages
-    under the ShopifyRootPage. Existing pages are matched by shopify_id and updated in place.
-    New collections are created as draft pages.
-
-    This is the recommended starting point for agents working with an existing Shopify store:
-    call this once to populate Wagtail with all Shopify collections, then use PATCH and /push
-    to make content changes.
-
-    Prerequisites:
-    - A ShopConfig with a valid Shopify offline access token must exist.
-    - The ShopifyRootPage for collections (slug=collections) is created automatically if missing.
-
-    Returns counts of created, updated, and failed imports.
-    """
-    try:
-        return run_shopify_import_for_api('collections', new_only=False)
-    except RuntimeError as e:
-        raise HttpError(400, str(e))
+    """Import all collections from Shopify synchronously."""
+    return execute_pull('collections')
 
 
-@router.get('/{page_id}', response={200: CollectionOut, 404: ErrorSchema}, summary="Get Collection")
+@router.get(
+    '/{page_id}',
+    response={200: CollectionOut, 404: ErrorSchema},
+    summary="Get Collection",
+    operation_id="get_collection",
+    description=capability_docstring("get_collection"),
+    openapi_extra=agent_openapi_extra("get_collection"),
+)
 def get_collection(request, page_id: int):
-    """
-    Retrieve a single Collection page by its Wagtail page ID.
-
-    Returns full collection data including description blocks, metafields, sync state, and locale.
-    Use the 'shopify_id' field to correlate with the corresponding Shopify collection.
-    The 'last_synced_at' timestamp shows when content was last pushed to Shopify.
-    A null 'last_synced_at' means the collection has never been synced to Shopify.
-
-    The page_id is the Wagtail integer page ID returned by GET /collections/ or POST /collections/.
-    """
+    """Get single collection by Wagtail page ID."""
     try:
         page = (
             CollectionPage.objects
@@ -154,20 +132,16 @@ def get_collection(request, page_id: int):
         return 404, {"detail": f"Collection page {page_id} not found."}
 
 
-@router.patch('/{page_id}', response={200: CollectionOut, 404: ErrorSchema, 400: ErrorSchema}, summary="Update Collection")
+@router.patch(
+    '/{page_id}',
+    response={200: CollectionOut, 404: ErrorSchema, 400: ErrorSchema},
+    summary="Update Collection",
+    operation_id="update_collection",
+    description=capability_docstring("update_collection"),
+    openapi_extra=agent_openapi_extra("update_collection"),
+)
 def update_collection(request, page_id: int, data: CollectionPatch):
-    """
-    Partially update a Collection page. Only fields included in the request body are changed.
-
-    Set publish=true to publish the page immediately. If sync_enabled=true on the page,
-    publishing will automatically trigger an outbound sync to Shopify via the publish hook.
-
-    To update content without syncing to Shopify, set sync_enabled=false before patching,
-    or leave publish=false (default) to save as a draft only.
-
-    To replace all metafields, pass the full desired metafields list. To clear, pass [].
-    Omit any field from the request body to leave it unchanged.
-    """
+    """Partially update collection; publish=true triggers sync when enabled."""
     try:
         page = (
             CollectionPage.objects
@@ -222,14 +196,16 @@ def update_collection(request, page_id: int, data: CollectionPatch):
     return page
 
 
-@router.delete('/{page_id}', response={204: None, 404: ErrorSchema}, summary="Delete Collection")
+@router.delete(
+    '/{page_id}',
+    response={204: None, 404: ErrorSchema},
+    summary="Delete Collection",
+    operation_id="delete_collection",
+    description=capability_docstring("delete_collection"),
+    openapi_extra=agent_openapi_extra("delete_collection"),
+)
 def delete_collection(request, page_id: int):
-    """
-    Delete a Collection page from Wagtail. This does NOT delete the collection in Shopify.
-
-    Use this to remove a Wagtail page that should no longer be managed here.
-    The Shopify collection remains untouched. This action is irreversible.
-    """
+    """Delete Wagtail collection page only."""
     try:
         page = CollectionPage.objects.get(pk=page_id)
         page.delete()
@@ -238,22 +214,16 @@ def delete_collection(request, page_id: int):
         return 404, {"detail": f"Collection page {page_id} not found."}
 
 
-@router.post('/{page_id}/push', response={200: SyncResultSchema, 404: ErrorSchema, 400: ErrorSchema}, summary="Push Collection to Shopify")
+@router.post(
+    '/{page_id}/push',
+    response={200: SyncResultSchema, 404: ErrorSchema, 400: ErrorSchema},
+    summary="Push Collection to Shopify",
+    operation_id="push_collection",
+    description=capability_docstring("push_collection"),
+    openapi_extra=agent_openapi_extra("push_collection"),
+)
 def push_collection(request, page_id: int):
-    """
-    Push a Collection page's content from Wagtail to Shopify Admin API.
-
-    Triggers an explicit outbound sync regardless of the page's publish state.
-    Pushes: title, descriptionHtml (rendered StreamField description), SEO fields, and all metafields.
-
-    Requirements:
-    - The page must have a shopify_id set (format: 'gid://shopify/Collection/{id}').
-    - A ShopConfig with a valid Shopify access token must exist.
-
-    Returns success=false if Shopify returns errors or the token is invalid.
-    Check the 'message' field for details on failures.
-    Use POST /collections/pull first if collections have not yet been imported from Shopify.
-    """
+    """Push collection content to Shopify Admin API."""
     try:
         page = CollectionPage.objects.get(pk=page_id)
     except CollectionPage.DoesNotExist:

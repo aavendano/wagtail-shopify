@@ -1,8 +1,14 @@
 from dataclasses import asdict, is_dataclass
 
+from datetime import timedelta
+
+from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from webhooks.utils import shop_lookup_variants
+
 from .models import ShopConfig
+from .shop_config_lookup import get_shop_config
 from .utils import _get_attr, get_shopify_app, log_shopify_result
 
 
@@ -35,14 +41,23 @@ def _parse_optional_datetime(value):
     return parse_datetime(str(value))
 
 
+def _canonical_shop(shop):
+    for variant in shop_lookup_variants(shop):
+        if variant.endswith(".myshopify.com"):
+            return variant
+    variants = shop_lookup_variants(shop)
+    return variants[0] if variants else shop
+
+
 def _clear_tokens(shop):
-    ShopConfig.objects.filter(shop=shop).update(
-        access_token=None,
-        refresh_token=None,
-        refresh_token_expires=None,
-        expires=None,
-        scope=None,
-    )
+    for variant in shop_lookup_variants(shop):
+        ShopConfig.objects.filter(shop=variant).update(
+            access_token=None,
+            refresh_token=None,
+            refresh_token_expires=None,
+            expires=None,
+            scope=None,
+        )
 
 
 def clear_shop_tokens(shop):
@@ -50,7 +65,7 @@ def clear_shop_tokens(shop):
 
 
 def refresh_stored_token_if_possible(shopify_app, shop):
-    record = ShopConfig.objects.filter(shop=shop).first()
+    record = get_shop_config(shop)
     if not record:
         return None
     return _refresh_token_if_possible(shopify_app, record)
@@ -58,7 +73,7 @@ def refresh_stored_token_if_possible(shopify_app, shop):
 
 def persist_access_token(access_token, fallback_shop=None):
     payload = _to_dict(access_token)
-    shop = payload.get("shop") or fallback_shop
+    shop = _canonical_shop(payload.get("shop") or fallback_shop)
     if not shop:
         return None
 
@@ -77,8 +92,14 @@ def persist_access_token(access_token, fallback_shop=None):
     return record
 
 
+def _record_needs_refresh(record):
+    if not record or not record.refresh_token or not record.expires:
+        return False
+    return record.expires <= timezone.now() + timedelta(seconds=60)
+
+
 def _refresh_token_if_possible(shopify_app, record):
-    if not record.refresh_token:
+    if not record.refresh_token or not _record_needs_refresh(record):
         return None
 
     access_mode = "online" if record.is_online else "offline"
@@ -101,12 +122,18 @@ def _refresh_token_if_possible(shopify_app, record):
     )
     log_shopify_result(refresh_result)
     if _get_attr(refresh_result, "ok", False):
-        persist_access_token(_get_attr(refresh_result, "access_token"), fallback_shop=record.shop)
+        new_access_token = _get_attr(refresh_result, "access_token")
+        if new_access_token:
+            persist_access_token(new_access_token, fallback_shop=record.shop)
         return None
 
-    if _get_attr(_get_attr(refresh_result, "log", {}), "code") in TOKEN_ERROR_CODES:
+    log_code = _get_attr(_get_attr(refresh_result, "log", {}), "code")
+    if log_code in TOKEN_ERROR_CODES:
         _clear_tokens(record.shop)
-    return refresh_result
+        return refresh_result
+
+    # Transient failures (e.g. network_error): keep stored tokens and continue.
+    return None
 
 
 def ensure_offline_token_lifecycle(verification_result, shopify_app=None):
@@ -115,7 +142,7 @@ def ensure_offline_token_lifecycle(verification_result, shopify_app=None):
         return None
 
     shopify_app = shopify_app or get_shopify_app()
-    token_record = ShopConfig.objects.filter(shop=shop).first()
+    token_record = get_shop_config(shop)
     if token_record:
         refresh_result = _refresh_token_if_possible(shopify_app, token_record)
         if refresh_result is not None:

@@ -9,6 +9,7 @@ from .embedded_redirects import (
 )
 from .forms import ShopConfigForm
 from .models import ShopConfig
+from .shop_config_lookup import get_shop_config, shop_has_access_token
 
 
 class ShopConfigFormTests(TestCase):
@@ -388,6 +389,52 @@ class TokenLifecycleTests(TestCase):
         self.assertIsNone(record.access_token)
         self.assertIsNone(record.refresh_token)
 
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("core.mixins.get_shopify_app")
+    def test_refresh_network_error_uses_existing_access_token(
+        self, mocked_get_shopify_app, mock_raw_gql
+    ):
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            data={"shop": {"id": "gid://shopify/Shop/1"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="existing-token",
+            refresh_token="refresh-token",
+        )
+        mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            id_token=SimpleNamespace(
+                exchangeable=True,
+                token="jwt-token",
+                claims={"dest": "https://test-shop.myshopify.com"},
+            ),
+            new_id_token_response=SimpleNamespace(status=401, body="", headers={}),
+            response=SimpleNamespace(headers={}),
+        )
+        mocked_get_shopify_app.return_value.refresh_token_exchanged_access_token.return_value = (
+            SimpleNamespace(
+                ok=False,
+                log=SimpleNamespace(code="network_error", detail="connection failed"),
+                response=SimpleNamespace(status=500, body="", headers={}),
+            )
+        )
+
+        response = self.client.get("/shopify-admin?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        record = ShopConfig.objects.get(shop="test-shop")
+        self.assertEqual(record.access_token, "existing-token")
+        self.assertEqual(record.refresh_token, "refresh-token")
+        mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_not_called()
+
 
 class EmbeddedRedirectValidationTests(TestCase):
     def test_validate_relative_rejects_protocol_relative(self):
@@ -575,21 +622,25 @@ class EmbeddedShopifySyncViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("home"))
 
-    @patch("core.views.run_shopify_import")
+    @patch("core.views.enqueue_shopify_import")
     @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
     @patch("core.mixins.get_shopify_app")
-    def test_post_triggers_new_only_import(self, mock_gs, _mock_token, mock_run_import):
+    def test_post_triggers_new_only_import(self, mock_gs, _mock_token, mock_enqueue):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
             shop="test-shop",
             is_online=False,
             access_token="tok",
         )
-        mock_run_import.return_value = {
-            "resource": "products",
-            "stats": {"created": 2, "updated": 0, "skipped": 1, "errors": 0},
-            "message": "Productos — Creados: 2, Omitidos: 1, Errores: 0",
-        }
+        from shopify_content.models import ShopifySyncRun
+
+        sync_run = ShopifySyncRun.objects.create(
+            kind=ShopifySyncRun.KIND_INBOUND,
+            resource="products",
+            new_only=True,
+            status=ShopifySyncRun.STATUS_PENDING,
+        )
+        mock_enqueue.return_value = sync_run
 
         response = self.client.post(
             reverse("shopify_embedded_sync"),
@@ -598,7 +649,7 @@ class EmbeddedShopifySyncViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("home"))
-        mock_run_import.assert_called_once_with("products", new_only=True)
+        mock_enqueue.assert_called_once_with("products", new_only=True)
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
     @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
@@ -625,3 +676,59 @@ class EmbeddedShopifySyncViewTests(TestCase):
         self.assertContains(response, "Sincronizar contenido a Wagtail")
         self.assertContains(response, "Importar productos nuevos")
         self.assertContains(response, reverse("shopify_embedded_sync"))
+
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_home_renders_sync_buttons_when_shop_domain_formats_differ(
+        self, mock_gs, _mock_token, mock_raw_gql
+    ):
+        """Token stored as short subdomain; embedded app verifies full myshopify.com."""
+        mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop.myshopify.com",
+            id_token=SimpleNamespace(exchangeable=False),
+            new_id_token_response=SimpleNamespace(status=401, body="", headers={}),
+            response=SimpleNamespace(headers={}),
+            log=SimpleNamespace(code="verified", detail=""),
+        )
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop.myshopify.com",
+            data={"shop": {"id": "gid://shopify/Shop/1", "name": "Test Shop"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+
+        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Importar productos nuevos")
+        self.assertNotContains(response, "No hay token de acceso configurado")
+
+
+class ShopConfigLookupTests(TestCase):
+    def test_prefers_record_with_token_when_multiple_shop_formats_exist(self):
+        ShopConfig.objects.create(shop="demo", is_online=False, access_token=None)
+        ShopConfig.objects.create(
+            shop="demo.myshopify.com", is_online=False, access_token="tok"
+        )
+
+        self.assertTrue(shop_has_access_token("demo.myshopify.com"))
+        self.assertEqual(get_shop_config("demo").access_token, "tok")
+
+    def test_get_shop_config_without_shop_prefers_row_with_token(self):
+        ShopConfig.objects.create(shop="empty-shop", is_online=False, access_token=None)
+        ShopConfig.objects.create(
+            shop="ready-shop", is_online=False, access_token="tok"
+        )
+
+        config = get_shop_config()
+        self.assertEqual(config.shop, "ready-shop")
+        self.assertTrue(shop_has_access_token())

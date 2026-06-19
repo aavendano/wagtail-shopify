@@ -416,7 +416,7 @@ class Migration(migrations.Migration):
                                 {
                                     "choices": [
                                         ("single_line_text_field", "Single Line Text"),
-                                        ("multi_line_text_field", "Multi Line Text"),
+                                        ("rich_text_field", "Multi Line Text"),
                                         ("json", "JSON"),
                                         ("number_integer", "Integer"),
                                         ("number_decimal", "Decimal"),

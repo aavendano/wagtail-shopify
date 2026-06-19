@@ -11,6 +11,15 @@ from .queries import METAOBJECT_BY_HANDLE, METAOBJECT_DEFINITION_BY_TYPE
 from .validation import validate_metaobject
 
 
+def _publishable_active_input(definition: MetaobjectDefinitionSpec | None) -> dict | None:
+    if definition is None or not definition.capabilities:
+        return None
+    publishable = definition.capabilities.get('publishable') or {}
+    if not publishable.get('enabled'):
+        return None
+    return {'publishable': {'status': 'ACTIVE'}}
+
+
 class MetaobjectClient:
     def __init__(self, shop: str):
         self.shop = shop
@@ -26,7 +35,7 @@ class MetaobjectClient:
                 result.log_detail or "Failed to fetch metaobject definition",
                 error_code=result.error_code,
             )
-        definition_data = (result.data or {}).get("metaobjectDefinition")
+        definition_data = (result.data or {}).get("metaobjectDefinitionByType")
         if not definition_data:
             return None
         return MetaobjectDefinitionSpec.from_dict(definition_data)
@@ -75,7 +84,7 @@ class MetaobjectClient:
                 result.log_detail or "Failed to fetch metaobject",
                 error_code=result.error_code,
             )
-        metaobject_data = (result.data or {}).get("metaobject")
+        metaobject_data = (result.data or {}).get("metaobjectByHandle")
         if not metaobject_data:
             return None
         return Metaobject.from_shopify_data(metaobject_data)
@@ -92,14 +101,22 @@ class MetaobjectClient:
             if errors:
                 raise UpsertError("; ".join(errors))
 
+        field_types = (
+            {field.key: field.type for field in definition.fields}
+            if definition is not None
+            else {}
+        )
+        shopify_fields = metaobject.to_shopify_fields(field_types)
+        metaobject_input: dict[str, Any] = {'fields': shopify_fields}
+        capabilities = _publishable_active_input(definition)
+        if capabilities:
+            metaobject_input['capabilities'] = capabilities
         variables = {
             "handle": {
                 "type": metaobject.type,
                 "handle": metaobject.handle,
             },
-            "metaobject": {
-                "fields": metaobject.to_shopify_fields(),
-            },
+            "metaobject": metaobject_input,
         }
         result = execute_admin_graphql(
             METAOBJECT_UPSERT,

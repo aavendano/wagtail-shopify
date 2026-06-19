@@ -33,14 +33,42 @@ class MetaobjectDefinitionSpec:
     name: str
     description: str
     fields: list[MetaobjectFieldSpec]
+    display_name_field: str | None = None
+    capabilities: dict | None = None
+    access: dict | None = None
 
     def to_shopify_input(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "type": self.type,
             "name": self.name,
             "description": self.description,
-            "fields": [field_spec.to_shopify_input() for field_spec in self.fields],
+            "fieldDefinitions": [
+                field_spec.to_shopify_input() for field_spec in self.fields
+            ],
         }
+        if self.display_name_field:
+            payload["displayNameKey"] = self.display_name_field
+        if self.capabilities:
+            payload["capabilities"] = self._normalize_capabilities(self.capabilities)
+        if self.access:
+            payload["access"] = self.access
+        return payload
+
+    @staticmethod
+    def _normalize_capabilities(capabilities: dict) -> dict:
+        caps = dict(capabilities)
+        renderable = caps.get("renderable")
+        if not isinstance(renderable, dict):
+            return caps
+        data = renderable.get("data")
+        if not isinstance(data, dict):
+            return caps
+        normalized = dict(data)
+        if "metaTitleField" in normalized and "metaTitleKey" not in normalized:
+            normalized["metaTitleKey"] = normalized.pop("metaTitleField")
+        if "metaDescriptionField" in normalized and "metaDescriptionKey" not in normalized:
+            normalized["metaDescriptionKey"] = normalized.pop("metaDescriptionField")
+        return {**caps, "renderable": {**renderable, "data": normalized}}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:

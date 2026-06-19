@@ -70,10 +70,18 @@ class Metaobject:
             raise TypeError(f"{instance!r} is not a dataclass instance")
         return cls.from_dict(asdict(instance), type=type, handle_key=handle_field)
 
-    def to_shopify_fields(self) -> list[dict[str, str]]:
+    def to_shopify_fields(
+        self, field_types: dict[str, str] | None = None
+    ) -> list[dict[str, str]]:
+        field_types = field_types or {}
         serialized = []
         for key, value in self.fields.items():
-            if isinstance(value, bool):
+            shopify_type = field_types.get(key)
+            if shopify_type:
+                serialized.append(
+                    {"key": key, "value": serialize_field_value(value, shopify_type)}
+                )
+            elif isinstance(value, bool):
                 serialized.append(
                     {"key": key, "value": serialize_field_value(value, "boolean")}
                 )

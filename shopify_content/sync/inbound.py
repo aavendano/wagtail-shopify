@@ -9,6 +9,8 @@ Import strategy:
   - New pages are created as children of the specified parent page.
   - On import, body HTML is stored as a single HtmlBlock. Editors can later
     break it into structured blocks.
+  - Metafields are not imported on pull (manual/API/outbound only).
+  - Images are stored as absolute URLs in the local DB (no wagtailimages download).
 """
 
 import logging
@@ -24,16 +26,17 @@ from .queries import (
     LIST_ARTICLES_FOR_BLOG,
 )
 from ..models import (
-    ProductPage, ProductPageMetafield,
-    CollectionPage, CollectionPageMetafield,
+    ProductPage, ProductPageImage,
+    CollectionPage,
     BlogPage,
-    ArticlePage, ArticlePageMetafield,
+    ArticlePage,
 )
 from .import_parents import ensure_child_of_import_parent
+from .utils import absolute_shopify_media_url, MAX_PRODUCT_IMAGES
 
 logger = logging.getLogger(__name__)
 
-PAGE_SIZE = 50  # Shopify max for queries with nested connections
+PAGE_SIZE = 100
 
 
 def _get_shop():
@@ -75,13 +78,6 @@ def _paginate(shop, query, data_path, variables=None):
         cursor = page_info.get('endCursor')
 
 
-def _extract_metafields(node):
-    return [
-        e['node']
-        for e in (node.get('metafields') or {}).get('edges', [])
-    ]
-
-
 def _empty_import_stats():
     return {'created': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
 
@@ -102,6 +98,42 @@ def _get_or_create_page(model_class, shopify_id, shop):
     new_page = model_class(locale=locale)
     new_page.shopify_id = shopify_id
     return new_page, True
+
+
+def _sync_product_images(page, node):
+    """Replace product image URLs from Shopify (max MAX_PRODUCT_IMAGES)."""
+    edges = (node.get('images') or {}).get('edges', [])[:MAX_PRODUCT_IMAGES]
+    page.shopify_images.all().delete()
+    for sort_order, edge in enumerate(edges):
+        img = edge.get('node') or {}
+        url = absolute_shopify_media_url(img.get('url') or '')
+        if not url:
+            continue
+        ProductPageImage.objects.create(
+            page=page,
+            shopify_id=img.get('id') or '',
+            url=url,
+            alt_text=img.get('altText') or '',
+            sort_order=sort_order,
+        )
+
+
+def _set_collection_image(page, node):
+    """Set collection featured image URL fields from Shopify."""
+    image = node.get('image') or {}
+    url = absolute_shopify_media_url(image.get('url') or '')
+    page.image_url = url
+    page.image_alt_text = image.get('altText') or ''
+    page.shopify_image_id = image.get('id') or ''
+
+
+def _set_article_featured_image_url(page, node):
+    """Set article featured image URL fields from Shopify."""
+    image = node.get('image') or {}
+    url = absolute_shopify_media_url(image.get('url') or '')
+    page.featured_image_url = url
+    page.featured_image_alt = image.get('altText') or ''
+    page.shopify_featured_image_id = image.get('id') or ''
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +167,7 @@ def import_products(shop, parent_page, new_only=False):
 
             seo = node.get('seo') or {}
             page.seo_title = seo.get('title') or ''
-            page.seo_description = seo.get('description') or ''
+            page.search_description = seo.get('description') or ''
 
             desc_html = node.get('descriptionHtml') or ''
             if desc_html:
@@ -151,16 +183,7 @@ def import_products(shop, parent_page, new_only=False):
             if tags:
                 page.tags.set(tags)
 
-            # Sync metafields
-            page.metafields.all().delete()
-            for mf in _extract_metafields(node):
-                ProductPageMetafield.objects.create(
-                    page=page,
-                    namespace=mf.get('namespace', 'custom'),
-                    key=mf['key'],
-                    type=mf.get('type', 'single_line_text_field'),
-                    value=mf.get('value', ''),
-                )
+            _sync_product_images(page, node)
 
             type(page).objects.filter(pk=page.pk).update(last_synced_at=timezone.now())
             stats['created' if is_new else 'updated'] += 1
@@ -196,27 +219,19 @@ def import_collections(shop, parent_page, new_only=False):
 
             seo = node.get('seo') or {}
             page.seo_title = seo.get('title') or ''
-            page.seo_description = seo.get('description') or ''
+            page.search_description = seo.get('description') or ''
 
             desc_html = node.get('descriptionHtml') or ''
             if desc_html:
                 page.description = [{'type': 'html', 'value': desc_html}]
+
+            _set_collection_image(page, node)
 
             if is_new:
                 parent_page.add_child(instance=page)
             else:
                 ensure_child_of_import_parent(page, parent_page)
                 page.save_revision().publish()
-
-            page.metafields.all().delete()
-            for mf in _extract_metafields(node):
-                CollectionPageMetafield.objects.create(
-                    page=page,
-                    namespace=mf.get('namespace', 'custom'),
-                    key=mf['key'],
-                    type=mf.get('type', 'single_line_text_field'),
-                    value=mf.get('value', ''),
-                )
 
             type(page).objects.filter(pk=page.pk).update(last_synced_at=timezone.now())
             stats['created' if is_new else 'updated'] += 1
@@ -296,13 +311,7 @@ def import_blogs_and_articles(shop, parent_page, new_only=False):
                     if body_html:
                         art_page.body = [{'type': 'html', 'value': body_html}]
 
-                    # Extract SEO from metafields (global.title_tag / global.description_tag)
-                    for mf in _extract_metafields(art_node):
-                        if mf.get('namespace') == 'global':
-                            if mf.get('key') == 'title_tag':
-                                art_page.seo_title = mf.get('value', '')
-                            elif mf.get('key') == 'description_tag':
-                                art_page.seo_description = mf.get('value', '')
+                    _set_article_featured_image_url(art_page, art_node)
 
                     if art_is_new:
                         blog_page.add_child(instance=art_page)
@@ -312,19 +321,6 @@ def import_blogs_and_articles(shop, parent_page, new_only=False):
 
                     if tags:
                         art_page.tags.set(tags)
-
-                    art_page.metafields.all().delete()
-                    for mf in _extract_metafields(art_node):
-                        # Skip SEO metafields — stored in dedicated fields
-                        if mf.get('namespace') == 'global' and mf.get('key') in ('title_tag', 'description_tag'):
-                            continue
-                        ArticlePageMetafield.objects.create(
-                            page=art_page,
-                            namespace=mf.get('namespace', 'custom'),
-                            key=mf['key'],
-                            type=mf.get('type', 'single_line_text_field'),
-                            value=mf.get('value', ''),
-                        )
 
                     type(art_page).objects.filter(pk=art_page.pk).update(last_synced_at=timezone.now())
                     article_stats['created' if art_is_new else 'updated'] += 1

@@ -7,5 +7,12 @@
 </head>
 <body>
 <h1>{{ page.title }}</h1>
+{% if page.shopify_images.all %}
+<div class="product-images">
+    {% for img in page.shopify_images.all %}
+    <img src="{{ img.url }}" alt="{{ img.alt_text }}" loading="lazy">
+    {% endfor %}
+</div>
+{% endif %}
 </body>
 </html>

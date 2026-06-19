@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, ShopifyImageUrlSchema
 
 
 class ProductIn(LocaleCreateFields):
@@ -196,6 +196,10 @@ class ProductOut(LocaleOutFields):
     )
     seo_title: str = Field(..., description="SEO title. Maps to Shopify seo.title. Falls back to product title.")
     search_description: str = Field(..., description="SEO meta description. Maps to Shopify seo.description.")
+    shopify_images: List[ShopifyImageUrlSchema] = Field(
+        default_factory=list,
+        description="Shopify product image URLs imported on pull (max 10).",
+    )
     metafields: List[Dict[str, Any]] = Field(..., description="Attached Shopify metafields with namespace, key, type, and value.")
     sync_enabled: bool = Field(..., description="When true, publishing triggers an outbound sync to Shopify.")
     last_synced_at: Optional[datetime] = Field(
@@ -220,6 +224,18 @@ class ProductOut(LocaleOutFields):
     @staticmethod
     def resolve_body(obj):
         return list(obj.body.stream_data) if obj.body else []
+
+    @staticmethod
+    def resolve_shopify_images(obj):
+        return [
+            {
+                'shopify_id': img.shopify_id,
+                'url': img.url,
+                'alt_text': img.alt_text,
+                'sort_order': img.sort_order,
+            }
+            for img in obj.shopify_images.all()
+        ]
 
     @staticmethod
     def resolve_metafields(obj):

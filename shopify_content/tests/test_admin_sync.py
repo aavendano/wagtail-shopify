@@ -6,12 +6,13 @@ from django.urls import reverse
 from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
-from shopify_content.models import ProductPage, ShopifyRootPage
+from core.models import ShopConfig
+from shopify_content.models import ProductPage, ShopifyRootPage, ShopifySyncRun
 from shopify_content.sync.inbound import import_products
 from shopify_content.sync.service import run_shopify_import
 
 
-def _make_product_node(gid, handle, title):
+def _make_product_node(gid, handle, title, seo_description='Meta desc from Shopify'):
     return {
         'id': gid,
         'title': title,
@@ -20,7 +21,7 @@ def _make_product_node(gid, handle, title):
         'productType': 'Shirt',
         'status': 'ACTIVE',
         'tags': [],
-        'seo': {'title': '', 'description': ''},
+        'seo': {'title': '', 'description': seo_description},
         'descriptionHtml': '<p>Description</p>',
         'metafields': {'edges': []},
     }
@@ -88,6 +89,7 @@ class ImportNewOnlyTests(TestCase):
         self.assertEqual(stats['skipped'], 0)
         page = ProductPage.objects.get(shopify_id=self.existing_gid)
         self.assertEqual(page.title, 'Updated Title')
+        self.assertEqual(page.search_description, 'Meta desc from Shopify')
 
 
 class RunShopifyImportTests(TestCase):
@@ -157,17 +159,20 @@ class ShopifySyncViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'No hay una tienda Shopify conectada')
 
-    @patch('shopify_content.admin.sync_views.run_shopify_import')
-    def test_post_triggers_new_only_import(self, mock_run_import):
+    @patch('shopify_content.admin.sync_views.enqueue_shopify_import')
+    def test_post_triggers_new_only_import(self, mock_enqueue):
         ShopConfig.objects.create(
             shop='test-shop.myshopify.com',
             access_token='tok',
         )
-        mock_run_import.return_value = {
-            'resource': 'products',
-            'stats': {'created': 1, 'updated': 0, 'skipped': 0, 'errors': 0},
-            'message': 'Productos — Creados: 1, Omitidos: 0, Errores: 0',
-        }
+        sync_run = ShopifySyncRun.objects.create(
+            kind=ShopifySyncRun.KIND_INBOUND,
+            resource='products',
+            new_only=True,
+            status=ShopifySyncRun.STATUS_PENDING,
+            message='Importación en cola.',
+        )
+        mock_enqueue.return_value = sync_run
 
         response = self.client.post(
             reverse('shopify_sync'),
@@ -176,7 +181,7 @@ class ShopifySyncViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('shopify_sync'))
-        mock_run_import.assert_called_once_with('products', new_only=True)
+        mock_enqueue.assert_called_once_with('products', new_only=True)
 
     def test_post_rejects_invalid_resource(self):
         ShopConfig.objects.create(

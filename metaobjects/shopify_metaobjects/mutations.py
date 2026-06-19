@@ -9,17 +9,6 @@ mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: Metaobje
                 key
                 value
             }
-            metafields(first: 250) {
-                edges {
-                    node {
-                        id
-                        key
-                        value
-                        type
-                        namespace
-                    }
-                }
-            }
         }
         userErrors {
             field
@@ -53,6 +42,7 @@ mutation createMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput
         userErrors {
             field
             message
+            code
         }
     }
 }

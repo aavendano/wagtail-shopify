@@ -1,5 +1,5 @@
 from .mixins import FAQItem, ShopifyMetafield
-from .product import ProductPage, ProductPageFAQ, ProductPageMetafield, ProductPageTag
+from .product import ProductPage, ProductPageFAQ, ProductPageImage, ProductPageMetafield, ProductPageTag
 from .collection import CollectionPage, CollectionPageFAQ, CollectionPageMetafield
 from .blog import (
     BlogPage, BlogPageFAQ,
@@ -7,12 +7,14 @@ from .blog import (
 )
 from .location_page import LocationPage, LocationPageFAQ
 from .root import ShopifyRootPage
+from .sync_run import ShopifySyncRun
 
 __all__ = [
     'FAQItem',
     'ShopifyMetafield',
     'ProductPage',
     'ProductPageFAQ',
+    'ProductPageImage',
     'ProductPageMetafield',
     'ProductPageTag',
     'CollectionPage',
@@ -27,4 +29,5 @@ __all__ = [
     'LocationPage',
     'LocationPageFAQ',
     'ShopifyRootPage',
+    'ShopifySyncRun',
 ]

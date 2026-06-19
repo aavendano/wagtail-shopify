@@ -1,6 +1,6 @@
 METAOBJECT_BY_HANDLE = """
 query getMetaobject($handle: String!, $type: String!) {
-    metaobject(handle: $handle, type: $type) {
+    metaobjectByHandle(handle: {type: $type, handle: $handle}) {
         id
         handle
         type
@@ -8,24 +8,13 @@ query getMetaobject($handle: String!, $type: String!) {
             key
             value
         }
-        metafields(first: 250) {
-            edges {
-                node {
-                    id
-                    key
-                    value
-                    type
-                    namespace
-                }
-            }
-        }
     }
 }
 """
 
 METAOBJECT_DEFINITION_BY_TYPE = """
 query getMetaobjectDefinitionByType($type: String!) {
-    metaobjectDefinition(type: $type) {
+    metaobjectDefinitionByType(type: $type) {
         type
         name
         description

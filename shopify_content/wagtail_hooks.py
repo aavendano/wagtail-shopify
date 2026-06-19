@@ -1,12 +1,8 @@
 """
 Wagtail hooks for shopify_content.
 
-Registers an after_publish_page hook that automatically syncs published
-Shopify content pages to Shopify Admin via GraphQL.
-
-Sync is synchronous and non-blocking: if it fails, the publish still succeeds
-and the editor sees a warning message. For high-volume stores, replace the
-direct call with a background task (Celery, Django-Q, etc.).
+Registers an after_publish_page hook that queues published Shopify content
+pages for outbound sync to Shopify Admin via Celery.
 """
 
 import logging
@@ -17,6 +13,7 @@ from wagtail.admin import messages as wagtail_messages
 from wagtail.admin.menu import MenuItem
 
 from .admin.sync_views import ShopifySyncView
+from .sync.task_dispatch import enqueue_page_outbound_sync
 
 logger = logging.getLogger(__name__)
 
@@ -42,58 +39,47 @@ def register_shopify_sync_menu_item():
 def sync_to_shopify_on_publish(request, page):
     """
     After a shopify_content page is published in Wagtail admin,
-    push the changes to Shopify Admin.
+    queue outbound sync to Shopify Admin.
     """
-    # Lazy imports keep the Shopify SDK out of the startup path.
     from .models import ProductPage, CollectionPage, BlogPage, ArticlePage, LocationPage
-    from .sync.outbound import (
-        sync_product_page,
-        sync_collection_page,
-        sync_blog_page,
-        sync_article_page,
-        sync_location_page,
+
+    page_sync_types = (
+        ProductPage,
+        CollectionPage,
+        BlogPage,
+        ArticlePage,
+        LocationPage,
     )
 
-    page_sync_map = {
-        ProductPage: sync_product_page,
-        CollectionPage: sync_collection_page,
-        BlogPage: sync_blog_page,
-        ArticlePage: sync_article_page,
-        LocationPage: sync_location_page,
-    }
-
     specific_page = page.specific
-    sync_fn = page_sync_map.get(type(specific_page))
+    if not isinstance(specific_page, page_sync_types):
+        return
 
-    if sync_fn is None:
-        return  # Not a shopify_content page; nothing to do
+    if not getattr(specific_page, 'sync_enabled', True):
+        return
 
     try:
-        success = sync_fn(specific_page)
-        if success:
-            wagtail_messages.success(
-                request,
-                f'"{page.title}" synced to Shopify successfully.',
-                extra_tags='shopify-sync',
-            )
-        else:
-            wagtail_messages.warning(
-                request,
-                (
-                    f'"{page.title}" was published but Shopify sync failed. '
-                    'Check the server logs for details.'
-                ),
-                extra_tags='shopify-sync-error',
-            )
+        sync_run = enqueue_page_outbound_sync(page)
+        if sync_run is None:
+            return
+        wagtail_messages.success(
+            request,
+            (
+                f'"{page.title}" encolado para sincronizar con Shopify '
+                f'(job id={sync_run.pk}).'
+            ),
+            extra_tags='shopify-sync',
+        )
     except Exception:
         logger.exception(
-            'Unhandled error in after_publish_page Shopify sync for page pk=%s', page.pk
+            'Unhandled error queueing after_publish_page Shopify sync for page pk=%s',
+            page.pk,
         )
         wagtail_messages.error(
             request,
             (
-                f'Shopify sync raised an unexpected error for "{page.title}". '
-                'The page was published locally. Check server logs.'
+                f'No se pudo encolar la sincronización con Shopify para "{page.title}". '
+                'La página se publicó localmente. Consulta los logs del servidor.'
             ),
             extra_tags='shopify-sync-error',
         )

@@ -17,8 +17,10 @@ from wagtail.documents import urls as wagtaildocs_urls
 from api.main import api
 
 urlpatterns = [
-    path("shopify-admin", HomeView.as_view(), name="home"),
-    path("shopify-admin/sync", EmbeddedShopifySyncView.as_view(), name="shopify_embedded_sync"),
+    path("shopify-admin/", HomeView.as_view(), name="home"),
+    path("shopify-admin", HomeView.as_view()),
+    path("shopify-admin/sync/", EmbeddedShopifySyncView.as_view(), name="shopify_embedded_sync"),
+    path("shopify-admin/sync", EmbeddedShopifySyncView.as_view()),
     path("core/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
 

@@ -11,14 +11,16 @@ from wagtail.search import index
 
 from .mixins import FAQItem, SHOPIFY_SYNC_PANELS
 
+from config.settings import ALLOWED_LOCALE_CODES
+
 
 class LocationPage(Page):
     """
-    Wagtail page that syncs to a Shopify app-owned metaobject.
+    Wagtail page that syncs to a Shopify merchant-owned metaobject (type: local_page).
 
-    Shopify type: $app:location_page
-    Definition lives in shopify.app.wagtail-cms.toml (app extension).
-    On publish, upserted via metaobjectUpsert; no ensure_definition needed.
+    The definition is created/verified at runtime via MetaobjectClient.ensure_definition().
+    On publish, synced via MetaobjectClient.sync() with ensure_definition=True.
+    Bootstrap the definition with: python manage.py ensure_metaobject_definitions
     """
 
     # Shopify sync fields
@@ -91,6 +93,7 @@ class LocationPage(Page):
     shopify_locale = models.CharField(
         max_length=20, blank=True, verbose_name='Shopify Locale',
         help_text='Shopify locale code pushed to the locale field (e.g. "es", "en-CA").',
+        choices=ALLOWED_LOCALE_CODES,
     )
 
     template = 'shopify_content/location_page.html'

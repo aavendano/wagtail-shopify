@@ -186,24 +186,3 @@ mutation TranslationsRegister($resourceId: ID!, $translations: [TranslationInput
   }
 }
 """
-
-# ---------------------------------------------------------------------------
-# Metaobjects — app-owned definitions (defined in shopify.app.*.toml)
-# ---------------------------------------------------------------------------
-
-METAOBJECT_UPSERT = """
-mutation MetaobjectUpsert($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
-  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
-    metaobject {
-      id
-      handle
-      type
-    }
-    userErrors {
-      field
-      message
-      code
-    }
-  }
-}
-"""

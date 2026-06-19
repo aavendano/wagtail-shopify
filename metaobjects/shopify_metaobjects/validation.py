@@ -6,7 +6,7 @@ from .metaobject import Metaobject
 
 SHOPIFY_TYPE_TO_PYTHON = {
     "single_line_text_field": str,
-    "multi_line_text_field": str,
+    "rich_text_field": str,
     "number_integer": int,
     "number_decimal": (int, float),
     "boolean": bool,

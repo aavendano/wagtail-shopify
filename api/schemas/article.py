@@ -231,6 +231,11 @@ class ArticleOut(LocaleOutFields):
         None,
         description="Wagtail Image ID of the featured image. Null if no image is set.",
     )
+    featured_image_url: str = Field(
+        '',
+        description="Absolute Shopify article image URL from pull.",
+    )
+    featured_image_alt: str = Field('', description="Alt text for the Shopify featured image URL.")
     body: List[Dict[str, Any]] = Field(
         ...,
         description=(

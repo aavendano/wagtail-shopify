@@ -10,17 +10,15 @@ from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
 
-from shopify_content.sync.service import (
-    VALID_IMPORT_RESOURCES,
-    import_error_count,
-    run_shopify_import,
-)
+from shopify_content.sync.service import VALID_IMPORT_RESOURCES
+from shopify_content.sync.task_dispatch import enqueue_shopify_import
 
 from .embedded_redirects import (
     validate_parent_redirect_url,
     validate_relative_app_path,
 )
 from .forms import ShopConfigForm
+from .shop_config_lookup import get_shop_config, shop_has_access_token
 from .mixins import AppHomeVerifiedMixin
 from .utils import (
     get_shopify_app,
@@ -32,6 +30,13 @@ from .token_service import ensure_offline_token_lifecycle
 from shopify_requests.domains.shop import fetch_shop_admin_graphql
 
 logger = logging.getLogger(__name__)
+
+
+def _sdk_response_status(result):
+    response_payload = getattr(result, "response", None) or {}
+    if isinstance(response_payload, dict):
+        return response_payload.get("status", 200)
+    return getattr(response_payload, "status", 200)
 
 
 SYNC_RESOURCES = [
@@ -49,12 +54,10 @@ def _redirect_home_preserving_query(request):
     return redirect(url)
 
 
-def _shop_config_context():
-    from .models import ShopConfig
-
-    config = ShopConfig.objects.first()
+def _shop_config_context(shop=None):
+    config = get_shop_config(shop)
     return {
-        'shop_configured': bool(config and config.access_token),
+        'shop_configured': shop_has_access_token(shop),
         'shop_domain': config.shop if config else None,
     }
 
@@ -95,11 +98,13 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update(_shop_config_context())
-        context['sync_resources'] = SYNC_RESOURCES
         verification_result = getattr(self, "_verification_result", None)
-        shop = getattr(verification_result, "shop", None) if verification_result else None
-        self._admin_graphql_halt = None
+        verified_shop = (
+            getattr(verification_result, "shop", None) if verification_result else None
+        )
+        context.update(_shop_config_context(verified_shop))
+        context['sync_resources'] = SYNC_RESOURCES
+        shop = verified_shop
         if shop:
             gql = fetch_shop_admin_graphql(
                 shop,
@@ -110,7 +115,11 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
                 shopify_app=getattr(self, "_shopify_app", None),
             )
             if not gql.ok and gql.raw is not None:
-                self._admin_graphql_halt = gql.raw
+                logger.warning(
+                    "Shop admin GraphQL failed for shop=%s code=%s; continuing without shop metadata.",
+                    shop,
+                    gql.error_code,
+                )
             elif gql.ok and gql.data:
                 shop_node = gql.data.get("shop") or {}
                 context["shopify_admin_shop_id"] = shop_node.get("id")
@@ -122,13 +131,22 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
             self._verification_result, self._shopify_app
         )
         if token_result is not None:
+            token_ok = getattr(token_result, "ok", False)
+            response_status = _sdk_response_status(token_result)
+            log_code = getattr(getattr(token_result, "log", None), "code", None)
+            if not token_ok:
+                if isinstance(response_status, int) and 300 <= response_status < 400:
+                    return shopify_result_to_django_response(token_result)
+                logger.warning(
+                    "Offline token lifecycle failed for shop=%s code=%s; rendering home.",
+                    getattr(self._verification_result, "shop", None),
+                    log_code,
+                )
+                return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
             return shopify_result_to_django_response(token_result)
         return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
 
     def render_to_response(self, context, **response_kwargs):
-        halt = getattr(self, "_admin_graphql_halt", None)
-        if halt is not None:
-            return shopify_result_to_django_response(halt)
         response = super().render_to_response(context, **response_kwargs)
         verification_result = getattr(self, "_verification_result", None)
         verification_response = getattr(verification_result, "response", None)
@@ -161,13 +179,14 @@ class EmbeddedShopifySyncView(AppHomeVerifiedMixin, View):
             return _redirect_home_preserving_query(request)
 
         try:
-            result = run_shopify_import(resource, new_only=True)
-            stats = result['stats']
-            errors = import_error_count(stats, resource)
-            if errors > 0:
-                messages.warning(request, result['message'])
-            else:
-                messages.success(request, result['message'])
+            sync_run = enqueue_shopify_import(resource, new_only=True)
+            messages.success(
+                request,
+                (
+                    f'Importación en cola (id={sync_run.pk}). '
+                    'Se procesará en segundo plano.'
+                ),
+            )
         except RuntimeError as exc:
             messages.error(request, str(exc))
         except Exception:

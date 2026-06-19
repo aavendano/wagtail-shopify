@@ -40,7 +40,7 @@ class CollectionPage(Page):
       descriptionHtml → description (StreamField)
       sortOrder       → sort_order
       seo.title       → seo_title
-      seo.description → seo_description
+      seo.description → search_description
       metafields      → metafields InlinePanel
     """
 
@@ -76,6 +76,17 @@ class CollectionPage(Page):
         help_text='Collection description. Rendered to HTML for Shopify descriptionHtml.',
     )
 
+    image_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        help_text='Absolute Shopify collection image URL for img src.',
+    )
+    image_alt_text = models.CharField(max_length=255, blank=True)
+    shopify_image_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Shopify MediaImage GID for the collection image.',
+    )
 
     template = 'shopify_content/collection_page.html'
     parent_page_types = ['wagtailcore.Page', 'shopify_content.ShopifyRootPage']
@@ -89,6 +100,10 @@ class CollectionPage(Page):
     content_panels = Page.content_panels + [
         FieldPanel('sort_order'),
         FieldPanel('description'),
+        MultiFieldPanel([
+            FieldPanel('image_url'),
+            FieldPanel('image_alt_text'),
+        ], heading='Shopify Image (URL)'),
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]

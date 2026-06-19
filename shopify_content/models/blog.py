@@ -190,7 +190,18 @@ class ArticlePage(Page):
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name='+',
-        help_text='Maps to Shopify Article image.',
+        help_text='Manual Wagtail image upload. Pull from Shopify uses featured_image_url instead.',
+    )
+    featured_image_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        help_text='Absolute Shopify article image URL for img src.',
+    )
+    featured_image_alt = models.CharField(max_length=255, blank=True)
+    shopify_featured_image_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Shopify MediaImage GID for the article featured image.',
     )
 
     body = StreamField(
@@ -223,6 +234,10 @@ class ArticlePage(Page):
             FieldPanel('tags'),
         ], heading='Article Details'),
         FieldPanel('featured_image'),
+        MultiFieldPanel([
+            FieldPanel('featured_image_url'),
+            FieldPanel('featured_image_alt'),
+        ], heading='Shopify Featured Image (URL)'),
         FieldPanel('summary'),
         FieldPanel('body'),
         InlinePanel('faqs', label='FAQs'),

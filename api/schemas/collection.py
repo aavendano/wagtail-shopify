@@ -178,6 +178,8 @@ class CollectionOut(LocaleOutFields):
     )
     seo_title: str = Field(..., description="SEO title. Maps to Shopify seo.title.")
     search_description: str = Field(..., description="SEO meta description. Maps to Shopify seo.description.")
+    image_url: str = Field('', description="Absolute Shopify collection image URL from pull.")
+    image_alt_text: str = Field('', description="Alt text for the collection image URL.")
     metafields: List[Dict[str, Any]] = Field(
         ...,
         description="Attached Shopify metafields with namespace, key, type, and value.",
