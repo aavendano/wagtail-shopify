@@ -29,7 +29,7 @@ class Command(BaseCommand):
         client = MetaobjectClient(shop=shop)
 
         definitions = [
-            ('location_page', _location_page_definition),
+            ('local_page', _location_page_definition),
         ]
 
         for type_name, spec_fn in definitions:

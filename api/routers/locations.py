@@ -227,22 +227,18 @@ def delete_location(request, page_id: int):
     openapi_extra=agent_openapi_extra("push_location"),
 )
 def push_location(request, page_id: int):
-    """Push location to Shopify metaobject location_page."""
+    """Push location to Shopify metaobject local_page."""
     try:
         page = LocationPage.objects.get(pk=page_id)
     except LocationPage.DoesNotExist:
         return 404, {"detail": f"Location page {page_id} not found."}
 
     try:
-        success = sync_location_page(page)
+        success, message = sync_location_page(page)
         page.refresh_from_db()
         return {
             "success": success,
-            "message": (
-                "Location synced to Shopify metaobject successfully."
-                if success
-                else "Sync failed. Check server logs for metaobject errors."
-            ),
+            "message": message,
             "shopify_id": page.shopify_id or None,
         }
     except Exception as e:

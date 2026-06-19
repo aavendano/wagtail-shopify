@@ -59,7 +59,7 @@ Create keys in **Django Admin → API → API Keys** (`/admin-django/`). Missing
 
 ### Locations (Wagtail-origin metaobjects)
 
-Locations have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `location_page`.
+Locations have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `local_page`.
 
 1. `POST /locations/` with `titulo` and content fields.
 2. `PATCH /locations/{id}` with `"publish": true` (optional).

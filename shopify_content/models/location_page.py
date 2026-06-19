@@ -16,7 +16,7 @@ from config.settings import ALLOWED_LOCALE_CODES
 
 class LocationPage(Page):
     """
-    Wagtail page that syncs to a Shopify merchant-owned metaobject (type: location_page).
+    Wagtail page that syncs to a Shopify merchant-owned metaobject (type: local_page).
 
     The definition is created/verified at runtime via MetaobjectClient.ensure_definition().
     On publish, synced via MetaobjectClient.sync() with ensure_definition=True.

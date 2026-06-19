@@ -6,7 +6,8 @@ from uuid import UUID, uuid4
 import anyio
 import mcp.types as types
 from django.conf import settings
-from django.http import HttpRequest
+from django.http import HttpRequest, JsonResponse
+from mcp.shared.message import SessionMessage
 from ninja import Body, NinjaAPI, Path, Router
 from ninja_mcp import NinjaMCP
 from ninja_mcp.transport.sse import DjangoSseServerTransport
@@ -21,6 +22,21 @@ class AuthForwardingSseTransport(DjangoSseServerTransport):
         super().__init__(endpoint, server)
         self._mcp = mcp
         self._session_auth: dict[UUID, str] = {}
+
+    @staticmethod
+    def _serialize_sse_payload(message) -> str:
+        if isinstance(message, SessionMessage):
+            return message.message.model_dump_json(by_alias=True, exclude_none=True)
+        return message.model_dump_json()
+
+    async def handle_post_message(self, session_id: UUID, message: types.JSONRPCMessage):
+        writer = self._read_stream_writers.get(session_id)
+        if not writer:
+            return JsonResponse({"error": "Could not find session"}, status=404)
+
+        # django-ninja-mcp sends bare JSONRPCMessage; MCP session expects SessionMessage.
+        asyncio.create_task(writer.send(SessionMessage(message=message)))
+        return JsonResponse({"status": "Accepted"}, status=202)
 
     def connect_sse(self, request: HttpRequest):
         logger.debug("Setting up SSE connection with auth forwarding")
@@ -38,7 +54,8 @@ class AuthForwardingSseTransport(DjangoSseServerTransport):
                 yield f"event: endpoint\ndata: {session_id}\n\n"
                 async with write_stream_reader:
                     async for message in write_stream_reader:
-                        yield f"event: message\ndata: {message.model_dump_json()}\n\n"
+                        payload = self._serialize_sse_payload(message)
+                        yield f"event: message\ndata: {payload}\n\n"
             except Exception as exc:
                 logger.error("Error in SSE writer: %s", exc)
             finally:

@@ -658,18 +658,18 @@ def sync_article_page(page):
 
 def _location_page_definition():
     """
-    Build the MetaobjectDefinitionSpec for the merchant-owned location_page type.
+    Build the MetaobjectDefinitionSpec for the merchant-owned local_page type.
     Called lazily so the import only happens at sync time.
     """
     from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
     return MetaobjectDefinitionSpec(
-        type='location_page',
+        type='local_page',
         name='Location Page',
         description='Location-specific page content managed in Wagtail CMS',
         display_name_field='titulo',
         capabilities={
             'publishable': {'enabled': True},
-            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location-page'}},
+            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'local-page'}},
             'renderable': {'enabled': True, 'data': {
                 'metaTitleKey': 'titulo',
                 'metaDescriptionKey': 'subtitulo',
@@ -703,7 +703,9 @@ def _location_page_definition():
 
 def sync_location_page(page):
     """
-    Push LocationPage → Shopify merchant-owned metaobject (type: location_page).
+    Push LocationPage → Shopify merchant-owned metaobject (type: local_page).
+
+    Returns (success, message). Message is human-readable and safe for API clients.
 
     Uses MetaobjectClient.sync() which calls ensure_definition() on every sync
     (one extra GET per publish — safe and self-healing if definition is deleted).
@@ -712,14 +714,18 @@ def sync_location_page(page):
     FAQs list is detected by to_shopify_fields() and serialized as json.dumps().
     """
     if not page.sync_enabled:
-        return False
+        return False, "Sync disabled: enable sync_enabled on this location page."
 
-    shop = _get_shop()
+    try:
+        shop = _get_shop()
+    except RuntimeError as exc:
+        return False, str(exc)
+
     handle = page.handle or page.slug
 
     if not _has_meaningful_sync_value(page.titulo):
         logger.error('LocationPage sync aborted pk=%s: titulo is required', page.pk)
-        return False
+        return False, "Sync aborted: titulo is required."
 
     # Build field dict; always keep handle + required titulo
     data: dict = {'handle': handle, 'titulo': str(_wagtail_field_value(page.titulo)).strip()}
@@ -760,12 +766,13 @@ def sync_location_page(page):
     try:
         result = client.sync(data, definition=spec, ensure_definition=True, validate=False)
     except (DefinitionError, UpsertError) as exc:
-        logger.error('LocationPage sync failed pk=%s: %s', page.pk, exc)
-        return False
+        detail = str(exc)
+        logger.error('LocationPage sync failed pk=%s: %s', page.pk, detail)
+        return False, f"Shopify metaobject error: {detail}"
 
     if result.id and not page.shopify_id:
         type(page).objects.filter(pk=page.pk).update(shopify_id=result.id)
         page.shopify_id = result.id
 
     _mark_synced(type(page), page.pk)
-    return True
+    return True, "Location synced to Shopify metaobject successfully."

@@ -70,7 +70,7 @@ class MetaobjectSerializationTests(TestCase):
 
     def test_to_shopify_fields_serializes_rich_text_html(self):
         metaobject = Metaobject(
-            type="location_page",
+            type="local_page",
             handle="x",
             fields={"intro": "<p>Hello <strong>world</strong></p>"},
         )
@@ -114,7 +114,7 @@ class MetaobjectSerializationTests(TestCase):
 class MetaobjectDefinitionSpecTests(TestCase):
     def test_to_shopify_input_uses_admin_api_field_names(self):
         definition = MetaobjectDefinitionSpec(
-            type="location_page",
+            type="local_page",
             name="Location Page",
             description="Test",
             display_name_field="titulo",

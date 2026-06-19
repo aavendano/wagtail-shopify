@@ -15,3 +15,16 @@ scopes = "read_content,read_online_store_pages,write_content,write_online_store_
 
 [auth]
 redirect_urls = [ "https://wagtail-dev.aadigitalbusiness.com/auth/callback" ]
+
+
+{
+  "mcpServers": {
+    "wagtail-shopify": {
+      "url": "https://wagtail-dev.aadigitalbusiness.com/api/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer 
+key_F4e9GTes7jiUJB4iMGhYnH3O5Ga6aVMr"
+      }
+    }
+  }
+}

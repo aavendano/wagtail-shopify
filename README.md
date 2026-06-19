@@ -46,7 +46,7 @@ Shopify Storefront → Cliente final
 | `CollectionPage` | Collection | `collectionUpdate` |
 | `BlogPage` | Blog | `blogCreate` / `blogUpdate` |
 | `ArticlePage` | Article | `articleCreate` / `articleUpdate` |
-| `LocationPage` | Metaobject merchant-owned (`location_page`) | `metaobjectUpsert` |
+| `LocationPage` | Metaobject merchant-owned (`local_page`) | `metaobjectUpsert` |
 
 ---
 
@@ -149,13 +149,13 @@ Toolkit modular para gestionar metaobjetos de Shopify vía Admin GraphQL API. Us
 from metaobjects import MetaobjectClient, MetaobjectDefinitionSpec, MetaobjectFieldSpec
 
 definition = MetaobjectDefinitionSpec(
-    type='location_page',
+    type='local_page',
     name='Location Page',
     description='Página de ubicación gestionada en Wagtail',
     display_name_field='titulo',
     capabilities={
         'publishable': {'enabled': True},
-        'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location-page'}},
+        'onlineStore': {'enabled': True, 'data': {'urlHandle': 'local-page'}},
         'renderable': {'enabled': True, 'data': {
             'metaTitleField': 'titulo',
             'metaDescriptionField': 'subtitulo',

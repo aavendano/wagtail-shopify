@@ -78,18 +78,23 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
             sync_run.mark_success(message='Sync disabled for this page; skipped.')
             return {'success': False, 'skipped': True}
 
-        success = sync_fn(specific)
+        raw = sync_fn(specific)
+        if isinstance(raw, tuple):
+            success, detail = raw
+        else:
+            success, detail = bool(raw), ""
+
         if success:
             sync_run.mark_success(
-                message=f'"{page.title}" synced to Shopify successfully.',
+                message=detail or f'"{page.title}" synced to Shopify successfully.',
                 stats={'success': True},
             )
         else:
             sync_run.mark_failed(
                 message=f'"{page.title}" publish sync failed.',
-                error_detail='sync_*_page returned False; check server logs.',
+                error_detail=detail or 'sync_*_page returned False; check server logs.',
             )
-        return {'success': success}
+        return {'success': success, 'message': detail}
     except Page.DoesNotExist:
         sync_run.mark_failed(error_detail=f'Page id={page_id} not found.')
         raise

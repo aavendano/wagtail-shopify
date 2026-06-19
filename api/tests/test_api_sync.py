@@ -82,9 +82,14 @@ class LocationApiTests(TestCase):
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
-        self.parent = ShopifyRootPage(title="Root", slug="root", locale=locale)
-        home.add_child(instance=self.parent)
-        self.parent.save_revision().publish()
+        self.products_parent = ShopifyRootPage(title="Root", slug="root", locale=locale)
+        home.add_child(instance=self.products_parent)
+        self.products_parent.save_revision().publish()
+        self.locales_parent = ShopifyRootPage(title="Local US", slug="local-us", locale=locale)
+        home.add_child(instance=self.locales_parent)
+        self.locales_parent.save_revision().publish()
+        # Kept for push tests that attach locations manually.
+        self.parent = self.locales_parent
 
     def test_create_and_get_location(self):
         response = self.client.post(
@@ -100,6 +105,10 @@ class LocationApiTests(TestCase):
         page_id = response.json()["id"]
         self.assertEqual(response.json()["titulo"], "Austin Store")
 
+        page = LocationPage.objects.get(pk=page_id)
+        self.assertEqual(page.get_parent().pk, self.locales_parent.pk)
+        self.assertNotEqual(page.get_parent().pk, self.products_parent.pk)
+
         get_response = self.client.get(
             f"/locations/{page_id}",
             headers=_auth_headers(self.key.key),
@@ -107,7 +116,10 @@ class LocationApiTests(TestCase):
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.json()["city"], "Austin")
 
-    @patch("api.routers.locations.sync_location_page", return_value=True)
+    @patch(
+        "api.routers.locations.sync_location_page",
+        return_value=(True, "Location synced to Shopify metaobject successfully."),
+    )
     def test_push_location_returns_sync_result(self, mock_sync):
         page = LocationPage(
             title="Denver",
@@ -127,6 +139,30 @@ class LocationApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["success"])
+        mock_sync.assert_called_once()
+
+    @patch(
+        "api.routers.locations.sync_location_page",
+        return_value=(False, "Shopify metaobject error: missing access token"),
+    )
+    def test_push_location_returns_metaobject_error_message(self, mock_sync):
+        page = LocationPage(
+            title="Denver",
+            titulo="Denver",
+            slug="denver",
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        response = self.client.post(
+            f"/locations/{page.pk}/push",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["success"])
+        self.assertIn("Shopify metaobject error", data["message"])
         mock_sync.assert_called_once()
 
 

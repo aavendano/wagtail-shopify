@@ -154,7 +154,7 @@ El blog padre debe tener `shopify_id` antes de que los artículos se sincronicen
 
 ### Locations (solo Wagtail → Shopify)
 
-Locations **no tienen pull**. El contenido se crea en Wagtail y se empuja a metaobject Shopify `location_page`.
+Locations **no tienen pull**. El contenido se crea en Wagtail y se empuja a metaobject Shopify `local_page`.
 
 ```bash
 # 1. Crear

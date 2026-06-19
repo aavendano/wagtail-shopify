@@ -332,7 +332,7 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "create_location", "POST", "/locations/",
         "create", "locations",
         "Create a Location page in Wagtail",
-        "Author location content in Wagtail; push to Shopify metaobject type location_page.",
+        "Author location content in Wagtail; push to Shopify metaobject type local_page.",
         "LocationOut",
         ("update_location", "push_location"),
         (ROOT_PAGE_PREREQ,),
@@ -365,7 +365,7 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "push_location", "POST", "/locations/{page_id}/push",
         "sync_outbound", "locations",
         "Push Location page to Shopify metaobject",
-        "Upserts metaobject location_page; saves shopify_id on first success.",
+        "Upserts metaobject local_page; saves shopify_id on first success.",
         "SyncResultSchema",
         ("get_location",),
         (SHOP_CONFIG_PREREQ,),
@@ -429,7 +429,7 @@ TAG_DESCRIPTIONS: dict[str, str] = {
     ),
     "Locations": (
         "Capability group: Wagtail-origin Location pages pushed to Shopify metaobjects "
-        "(type location_page). No pull endpoint — content is authored in Wagtail."
+        "(type local_page). No pull endpoint — content is authored in Wagtail."
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."

@@ -27,7 +27,7 @@ El proyecto es **single-tenant**: una instalación Wagtail = una tienda Shopify.
 | `CollectionPage` | Collection | `collectionUpdate` |
 | `BlogPage` | Blog | `blogCreate` / `blogUpdate` |
 | `ArticlePage` | Article | `articleCreate` / `articleUpdate` |
-| `LocationPage` | Metaobject merchant-owned (`location_page`) | `metaobjectUpsert` vía `MetaobjectClient` |
+| `LocationPage` | Metaobject merchant-owned (`local_page`) | `metaobjectUpsert` vía `MetaobjectClient` |
 
 ### Jerarquía de páginas
 
@@ -134,7 +134,7 @@ El `blogId` del padre (`ArticlePage.get_parent().specific.shopify_id`) se pasa e
 
 ## LocationPage — `models/location_page.py`
 
-Implementada como **merchant-owned metaobject** (tipo `location_page`) en Shopify. La definición se crea en el store vía `metaobjectDefinitionCreate`; no requiere TOML ni `shopify app deploy`.
+Implementada como **merchant-owned metaobject** (tipo `local_page`) en Shopify. La definición se crea en el store vía `metaobjectDefinitionCreate`; no requiere TOML ni `shopify app deploy`.
 
 | Campo Wagtail | Campo Shopify (metaobject field) | Sección |
 |---------------|----------------------------------|---------|
@@ -166,7 +166,7 @@ Adicionalmente, `seo_title` y `search_description` de Wagtail se usan como `meta
 ```python
 capabilities={
     'publishable': {'enabled': True},
-    'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location-page'}},
+    'onlineStore': {'enabled': True, 'data': {'urlHandle': 'local-page'}},
     'renderable': {'enabled': True, 'data': {
         'metaTitleField': 'titulo',
         'metaDescriptionField': 'subtitulo',
