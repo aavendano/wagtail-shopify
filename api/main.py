@@ -21,13 +21,16 @@ OpenAPI spec: `/api/v1/openapi.json` · Agent catalog: `GET /api/v1/capabilities
 
 ## Authentication
 
-All endpoints require an API key:
+All endpoints require a bearer token. Existing API keys and OAuth access tokens issued
+for MCP clients are both accepted:
 
 ```
-Authorization: Bearer <your_api_key>
+Authorization: Bearer <api_key_or_oauth_access_token>
 ```
 
-Create keys in **Django Admin → API → API Keys** (`/admin-django/`). Missing or invalid keys return **401**.
+Create API keys in **Django Admin → API → API Keys** (`/admin-django/`). Create OAuth
+clients in **Django Admin → Django OAuth Toolkit → Applications** and request the
+`mcp` scope through `/o/authorize/` and `/o/token/`. Missing or invalid tokens return **401**.
 
 ## Tool Matrix
 
@@ -82,7 +85,7 @@ Set `locale` on create; use `translation_of` (Wagtail page ID) to link variants.
 
 | Status | Meaning |
 |--------|---------|
-| 401 | Missing or invalid API key |
+| 401 | Missing or invalid bearer token |
 | 400 | ShopConfig/token missing, validation error, or sync failure detail |
 | 404 | Page ID not found |
 

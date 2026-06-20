@@ -5,12 +5,21 @@ Todas las operaciones de la API son **síncronas**: la respuesta HTTP contiene e
 
 ## Quick start
 
-### 1. Crear API key
+### 1. Crear credencial
+
+Opción API key:
 
 1. Abre Django Admin: `/admin-django/`
 2. Ve a **API → API Keys → Add**
 3. Pon un nombre descriptivo (p.ej. `Production Agent`)
 4. Guarda — la key se genera automáticamente (cópiala; no se vuelve a mostrar completa)
+
+Opción OAuth para clientes MCP:
+
+1. Ejecuta migraciones de OAuth Toolkit: `python3 manage.py migrate oauth2_provider`
+2. En Django Admin, ve a **Django OAuth Toolkit → Applications → Add**
+3. Crea el cliente MCP con su redirect URI y el grant type apropiado para el cliente
+4. Autoriza el cliente en `/o/authorize/` y canjea el code en `/o/token/` solicitando scope `mcp`
 
 ### 2. Primera request
 
@@ -73,11 +82,11 @@ La fuente única de verdad es `api/agent_registry.py` — OpenAPI y `/capabiliti
 
 | Header | Valor |
 |--------|-------|
-| `Authorization` | `Bearer <api_key>` |
+| `Authorization` | `Bearer <api_key>` o `Bearer <oauth_access_token>` |
 
 | Respuesta | Causa |
 |-----------|-------|
-| 401 | Sin header, key inválida, o key desactivada |
+| 401 | Sin header, API key inválida/desactivada, token OAuth expirado o sin scope `mcp` |
 
 ---
 
@@ -257,9 +266,10 @@ Las tools MCP corresponden a los `operation_id` del OpenAPI (~36 operaciones).
 
 ### Autenticación MCP
 
-1. **Conexión SSE:** header `Authorization: Bearer <api_key>` (misma API key que REST).
+1. **Conexión SSE:** header `Authorization: Bearer <api_key>` o `Authorization: Bearer <oauth_access_token>`.
 2. **Tool calls internos:** el servidor reenvía ese header a las llamadas HTTP internas.
 3. **Fallback opcional:** variable de entorno `MCP_DEFAULT_API_KEY` si el cliente MCP no envía headers.
+4. **OAuth:** los access tokens deben incluir el scope `mcp` (configurable con `MCP_OAUTH_REQUIRED_SCOPES`).
 
 ```bash
 export MCP_DEFAULT_API_KEY="tu-key"  # opcional, solo para tool calls sin header SSE
@@ -273,7 +283,7 @@ export MCP_DEFAULT_API_KEY="tu-key"  # opcional, solo para tool calls sin header
     "wagtail-shopify": {
       "url": "https://wagtail-dev.aadigitalbusiness.com/api/v1/mcp",
       "headers": {
-        "Authorization": "Bearer YOUR_API_KEY"
+        "Authorization": "Bearer YOUR_API_KEY_OR_OAUTH_ACCESS_TOKEN"
       }
     }
   }
@@ -282,7 +292,7 @@ export MCP_DEFAULT_API_KEY="tu-key"  # opcional, solo para tool calls sin header
 
 ### Verificación manual
 
-1. Arrancar con Daphne y crear API key en `/admin-django/`.
+1. Arrancar con Daphne y crear API key o aplicación OAuth en `/admin-django/`.
 2. Conectar cliente MCP a `/api/v1/mcp` con header Bearer.
 3. `list_tools` → debe listar tools como `list_products`, `pull_blogs_sync`, etc.
 4. `call_tool("list_products", {})` → JSON de productos, no 401.

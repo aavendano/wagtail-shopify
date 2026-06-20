@@ -38,7 +38,7 @@ class AgentAuthSchema(Schema):
     type: Literal["bearer"] = Field("bearer", description="Authentication scheme type.")
     header: Literal["Authorization"] = Field(
         "Authorization",
-        description="HTTP header name for the API key.",
+        description="HTTP header name for the API key or OAuth access token.",
     )
 
 

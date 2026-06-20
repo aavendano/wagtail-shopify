@@ -20,6 +20,7 @@ django-ninja @ git+https://github.com/mikeedjones/django-ninja.git@a1a5273
 django-ninja-mcp==0.0.1a2
 daphne>=4.1.2
 django-eventstream>=5.3.2
+django-oauth-toolkit
 mcp>=1.6.0
 celery>=5.4
 django-celery-beat>=2.9
