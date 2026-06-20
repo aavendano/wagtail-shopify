@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'oauth2_provider',
 
     'core.apps.CoreConfig',
     'webhooks.apps.WebhooksConfig',
@@ -234,6 +235,19 @@ WAGTAIL_SITE_NAME = 'Wagtail Shopify'
 _mcp_public_base = (SHOPIFY_APP_URL or WAGTAILADMIN_BASE_URL).rstrip('/')
 MCP_BASE_URL = f'{_mcp_public_base}/api/v1'
 MCP_DEFAULT_API_KEY = os.environ.get('MCP_DEFAULT_API_KEY', '')
+MCP_OAUTH_REQUIRED_SCOPES = [
+    scope.strip()
+    for scope in os.environ.get('MCP_OAUTH_REQUIRED_SCOPES', 'mcp').split(',')
+    if scope.strip()
+]
+OAUTH2_PROVIDER = {
+    'SCOPES': {
+        'mcp': 'Access MCP tools and the content API through MCP clients',
+        'read': 'Read content API resources',
+        'write': 'Create, update, delete, and sync content API resources',
+    },
+    'DEFAULT_SCOPES': ['mcp'],
+}
 
 # Hostnames allowed for app_home_parent_redirect targets (comma-separated). Always includes
 # admin.shopify.com plus SHOPIFY_APP_URL / SHOPIFY_APP_DOMAIN hosts via embedded_redirects.parent_redirect_allowed_hosts.

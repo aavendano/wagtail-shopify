@@ -1,11 +1,14 @@
 import api.ninja_compat  # noqa: F401 — must run before any ninja import
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from ninja.openapi import get_schema
 from ninja.testing import TestClient
+from oauth2_provider.models import AccessToken, Application
 
 from api.main import api
 from api.mcp import WagtailShopifyMCP, get_mcp_server
@@ -103,6 +106,23 @@ class McpEndpointAuthTests(TestCase):
     def setUp(self):
         self.client = TestClient(api)
         self.key = ApiKey.objects.create(name="mcp-agent")
+        self.oauth_app = Application.objects.create(
+            name="mcp-client",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            redirect_uris="http://localhost/callback",
+        )
+
+    def _create_access_token(self, token: str, scope: str = "mcp", expired: bool = False):
+        expires = timezone.now() + timedelta(hours=1)
+        if expired:
+            expires = timezone.now() - timedelta(minutes=1)
+        return AccessToken.objects.create(
+            application=self.oauth_app,
+            token=token,
+            expires=expires,
+            scope=scope,
+        )
 
     def test_mcp_sse_requires_api_key(self):
         response = self.client.get("/mcp")
@@ -111,3 +131,24 @@ class McpEndpointAuthTests(TestCase):
     def test_mcp_sse_route_is_registered(self):
         response = self.client.get("/mcp", headers=_auth_headers(self.key.key))
         self.assertNotEqual(response.status_code, 404)
+
+    def test_mcp_sse_accepts_oauth_access_token_with_mcp_scope(self):
+        token = self._create_access_token("valid-oauth-token", scope="mcp")
+
+        response = self.client.get("/mcp", headers=_auth_headers(token.token))
+
+        self.assertNotEqual(response.status_code, 401)
+
+    def test_mcp_sse_rejects_oauth_access_token_without_mcp_scope(self):
+        token = self._create_access_token("wrong-scope-token", scope="read write")
+
+        response = self.client.get("/mcp", headers=_auth_headers(token.token))
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_mcp_sse_rejects_expired_oauth_access_token(self):
+        token = self._create_access_token("expired-oauth-token", expired=True)
+
+        response = self.client.get("/mcp", headers=_auth_headers(token.token))
+
+        self.assertEqual(response.status_code, 401)
