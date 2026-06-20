@@ -25,14 +25,21 @@ if "test" in sys.argv:
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET')
 
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', 'wagtail-dev.aadigitalbusiness.com']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+    'wagtail-dev.aadigitalbusiness.com',
+    'cms.aadigitalbusiness.com',
+]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://localhost:3458',
     'https://127.0.0.1:3458',
     'https://wagtail-dev.aadigitalbusiness.com',
+    'https://cms.aadigitalbusiness.com',
 ]
 
 _shopify_app_url = os.environ.get('SHOPIFY_APP_URL', '').rstrip('/')
@@ -77,6 +84,7 @@ INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
+    'django.contrib.postgres',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -128,13 +136,25 @@ ASGI_APPLICATION = 'config.asgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    },
-
-}
+if os.environ.get('DB_NAME'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ['DB_NAME'],
+            'USER': os.environ['DB_USER'],
+            'PASSWORD': os.environ['DB_PASSWORD'],
+            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'CONN_MAX_AGE': 60,
+        },
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        },
+    }
 
 
 
@@ -205,7 +225,7 @@ SHOPIFY_API_KEY = os.environ.get('SHOPIFY_API_KEY')
 SHOPIFY_API_SECRET = os.environ.get('SHOPIFY_API_SECRET')
 SHOPIFY_APP_DOMAIN = _shopify_app_domain
 SHOPIFY_APP_URL = _shopify_app_url or None
-SHOPIFY_SCOPES = os.environ.get('SHOPIFY_SCOPES')
+SHOPIFY_SCOPES = os.environ.get('SHOPIFY_SCOPES') or os.environ.get('SCOPES')
 SHOPIFY_ADMIN_API_VERSION = os.environ.get('SHOPIFY_ADMIN_API_VERSION', '2025-04')
 
 WAGTAILADMIN_BASE_URL = os.environ.get('SHOPIFY_APP_URL', 'http://localhost:8000')
@@ -238,3 +258,4 @@ CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'false').lower() == 'true'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_TASK_DEFAULT_QUEUE = os.environ.get('CELERY_TASK_DEFAULT_QUEUE', 'wagtail_shopify')

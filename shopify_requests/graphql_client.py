@@ -1,4 +1,5 @@
 from core.utils import log_shopify_result
+from webhooks.utils import shop_for_sdk_api
 
 
 def raw_admin_graphql(
@@ -18,7 +19,7 @@ def raw_admin_graphql(
     ShopifyApp.admin_graphql_request.
     """
     kwargs = {
-        "shop": shop,
+        "shop": shop_for_sdk_api(shop),
         "access_token": access_token,
         "api_version": api_version,
         "invalid_token_response": invalid_token_response,

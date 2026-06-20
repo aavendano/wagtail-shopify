@@ -142,8 +142,13 @@ class LocationPage(Page):
         InlinePanel('faqs', label='FAQs'),
     ]
 
-    promote_panels = Page.promote_panels + [
+    promote_panels = [
+        MultiFieldPanel([
+            FieldPanel('seo_title'),
+            FieldPanel('search_description'),
+        ], heading='SEO'),
         FieldPanel('shopify_locale'),
+        FieldPanel('slug'),
     ]
 
     settings_panels = SHOPIFY_SYNC_PANELS
@@ -157,6 +162,12 @@ class LocationPage(Page):
     class Meta:
         verbose_name = 'Location Page'
         verbose_name_plural = 'Location Pages'
+
+    def get_seo_title(self):
+        return self.seo_title or self.titulo
+
+    def get_seo_description(self):
+        return self.search_description or self.subtitulo or ''
 
 
 class LocationPageFAQ(FAQItem):

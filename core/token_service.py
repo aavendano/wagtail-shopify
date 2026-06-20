@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from webhooks.utils import shop_lookup_variants
+from webhooks.utils import shop_for_sdk_api, shop_lookup_variants
 
 from .models import ShopConfig
 from .shop_config_lookup import get_shop_config
@@ -105,7 +105,7 @@ def _refresh_token_if_possible(shopify_app, record):
     access_mode = "online" if record.is_online else "offline"
     refresh_result = shopify_app.refresh_token_exchanged_access_token(
         {
-            "shop": record.shop,
+            "shop": shop_for_sdk_api(record.shop),
             "access_mode": access_mode,
             "token": record.access_token,
             "scope": record.scope,

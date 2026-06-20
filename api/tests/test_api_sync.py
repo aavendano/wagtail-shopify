@@ -116,6 +116,49 @@ class LocationApiTests(TestCase):
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.json()["city"], "Austin")
 
+    def test_create_location_with_seo_fields(self):
+        response = self.client.post(
+            "/locations/",
+            json={
+                "titulo": "Miami Store",
+                "city": "Miami",
+                "seo_title": "Miami SEO Title",
+                "search_description": "Visit our Miami location.",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        data = response.json()
+        self.assertEqual(data["seo_title"], "Miami SEO Title")
+        self.assertEqual(data["search_description"], "Visit our Miami location.")
+
+        page = LocationPage.objects.get(pk=data["id"])
+        self.assertEqual(page.seo_title, "Miami SEO Title")
+        self.assertEqual(page.search_description, "Visit our Miami location.")
+
+    def test_patch_location_seo_fields(self):
+        create_response = self.client.post(
+            "/locations/",
+            json={"titulo": "Seattle Store", "city": "Seattle"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+
+        patch_response = self.client.patch(
+            f"/locations/{page_id}",
+            json={
+                "seo_title": "Seattle SEO",
+                "search_description": "Pacific Northwest store.",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["seo_title"], "Seattle SEO")
+        self.assertEqual(
+            patch_response.json()["search_description"],
+            "Pacific Northwest store.",
+        )
+
     @patch(
         "api.routers.locations.sync_location_page",
         return_value=(True, "Location synced to Shopify metaobject successfully."),

@@ -39,6 +39,8 @@ def _apply_location_fields(page: LocationPage, data, *, is_create: bool = False)
         page.handle = data.handle or slug
         page.slug = slug
         page.sync_enabled = data.sync_enabled if data.sync_enabled is not None else True
+        page.seo_title = data.seo_title or ''
+        page.search_description = data.search_description or ''
     elif data.titulo is not None:
         page.titulo = data.titulo
         page.title = data.titulo
@@ -63,6 +65,10 @@ def _apply_location_fields(page: LocationPage, data, *, is_create: bool = False)
             page.slug = slugify(data.handle)
         if data.sync_enabled is not None:
             page.sync_enabled = data.sync_enabled
+        if data.seo_title is not None:
+            page.seo_title = data.seo_title
+        if data.search_description is not None:
+            page.search_description = data.search_description
 
     for field in _RICH_TEXT_FIELDS:
         value = getattr(data, field, None)

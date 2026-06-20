@@ -58,6 +58,15 @@ class LocationIn(LocaleCreateFields):
     map_content: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
     after_page_content: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
     shopify_locale: Optional[str] = Field(None, description=SHOPIFY_LOCALE_DESCRIPTION, max_length=20)
+    seo_title: Optional[str] = Field(
+        None,
+        description="SEO meta title. Synced to Shopify metaobject meta_titulo. Falls back to titulo on push.",
+        max_length=255,
+    )
+    search_description: Optional[str] = Field(
+        None,
+        description="SEO meta description. Synced to Shopify metaobject meta_descripcion. Falls back to subtitulo on push.",
+    )
     faqs: Optional[List[FAQSchema]] = Field(
         None,
         description="FAQ items synced to Shopify metaobject faqs JSON field. Pass [] to clear.",
@@ -90,6 +99,15 @@ class LocationPatch(LocalePatchFields):
     map_content: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
     after_page_content: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
     shopify_locale: Optional[str] = Field(None, description=SHOPIFY_LOCALE_DESCRIPTION)
+    seo_title: Optional[str] = Field(
+        None,
+        description="Update SEO meta title (Shopify meta_titulo).",
+        max_length=255,
+    )
+    search_description: Optional[str] = Field(
+        None,
+        description="Update SEO meta description (Shopify meta_descripcion).",
+    )
     faqs: Optional[List[FAQSchema]] = Field(
         None,
         description="Replace all FAQs. Pass [] to clear. Omit to leave unchanged.",
@@ -129,6 +147,8 @@ class LocationOut(LocaleOutFields):
     map_content: str = Field(..., description="Map section HTML content.")
     after_page_content: str = Field(..., description="Closing content HTML.")
     shopify_locale: str = Field(..., description="Shopify locale pushed on sync.")
+    seo_title: str = Field(..., description="SEO meta title.")
+    search_description: str = Field(..., description="SEO meta description.")
     faqs: List[FAQSchema] = Field(default_factory=list, description="FAQ items.")
     sync_enabled: bool = Field(..., description="Outbound sync enabled on publish.")
     last_synced_at: Optional[datetime] = Field(

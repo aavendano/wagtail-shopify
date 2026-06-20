@@ -666,13 +666,13 @@ def _location_page_definition():
         type='local_page',
         name='Location Page',
         description='Location-specific page content managed in Wagtail CMS',
-        display_name_field='titulo',
+        display_name_field='city',
         capabilities={
             'publishable': {'enabled': True},
-            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'local-page'}},
+            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'location'}},
             'renderable': {'enabled': True, 'data': {
-                'metaTitleKey': 'titulo',
-                'metaDescriptionKey': 'subtitulo',
+                'metaTitleKey': 'meta_titulo',
+                'metaDescriptionKey': 'meta_descripcion',
             }},
         },
         access={'storefront': 'PUBLIC_READ'},
@@ -697,6 +697,8 @@ def _location_page_definition():
             MetaobjectFieldSpec(key='after_page_content',     name='After Page Content',    type='rich_text_field'),
             MetaobjectFieldSpec(key='faqs',                   name='FAQs',                  type='json'),
             MetaobjectFieldSpec(key='locale',                 name='Locale',               type='single_line_text_field'),
+            MetaobjectFieldSpec(key='meta_titulo',            name='Meta Título',          type='single_line_text_field'),
+            MetaobjectFieldSpec(key='meta_descripcion',       name='Meta Descripción',     type='single_line_text_field'),
         ],
     )
 
@@ -747,6 +749,8 @@ def sync_location_page(page):
         ('map_title', page.map_title),
         ('map_content', page.map_content),
         ('after_page_content', page.after_page_content),
+        ('meta_titulo', page.get_seo_title()),
+        ('meta_descripcion', page.get_seo_description()),
     ]:
         if _has_meaningful_sync_value(value):
             data[key] = _wagtail_field_value(value)

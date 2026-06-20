@@ -100,3 +100,10 @@ Caddyfile
 staticfiles/
 .cursor/settings.json
 .claude/
+shopify.app.toml
+deploy/wagtail-shopify-celery-beat.service
+deploy/wagtail-shopify-celery-worker.service
+deploy/wagtail-shopify-daphne.service
+scripts/
+
+*/migrations/*
