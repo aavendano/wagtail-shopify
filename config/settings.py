@@ -249,6 +249,9 @@ OAUTH2_PROVIDER = {
     'DEFAULT_SCOPES': ['mcp'],
 }
 
+# OAuth authorize flow and Django admin login (not Wagtail admin at /admin/).
+LOGIN_URL = '/admin-django/login/'
+
 # Hostnames allowed for app_home_parent_redirect targets (comma-separated). Always includes
 # admin.shopify.com plus SHOPIFY_APP_URL / SHOPIFY_APP_DOMAIN hosts via embedded_redirects.parent_redirect_allowed_hosts.
 _parent_redirect_hosts = os.environ.get('SHOPIFY_PARENT_REDIRECT_ALLOWED_HOSTS', '')

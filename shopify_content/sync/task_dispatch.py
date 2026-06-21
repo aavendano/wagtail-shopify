@@ -2,6 +2,8 @@
 Enqueue Shopify sync jobs as Celery tasks.
 """
 
+from django.db import transaction
+
 from shopify_content.models.sync_run import ShopifySyncRun
 from shopify_content.sync.service import VALID_IMPORT_RESOURCES, ImportResource
 
@@ -42,9 +44,18 @@ def enqueue_page_outbound_sync(page) -> ShopifySyncRun | None:
 
     from shopify_content.tasks import sync_page_to_shopify_task
 
-    async_result = sync_page_to_shopify_task.delay(sync_run.pk, page.pk)
-    sync_run.celery_task_id = async_result.id or ''
-    sync_run.save(update_fields=['celery_task_id'])
+    sync_run_id = sync_run.pk
+    page_id = page.pk
+
+    def dispatch_sync_task():
+        async_result = sync_page_to_shopify_task.delay(sync_run_id, page_id)
+        ShopifySyncRun.objects.filter(pk=sync_run_id).update(
+            celery_task_id=async_result.id or '',
+        )
+
+    # Bulk publish (and other admin flows) wrap all revisions in one atomic
+    # block. Dispatch only after commit so Celery workers can read page + run rows.
+    transaction.on_commit(dispatch_sync_task)
     return sync_run
 
 

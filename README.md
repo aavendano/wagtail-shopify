@@ -127,6 +127,78 @@ Los management commands `import_shopify_*` siguen siendo **síncronos** (útiles
 
 ---
 
+## Despliegue y reinicio (producción)
+
+En producción la app corre como servicios **systemd** (ver `deploy/*.service` e `scripts/install_systemd.sh`).
+
+| Servicio | Descripción |
+|----------|-------------|
+| `wagtail-shopify-daphne` | API + Wagtail (ASGI, puerto `8082` por defecto) |
+| `wagtail-shopify-celery-worker` | Sync async (import/push en background) |
+| `wagtail-shopify-celery-beat` | Tareas programadas (django-celery-beat) |
+
+### Reinicio rápido (solo servicios)
+
+```bash
+sudo systemctl restart wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-shopify-celery-beat
+```
+
+Verificar estado:
+
+```bash
+systemctl status wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-shopify-celery-beat
+```
+
+### Desplegar código nuevo
+
+Tras `git pull` o cambios que requieran migraciones:
+
+```bash
+cd /home/alejandro/apps/wagtail-shopify
+
+git pull
+./scripts/bootstrap_app.sh   # migrate, collectstatic, setup commands
+
+sudo systemctl restart wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-shopify-celery-beat
+```
+
+Instalación completa desde cero (PostgreSQL, systemd, Caddy, Shopify app):
+
+```bash
+./scripts/deploy.sh
+```
+
+### Reiniciar solo la API
+
+Si solo cambiaste schemas/endpoints y no tareas en background:
+
+```bash
+sudo systemctl restart wagtail-shopify-daphne
+```
+
+### Recargar MCP en Cursor
+
+Tras desplegar cambios en la API, recarga la ventana de Cursor para que regenere las tools MCP desde el OpenAPI actualizado:
+
+**Cmd/Ctrl+Shift+P** → **Reload Window**
+
+### Desarrollo local (sin systemd)
+
+```bash
+cd /home/alejandro/apps/wagtail-shopify
+source .venv/bin/activate
+
+# API (terminal 1)
+.venv/bin/daphne -b 127.0.0.1 -p 8082 config.asgi:application
+
+# Celery (terminal 2)
+celery -A config worker --beat --scheduler django --loglevel=info
+```
+
+Reiniciar con **Ctrl+C** y volver a arrancar cada proceso.
+
+---
+
 ## Scopes requeridos (`shopify.app.wagtail-cms.toml`)
 
 ```

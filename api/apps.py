@@ -8,3 +8,4 @@ class ApiConfig(AppConfig):
 
     def ready(self):
         import api.ninja_compat  # noqa: F401
+        import api.wagtail_hooks  # noqa: F401

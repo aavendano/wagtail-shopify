@@ -9,6 +9,13 @@ from django.views.generic.base import RedirectView
 from django.contrib import admin
 from django.conf import settings
 
+from oauth2_provider import views as oauth2_views
+
+from api.oauth_discovery import (
+    OAuthProtectedResourceMetadataView,
+    oauth_authorization_server_metadata,
+)
+
 
 from wagtail import urls as wagtail_urls
 from wagtail.admin import urls as wagtailadmin_urls
@@ -23,6 +30,21 @@ urlpatterns = [
     path("shopify-admin/sync", EmbeddedShopifySyncView.as_view()),
     path("core/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
+    # Root OAuth paths expected by MCP clients (Claude uses /authorize, not /o/authorize/).
+    path("authorize", oauth2_views.AuthorizationView.as_view(), name="oauth2-authorize-root"),
+    path("authorize/", oauth2_views.AuthorizationView.as_view(), name="oauth2-authorize-root-slash"),
+    path("token", oauth2_views.TokenView.as_view(), name="oauth2-token-root"),
+    path("token/", oauth2_views.TokenView.as_view(), name="oauth2-token-root-slash"),
+    path(
+        ".well-known/oauth-authorization-server",
+        oauth_authorization_server_metadata,
+        name="oauth2-authorization-server-metadata",
+    ),
+    path(
+        ".well-known/oauth-protected-resource",
+        OAuthProtectedResourceMetadataView.as_view(),
+        name="oauth2-protected-resource-metadata",
+    ),
     path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
 
     path('api/v1/', api.urls),

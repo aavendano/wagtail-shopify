@@ -9,17 +9,20 @@ Todas las operaciones de la API son **síncronas**: la respuesta HTTP contiene e
 
 Opción API key:
 
-1. Abre Django Admin: `/admin-django/`
-2. Ve a **API → API Keys → Add**
+1. Abre **Django Admin** en `/admin-django/` (no confundir con Wagtail en `/admin/`)
+2. Ve a **API → API Keys → Add**  
+   Atajo desde Wagtail: **Settings → API Keys**
 3. Pon un nombre descriptivo (p.ej. `Production Agent`)
 4. Guarda — la key se genera automáticamente (cópiala; no se vuelve a mostrar completa)
 
 Opción OAuth para clientes MCP:
 
 1. Ejecuta migraciones de OAuth Toolkit: `python3 manage.py migrate oauth2_provider`
-2. En Django Admin, ve a **Django OAuth Toolkit → Applications → Add**
+2. En Django Admin (`/admin-django/`), ve a **Django OAuth Toolkit → Applications → Add**  
+   Atajo desde Wagtail: **Settings → OAuth Applications**  
+   URL directa: `/admin-django/oauth2_provider/application/add/`
 3. Crea el cliente MCP con su redirect URI y el grant type apropiado para el cliente
-4. Autoriza el cliente en `/o/authorize/` y canjea el code en `/o/token/` solicitando scope `mcp`
+4. Autoriza el cliente en `/authorize` (o `/o/authorize/`) y canjea el code en `/token` (o `/o/token/`) solicitando scope `mcp`
 
 ### 2. Primera request
 

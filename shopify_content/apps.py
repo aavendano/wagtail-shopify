@@ -8,3 +8,6 @@ class ShopifyContentConfig(AppConfig):
 
     def ready(self):
         import shopify_content.wagtail_hooks  # noqa: F401
+        from shopify_content.signals import register_publish_signals
+
+        register_publish_signals()
