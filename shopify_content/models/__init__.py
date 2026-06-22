@@ -6,6 +6,7 @@ from .blog import (
     ArticlePage, ArticlePageFAQ, ArticlePageMetafield, ArticlePageTag,
 )
 from .location_page import LocationPage, LocationPageFAQ
+from .glossary import GlossaryTermPage
 from .root import ShopifyRootPage
 from .sync_run import ShopifySyncRun
 
@@ -28,6 +29,7 @@ __all__ = [
     'ArticlePageTag',
     'LocationPage',
     'LocationPageFAQ',
+    'GlossaryTermPage',
     'ShopifyRootPage',
     'ShopifySyncRun',
 ]

@@ -1,0 +1,8 @@
+{% extends "wagtailcore/page.html" %}
+
+{% block content %}
+<h1>{{ page.term }}</h1>
+{% if page.definition %}
+<div>{{ page.definition|richtext }}</div>
+{% endif %}
+{% endblock %}

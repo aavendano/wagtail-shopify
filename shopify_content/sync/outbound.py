@@ -780,3 +780,92 @@ def sync_location_page(page):
 
     _mark_synced(type(page), page.pk)
     return True, "Location synced to Shopify metaobject successfully."
+
+
+def _glossary_term_definition():
+    """
+    Build the MetaobjectDefinitionSpec for the merchant-owned glossary_term type.
+    Called lazily so the import only happens at sync time.
+    """
+    from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
+    return MetaobjectDefinitionSpec(
+        type='glossary_term',
+        name='Glossary Term',
+        description='Glossary term managed in Wagtail CMS',
+        display_name_field='term',
+        capabilities={
+            'publishable': {'enabled': True},
+            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'glossary'}},
+            'renderable': {'enabled': True, 'data': {
+                'metaTitleKey': 'term',
+                'metaDescriptionKey': 'definition',
+            }},
+        },
+        access={'storefront': 'PUBLIC_READ'},
+        fields=[
+            MetaobjectFieldSpec(key='term', name='Term', type='single_line_text_field', required=True),
+            MetaobjectFieldSpec(key='definition', name='Definition', type='rich_text_field'),
+            MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='related_links', name='Related Links', type='json'),
+            MetaobjectFieldSpec(key='external_links', name='External Links', type='json'),
+        ],
+    )
+
+
+def sync_glossary_term_page(page):
+    """
+    Push GlossaryTermPage → Shopify merchant-owned metaobject (type: glossary_term).
+
+    Returns (success, message). Message is human-readable and safe for API clients.
+
+    Handle defaults to slugified term if page.handle is not set.
+    related_links and external_links are omitted when empty.
+    """
+    if not page.sync_enabled:
+        return False, "Sync disabled: enable sync_enabled on this glossary term page."
+
+    try:
+        shop = _get_shop()
+    except RuntimeError as exc:
+        return False, str(exc)
+
+    from django.utils.text import slugify
+
+    handle = page.handle or slugify(page.term)
+
+    if not _has_meaningful_sync_value(page.term):
+        logger.error('GlossaryTermPage sync aborted pk=%s: term is required', page.pk)
+        return False, "Sync aborted: term is required."
+
+    data: dict = {
+        'handle': handle,
+        'term': str(_wagtail_field_value(page.term)).strip(),
+    }
+    if _has_meaningful_sync_value(page.definition):
+        data['definition'] = _wagtail_field_value(page.definition)
+    if page.locale_code:
+        data['locale'] = page.locale_code
+    if page.related_links:
+        data['related_links'] = page.related_links
+    if page.external_links:
+        data['external_links'] = page.external_links
+
+    from metaobjects.shopify_metaobjects.client import MetaobjectClient
+    from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
+
+    spec = _glossary_term_definition()
+    client = MetaobjectClient(shop=shop)
+
+    try:
+        result = client.sync(data, definition=spec, ensure_definition=True, validate=False)
+    except (DefinitionError, UpsertError) as exc:
+        detail = str(exc)
+        logger.error('GlossaryTermPage sync failed pk=%s: %s', page.pk, detail)
+        return False, f"Shopify metaobject error: {detail}"
+
+    if result.id and not page.shopify_id:
+        type(page).objects.filter(pk=page.pk).update(shopify_id=result.id)
+        page.shopify_id = result.id
+
+    _mark_synced(type(page), page.pk)
+    return True, "Glossary term synced to Shopify metaobject successfully."

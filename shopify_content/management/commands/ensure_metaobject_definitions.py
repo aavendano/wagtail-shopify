@@ -14,7 +14,7 @@ from django.core.management.base import BaseCommand, CommandError
 from core.models import ShopConfig
 from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.exceptions import DefinitionError
-from shopify_content.sync.outbound import _location_page_definition
+from shopify_content.sync.outbound import _location_page_definition, _glossary_term_definition
 
 
 class Command(BaseCommand):
@@ -30,6 +30,7 @@ class Command(BaseCommand):
 
         definitions = [
             ('local_page', _location_page_definition),
+            ('glossary_term', _glossary_term_definition),
         ]
 
         for type_name, spec_fn in definitions:

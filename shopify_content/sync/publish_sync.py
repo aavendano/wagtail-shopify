@@ -12,6 +12,7 @@ def get_syncable_page_types():
         ArticlePage,
         BlogPage,
         CollectionPage,
+        GlossaryTermPage,
         LocationPage,
         ProductPage,
     )
@@ -22,6 +23,7 @@ def get_syncable_page_types():
         BlogPage,
         ArticlePage,
         LocationPage,
+        GlossaryTermPage,
     )
 
 
