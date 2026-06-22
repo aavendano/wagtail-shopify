@@ -78,10 +78,21 @@ def resolve_shopify_import_parent(
     Return the ShopifyRootPage (or explicit parent) for inbound imports.
 
     explicit_parent_id overrides slug-based resolution (management command --parent-page-id).
+    For locations, settings.LOCATIONS_PARENT_PAGE_ID is used when explicit_parent_id is omitted.
     When auto_create is True (default), creates the expected ShopifyRootPage if missing.
     """
+    if explicit_parent_id is None and resource_type == 'locations':
+        from django.conf import settings
+
+        explicit_parent_id = getattr(settings, 'LOCATIONS_PARENT_PAGE_ID', None)
+
     if explicit_parent_id is not None:
-        return Page.objects.get(pk=explicit_parent_id).specific
+        try:
+            return Page.objects.get(pk=explicit_parent_id).specific
+        except Page.DoesNotExist as exc:
+            raise RuntimeError(
+                f'Parent page id={explicit_parent_id} not found.'
+            ) from exc
 
     preferred_slug = IMPORT_ROOT_SLUG[resource_type]
     parent = ShopifyRootPage.objects.filter(slug=preferred_slug).first()

@@ -75,6 +75,13 @@ class LocationIn(LocaleCreateFields):
         True,
         description="When true, publishing triggers outbound sync to Shopify metaobject.",
     )
+    parent_page_id: Optional[int] = Field(
+        None,
+        description=(
+            "Wagtail page ID of the ShopifyRootPage parent (expected slug=local-us). "
+            "Omit to use slug-based resolution or settings.LOCATIONS_PARENT_PAGE_ID."
+        ),
+    )
 
 
 class LocationPatch(LocalePatchFields):

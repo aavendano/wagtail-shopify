@@ -74,13 +74,46 @@ def _notify_sync_queued(request, page):
 @hooks.register('after_publish_page')
 def notify_shopify_sync_on_publish(request, page):
     """Show admin feedback after single-page publish (sync queued via page_published)."""
-    specific_page = page.specific
-    if not is_syncable_page(page):
-        return
-    if not getattr(specific_page, 'sync_enabled', True):
-        return
+    # #region agent log
+    from shopify_content.publish_debug import debug_log
 
-    _notify_sync_queued(request, page)
+    debug_log(
+        "C",
+        "wagtail_hooks.py:notify_shopify_sync_on_publish",
+        "after_publish_page hook entered",
+        {
+            "page_id": getattr(page, "pk", None),
+            "page_type": type(page.specific).__name__,
+            "title": getattr(page, "title", "")[:80],
+        },
+    )
+    # #endregion
+    try:
+        specific_page = page.specific
+        if not is_syncable_page(page):
+            return
+        if not getattr(specific_page, 'sync_enabled', True):
+            return
+
+        _notify_sync_queued(request, page)
+    except Exception:
+        logger.exception(
+            'after_publish_page feedback failed for page pk=%s',
+            getattr(page, 'pk', None),
+        )
+        # #region agent log
+        import traceback
+
+        debug_log(
+            "C",
+            "wagtail_hooks.py:notify_shopify_sync_on_publish",
+            "after_publish_page hook failed",
+            {
+                "page_id": getattr(page, "pk", None),
+                "traceback": traceback.format_exc(),
+            },
+        )
+        # #endregion
 
 
 @hooks.register('after_bulk_action')

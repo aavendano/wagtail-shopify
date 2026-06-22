@@ -109,6 +109,33 @@ class LocationApiTests(TestCase):
         self.assertEqual(page.get_parent().pk, self.locales_parent.pk)
         self.assertNotEqual(page.get_parent().pk, self.products_parent.pk)
 
+    def test_create_location_with_explicit_parent_page_id(self):
+        response = self.client.post(
+            "/locations/",
+            json={
+                "titulo": "Nashville Store",
+                "city": "Nashville",
+                "parent_page_id": self.locales_parent.pk,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        page = LocationPage.objects.get(pk=response.json()["id"])
+        self.assertEqual(page.get_parent().pk, self.locales_parent.pk)
+
+    def test_create_location_invalid_parent_page_id_returns_400(self):
+        response = self.client.post(
+            "/locations/",
+            json={
+                "titulo": "Bad Parent Store",
+                "city": "Nowhere",
+                "parent_page_id": 999999,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not found", response.json()["detail"])
+
         get_response = self.client.get(
             f"/locations/{page_id}",
             headers=_auth_headers(self.key.key),

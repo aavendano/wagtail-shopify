@@ -268,6 +268,12 @@ ALLOWED_LOCALE_CODES = {
     'fr-CA': 'French (Canada)',
 }
 
+# Optional override for POST /locations/ parent (ShopifyRootPage). When unset, slug "local-us" is used.
+_locations_parent_page_id = os.environ.get('LOCATIONS_PARENT_PAGE_ID', '').strip()
+LOCATIONS_PARENT_PAGE_ID = (
+    int(_locations_parent_page_id) if _locations_parent_page_id.isdigit() else None
+)
+
 # Celery
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)

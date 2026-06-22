@@ -15,6 +15,10 @@ SyncDirection = Literal["shopify_to_wagtail", "wagtail_to_shopify"] | None
 
 SHOP_CONFIG_PREREQ = "ShopConfig with valid offline access token"
 ROOT_PAGE_PREREQ = "ShopifyRootPage with slug=root under Wagtail site"
+LOCATIONS_ROOT_PREREQ = (
+    'ShopifyRootPage with slug=local-us under Wagtail site '
+    '(optional parent_page_id on create_location; env LOCATIONS_PARENT_PAGE_ID)'
+)
 
 
 @dataclass(frozen=True)
@@ -335,7 +339,7 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "Author location content in Wagtail; push to Shopify metaobject type local_page.",
         "LocationOut",
         ("update_location", "push_location"),
-        (ROOT_PAGE_PREREQ,),
+        (LOCATIONS_ROOT_PREREQ,),
     ),
     "get_location": _cap(
         "get_location", "GET", "/locations/{page_id}",

@@ -1,7 +1,10 @@
 from typing import List, Optional
 
+from django.core.exceptions import ValidationError
 from django.utils.text import slugify
 from ninja import Router
+
+from shopify_content.models import ShopifyRootPage
 
 from shopify_content.models import LocationPage
 from shopify_content.models.location_page import LocationPageFAQ
@@ -123,23 +126,108 @@ def list_locations(
 )
 def create_location(request, data: LocationIn):
     """Create Wagtail location page for metaobject push."""
+    # #region agent log
+    from shopify_content.publish_debug import debug_log
+
+    debug_log(
+        "F",
+        "locations.py:create_location",
+        "create_location requested",
+        {
+            "titulo": data.titulo[:80],
+            "parent_page_id": data.parent_page_id,
+            "city": data.city or "",
+        },
+    )
+    # #endregion
     try:
-        parent = resolve_shopify_import_parent('locations')
+        parent = resolve_shopify_import_parent(
+            'locations',
+            explicit_parent_id=data.parent_page_id,
+        )
     except RuntimeError as e:
+        # #region agent log
+        debug_log(
+            "F",
+            "locations.py:create_location",
+            "parent resolution failed",
+            {"detail": str(e), "parent_page_id": data.parent_page_id},
+        )
+        # #endregion
         return 400, {"detail": str(e)}
 
-    page = LocationPage(locale=resolve_locale(data.locale))
-    _apply_location_fields(page, data, is_create=True)
+    if not isinstance(parent, ShopifyRootPage):
+        detail = (
+            f'Parent page id={parent.pk} is a {type(parent).__name__}, '
+            'not a ShopifyRootPage. Use the Local US root (slug=local-us) or pass parent_page_id.'
+        )
+        # #region agent log
+        debug_log(
+            "F",
+            "locations.py:create_location",
+            "invalid parent page type",
+            {"parent_id": parent.pk, "parent_type": type(parent).__name__},
+        )
+        # #endregion
+        return 400, {"detail": detail}
 
-    source = apply_translation_link(page, data.translation_of, LocationPage)
-    inherit_shopify_id_from_source(page, source)
+    # #region agent log
+    debug_log(
+        "F",
+        "locations.py:create_location",
+        "parent resolved",
+        {"parent_id": parent.pk, "parent_slug": parent.slug, "parent_title": parent.title},
+    )
+    # #endregion
 
-    parent.add_child(instance=page)
+    try:
+        page = LocationPage(locale=resolve_locale(data.locale))
+        _apply_location_fields(page, data, is_create=True)
 
-    if data.faqs:
-        _replace_faqs(page, data.faqs)
+        source = apply_translation_link(page, data.translation_of, LocationPage)
+        inherit_shopify_id_from_source(page, source)
 
-    page.refresh_from_db()
+        parent.add_child(instance=page)
+
+        if data.faqs:
+            _replace_faqs(page, data.faqs)
+
+        page.refresh_from_db()
+    except ValidationError as exc:
+        # #region agent log
+        debug_log(
+            "F",
+            "locations.py:create_location",
+            "validation failed during create",
+            {"detail": str(exc)},
+        )
+        # #endregion
+        return 400, {"detail": str(exc)}
+    except Exception as exc:
+        # #region agent log
+        import traceback
+
+        debug_log(
+            "F",
+            "locations.py:create_location",
+            "unexpected create failure",
+            {
+                "exc_type": type(exc).__name__,
+                "exc": str(exc),
+                "traceback": traceback.format_exc(),
+            },
+        )
+        # #endregion
+        raise
+
+    # #region agent log
+    debug_log(
+        "F",
+        "locations.py:create_location",
+        "create succeeded",
+        {"page_id": page.pk, "parent_id": parent.pk, "slug": page.slug},
+    )
+    # #endregion
     return 201, page
 
 
@@ -197,12 +285,51 @@ def update_location(request, page_id: int, data: LocationPatch):
         _replace_faqs(page, data.faqs)
 
     if data.publish:
-        revision = page.save_revision()
-        revision.publish()
+        # #region agent log
+        from shopify_content.publish_debug import debug_log
+
+        debug_log(
+            "A",
+            "locations.py:update_location",
+            "API publish requested",
+            {"page_id": page_id, "slug": page.slug, "titulo": page.titulo[:80]},
+        )
+        # #endregion
+        try:
+            revision = page.save_revision()
+            revision.publish()
+        except Exception as exc:
+            # #region agent log
+            import traceback
+
+            debug_log(
+                "A",
+                "locations.py:update_location",
+                "revision.publish failed",
+                {
+                    "page_id": page_id,
+                    "exc_type": type(exc).__name__,
+                    "exc": str(exc),
+                    "traceback": traceback.format_exc(),
+                },
+            )
+            # #endregion
+            raise
     else:
         page.save()
 
     page.refresh_from_db()
+    # #region agent log
+    if data.publish:
+        from shopify_content.publish_debug import debug_log
+
+        debug_log(
+            "D",
+            "locations.py:update_location",
+            "publish succeeded, returning LocationOut",
+            {"page_id": page_id, "live": page.live},
+        )
+    # #endregion
     return page
 
 

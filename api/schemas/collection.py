@@ -202,7 +202,18 @@ class CollectionOut(LocaleOutFields):
 
     @staticmethod
     def resolve_description(obj):
-        return list(obj.description.stream_data) if obj.description else []
+        # #region agent log
+        import json, time
+        try:
+            description = list(obj.description.raw_data) if obj.description else []
+            with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-fdc58d.log', 'a', encoding='utf-8') as _f:
+                _f.write(json.dumps({'sessionId':'fdc58d','hypothesisId':'B','location':'collection.py:resolve_description','message':'description resolved','data':{'page_id':getattr(obj,'pk',None),'block_count':len(description)},'timestamp':int(time.time()*1000),'runId':'post-fix'})+'\n')
+            return description
+        except Exception as exc:
+            with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-fdc58d.log', 'a', encoding='utf-8') as _f:
+                _f.write(json.dumps({'sessionId':'fdc58d','hypothesisId':'B','location':'collection.py:resolve_description','message':'description resolve failed','data':{'page_id':getattr(obj,'pk',None),'error':type(exc).__name__,'detail':str(exc)},'timestamp':int(time.time()*1000),'runId':'post-fix'})+'\n')
+            raise
+        # #endregion
 
     @staticmethod
     def resolve_metafields(obj):

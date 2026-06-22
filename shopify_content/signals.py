@@ -4,7 +4,32 @@ from shopify_content.sync.publish_sync import get_syncable_page_types, queue_sho
 
 
 def _on_page_published(sender, instance, **kwargs):
-    queue_shopify_sync_on_publish(instance)
+    # #region agent log
+    from shopify_content.publish_debug import debug_log
+
+    debug_log(
+        "B",
+        "signals.py:_on_page_published",
+        "page_published signal received",
+        {
+            "page_id": getattr(instance, "pk", None),
+            "page_type": type(instance.specific).__name__,
+            "title": getattr(instance, "title", "")[:80],
+        },
+    )
+    # #endregion
+    result = queue_shopify_sync_on_publish(instance)
+    # #region agent log
+    debug_log(
+        "B",
+        "signals.py:_on_page_published",
+        "queue_shopify_sync_on_publish finished",
+        {
+            "page_id": getattr(instance, "pk", None),
+            "sync_run_id": getattr(result, "pk", None) if result else None,
+        },
+    )
+    # #endregion
 
 
 def register_publish_signals():

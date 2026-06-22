@@ -223,7 +223,18 @@ class ProductOut(LocaleOutFields):
 
     @staticmethod
     def resolve_body(obj):
-        return list(obj.body.stream_data) if obj.body else []
+        # #region agent log
+        import json, time
+        try:
+            body = list(obj.body.raw_data) if obj.body else []
+            with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-fdc58d.log', 'a', encoding='utf-8') as _f:
+                _f.write(json.dumps({'sessionId':'fdc58d','hypothesisId':'A','location':'product.py:resolve_body','message':'body resolved','data':{'page_id':getattr(obj,'pk',None),'block_count':len(body)},'timestamp':int(time.time()*1000),'runId':'post-fix'})+'\n')
+            return body
+        except Exception as exc:
+            with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-fdc58d.log', 'a', encoding='utf-8') as _f:
+                _f.write(json.dumps({'sessionId':'fdc58d','hypothesisId':'A','location':'product.py:resolve_body','message':'body resolve failed','data':{'page_id':getattr(obj,'pk',None),'error':type(exc).__name__,'detail':str(exc)},'timestamp':int(time.time()*1000),'runId':'post-fix'})+'\n')
+            raise
+        # #endregion
 
     @staticmethod
     def resolve_shopify_images(obj):
