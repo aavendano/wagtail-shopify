@@ -73,7 +73,7 @@ Cada operación en `/openapi.json` incluye:
 | Campo | Descripción |
 |-------|-------------|
 | `x-agent-capability-type` | Tipo de capacidad (ver tabla anterior) |
-| `x-agent-resource` | Recurso: `products`, `collections`, `blogs`, `articles`, `locations` |
+| `x-agent-resource` | Recurso: `products`, `collections`, `blogs`, `articles`, `locations`, `glossary` |
 | `x-agent-sync-direction` | `shopify_to_wagtail` o `wagtail_to_shopify` (solo sync) |
 | `x-agent-prerequisites` | Lista de condiciones previas |
 | `x-agent-next-tools` | `operation_id` sugeridos tras éxito |
@@ -102,6 +102,7 @@ La fuente única de verdad es `api/agent_registry.py` — OpenAPI y `/capabiliti
 | Blogs | `GET /blogs/` | `GET /blogs/{id}` | `POST /blogs/` | `PATCH /blogs/{id}` | `DELETE /blogs/{id}` | `POST /blogs/pull` | `POST /blogs/{id}/push` |
 | Articles | `GET /articles/` | `GET /articles/{id}` | `POST /articles/` | `PATCH /articles/{id}` | `DELETE /articles/{id}` | `POST /articles/pull` | `POST /articles/{id}/push` |
 | Locations | `GET /locations/` | `GET /locations/{id}` | `POST /locations/` | `PATCH /locations/{id}` | `DELETE /locations/{id}` | — | `POST /locations/{id}/push` |
+| Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | — | `POST /glossary/{id}/push` |
 
 ---
 
@@ -196,6 +197,40 @@ curl -H "Authorization: Bearer $API_KEY" "$BASE/locations/7"
 
 Campos rich text (`intro`, `content_2`, etc.) se envían y reciben como **HTML string**.
 
+### Glossary (solo Wagtail → Shopify)
+
+Los términos del glosario **no tienen pull**. El contenido se crea en Wagtail y se empuja a metaobject Shopify `glossary_term`.
+La página listado `/pages/glossary` la gestiona el theme en Liquid (no hay endpoint para ella).
+
+```bash
+# 1. Crear término
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "term": "Vibrator",
+    "locale_code": "en",
+    "definition": "<p>A device that vibrates.</p>",
+    "related_links": [
+      {"type": "product", "handle": "satisfyer-pro-2", "label": "Satisfyer Pro 2"}
+    ]
+  }' \
+  "$BASE/glossary/"
+
+# 2. Publicar (opcional)
+curl -X PATCH -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"publish": true}' \
+  "$BASE/glossary/12"
+
+# 3. Push a Shopify
+curl -X POST -H "Authorization: Bearer $API_KEY" "$BASE/glossary/12/push"
+
+# 4. Verificar shopify_id y last_synced_at
+curl -H "Authorization: Bearer $API_KEY" "$BASE/glossary/12"
+```
+
+Filtrar por locale Shopify del metaobject: `GET /glossary/?locale_code=es` (distinto de `?locale=` que filtra Wagtail locale).
+
 ---
 
 ## Localización
@@ -239,6 +274,7 @@ Campos rich text (`intro`, `content_2`, etc.) se envían y reciben como **HTML s
 - La API es **100% síncrona**. Wagtail admin y app embebida pueden seguir usando Celery en background.
 - DELETE solo afecta Wagtail; Shopify no se modifica.
 - Para Locations, `shopify_locale` es el locale empujado al metaobject (distinto de Wagtail `locale`).
+- Para Glossary, `locale_code` (`en` / `es` / `fr`) es el locale empujado al metaobject (distinto de Wagtail `locale`).
 
 ---
 

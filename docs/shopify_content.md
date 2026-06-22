@@ -28,6 +28,7 @@ El proyecto es **single-tenant**: una instalación Wagtail = una tienda Shopify.
 | `BlogPage` | Blog | `blogCreate` / `blogUpdate` |
 | `ArticlePage` | Article | `articleCreate` / `articleUpdate` |
 | `LocationPage` | Metaobject merchant-owned (`local_page`) | `metaobjectUpsert` vía `MetaobjectClient` |
+| `GlossaryTermPage` | Metaobject merchant-owned (`glossary_term`) | `metaobjectUpsert` vía `MetaobjectClient` |
 
 ### Jerarquía de páginas
 
@@ -37,7 +38,8 @@ ShopifyRootPage
 ├── CollectionPage
 ├── BlogPage
 │   └── ArticlePage
-└── LocationPage
+├── LocationPage  (bajo root slug=local-us)
+└── GlossaryTermPage  (bajo root slug=glossary)
 ```
 
 ---
@@ -184,6 +186,26 @@ Esto llama `MetaobjectClient.ensure_definition()` — idempotente; no falla si l
 
 ---
 
+## GlossaryTermPage — `models/glossary.py`
+
+Implementada como **merchant-owned metaobject** (tipo `glossary_term`) en Shopify. Los términos viven bajo un `ShopifyRootPage` con slug `glossary` (solo organizacional). La página listado `/pages/glossary` la gestiona el theme en Liquid.
+
+| Campo Wagtail | Campo Shopify (metaobject field) |
+|---------------|----------------------------------|
+| `term` (requerido) | `term` |
+| `definition` (RichTextField) | `definition` |
+| `locale_code` (`en`/`es`/`fr`) | `locale` |
+| `related_links` (JSONField) | `related_links` |
+| `external_links` (JSONField) | `external_links` |
+
+Sin campos SEO dedicados — `renderable` usa `term` y `definition` como fallback.
+
+### API REST
+
+Endpoints en `/api/v1/glossary/` (CRUD + push). Ver `docs/api-agents.md` → sección Glossary.
+
+---
+
 ## Flujo de sincronización outbound
 
 ```
@@ -196,7 +218,8 @@ after_publish_page hook  (wagtail_hooks.py)
          ├─ CollectionPage → sync_collection_page(page)
          ├─ BlogPage       → sync_blog_page(page)
          ├─ ArticlePage    → sync_article_page(page)
-         └─ LocationPage   → sync_location_page(page)
+         ├─ LocationPage   → sync_location_page(page)
+         └─ GlossaryTermPage → sync_glossary_term_page(page)
                   │
                   ▼
          shopify_content/sync/outbound.py
@@ -220,6 +243,8 @@ Todas las funciones de sync fallan silenciosamente: loguean el error pero no blo
 | `sync_blog_page(page)` | `blogCreate` o `blogUpdate`; luego `metafieldsSet` para SEO y description |
 | `sync_article_page(page)` | `articleCreate` o `articleUpdate`; luego metafields SEO + hreflang |
 | `sync_location_page(page)` | `MetaobjectClient.sync()` con `ensure_definition=True` |
+| `sync_glossary_term_page(page)` | `MetaobjectClient.sync()` tipo `glossary_term` |
+| `_glossary_term_definition()` | Constructor lazy del `MetaobjectDefinitionSpec` glossary_term |
 | `_render_streamfield_html(value)` | Convierte StreamField value → HTML string |
 | `_push_metafields(shop, owner_gid, inputs)` | `metafieldsSet` para metafields personalizados |
 | `_push_hreflang_metafields(page, shop, gid)` | Metafields `seo.hreflang_*` para tema Liquid |
@@ -387,7 +412,8 @@ shopify_content/
 │   ├── product.py            # ProductPage, ProductPageFAQ, ProductPageMetafield
 │   ├── collection.py         # CollectionPage, CollectionPageFAQ, CollectionPageMetafield
 │   ├── blog.py               # BlogPage, BlogPageFAQ, ArticlePage, ArticlePageFAQ, ArticlePageMetafield
-│   └── location_page.py      # LocationPage, LocationPageFAQ
+│   ├── location_page.py      # LocationPage, LocationPageFAQ
+│   └── glossary.py           # GlossaryTermPage
 ├── blocks/
 │   ├── __init__.py
 │   ├── content.py            # HeadingBlock, ParagraphBlock, HtmlBlock, CalloutBlock

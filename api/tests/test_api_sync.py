@@ -10,7 +10,7 @@ from wagtail.models import Locale, Page
 from api.main import api
 from api.models import ApiKey
 from api.agent_registry import CAPABILITIES, WORKFLOWS
-from shopify_content.models import LocationPage, ShopifyRootPage
+from shopify_content.models import GlossaryTermPage, LocationPage, ShopifyRootPage
 
 
 def _auth_headers(key: str) -> dict:
@@ -236,6 +236,177 @@ class LocationApiTests(TestCase):
         mock_sync.assert_called_once()
 
 
+class GlossaryApiTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="glossary-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        self.products_parent = ShopifyRootPage(title="Root", slug="root", locale=locale)
+        home.add_child(instance=self.products_parent)
+        self.products_parent.save_revision().publish()
+        self.glossary_parent = ShopifyRootPage(title="Glossary", slug="glossary", locale=locale)
+        home.add_child(instance=self.glossary_parent)
+        self.glossary_parent.save_revision().publish()
+        self.parent = self.glossary_parent
+
+    def test_create_and_get_glossary_term(self):
+        response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Vibrator",
+                "locale_code": "en",
+                "definition": "<p>A device that vibrates.</p>",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        page_id = response.json()["id"]
+        self.assertEqual(response.json()["term"], "Vibrator")
+
+        page = GlossaryTermPage.objects.get(pk=page_id)
+        self.assertEqual(page.get_parent().pk, self.glossary_parent.pk)
+        self.assertNotEqual(page.get_parent().pk, self.products_parent.pk)
+
+        get_response = self.client.get(
+            f"/glossary/{page_id}",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(get_response.json()["definition"], "<p>A device that vibrates.</p>")
+
+    def test_create_with_explicit_parent_page_id(self):
+        response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Lubricant",
+                "locale_code": "en",
+                "parent_page_id": self.glossary_parent.pk,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        page = GlossaryTermPage.objects.get(pk=response.json()["id"])
+        self.assertEqual(page.get_parent().pk, self.glossary_parent.pk)
+
+    def test_create_invalid_parent_returns_400(self):
+        response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Bad Term",
+                "parent_page_id": 999999,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not found", response.json()["detail"])
+
+    def test_patch_glossary_term(self):
+        create_response = self.client.post(
+            "/glossary/",
+            json={"term": "Original Term", "locale_code": "en"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+
+        patch_response = self.client.patch(
+            f"/glossary/{page_id}",
+            json={
+                "definition": "<p>Updated definition.</p>",
+                "locale_code": "es",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["locale_code"], "es")
+        self.assertEqual(patch_response.json()["definition"], "<p>Updated definition.</p>")
+
+    @patch(
+        "api.routers.glossary.sync_glossary_term_page",
+        return_value=(True, "Glossary term synced to Shopify metaobject successfully."),
+    )
+    def test_push_glossary_term_returns_sync_result(self, mock_sync):
+        page = GlossaryTermPage(
+            title="Massager",
+            term="Massager",
+            slug="massager",
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+        page.shopify_id = "gid://shopify/Metaobject/88"
+        page.save()
+
+        response = self.client.post(
+            f"/glossary/{page.pk}/push",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["success"])
+        mock_sync.assert_called_once()
+
+    @patch(
+        "api.routers.glossary.sync_glossary_term_page",
+        return_value=(False, "Shopify metaobject error: term is required"),
+    )
+    def test_push_glossary_term_returns_error_message(self, mock_sync):
+        page = GlossaryTermPage(
+            title="Empty Term",
+            term="Empty Term",
+            slug="empty-term",
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        response = self.client.post(
+            f"/glossary/{page.pk}/push",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data["success"])
+        self.assertIn("Shopify metaobject error", data["message"])
+        mock_sync.assert_called_once()
+
+    def test_list_filter_by_locale_code(self):
+        self.client.post(
+            "/glossary/",
+            json={"term": "English Term", "locale_code": "en"},
+            headers=_auth_headers(self.key.key),
+        )
+        self.client.post(
+            "/glossary/",
+            json={"term": "Spanish Term", "locale_code": "es"},
+            headers=_auth_headers(self.key.key),
+        )
+
+        response = self.client.get(
+            "/glossary/?locale_code=es",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        terms = [item["term"] for item in response.json()]
+        self.assertEqual(terms, ["Spanish Term"])
+
+    def test_capabilities_includes_glossary(self):
+        response = self.client.get(
+            "/capabilities/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        tool_ids = {tool["operation_id"] for tool in response.json()["tools"]}
+        self.assertIn("create_glossary_term", tool_ids)
+        self.assertIn("push_glossary_term", tool_ids)
+        self.assertIn(
+            "glossary_wagtail_origin",
+            response.json()["workflows"],
+        )
+
+
 class CapabilitiesTests(TestCase):
     def setUp(self):
         self.client = TestClient(api)
@@ -254,6 +425,7 @@ class CapabilitiesTests(TestCase):
         tool_ids = {tool["operation_id"] for tool in data["tools"]}
         self.assertIn("pull_products_sync_post", tool_ids)
         self.assertIn("push_location", tool_ids)
+        self.assertIn("push_glossary_term", tool_ids)
         self.assertNotIn("list_agent_capabilities", tool_ids)
 
         expected_ops = {
@@ -272,6 +444,7 @@ class CapabilitiesTests(TestCase):
             list(WORKFLOWS["products_existing_store"]),
         )
         self.assertIn("locations_wagtail_origin", workflows)
+        self.assertIn("glossary_wagtail_origin", workflows)
 
 
 class OpenAPIAgentMetadataTests(TestCase):

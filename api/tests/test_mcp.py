@@ -37,9 +37,10 @@ class McpToolGenerationTests(TestCase):
         openapi_ops = _openapi_operation_ids()
         mcp_tool_names = {tool.name for tool in mcp_server.tools}
         self.assertEqual(mcp_tool_names, openapi_ops)
-        self.assertGreaterEqual(len(mcp_tool_names), 35)
+        self.assertGreaterEqual(len(mcp_tool_names), 41)
         self.assertIn("list_products", mcp_tool_names)
         self.assertIn("push_location", mcp_tool_names)
+        self.assertIn("push_glossary_term", mcp_tool_names)
         self.assertNotIn("mcp_connection", mcp_tool_names)
 
 

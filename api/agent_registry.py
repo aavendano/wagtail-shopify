@@ -10,7 +10,7 @@ CapabilityType = Literal[
     "sync_inbound",
     "sync_outbound",
 ]
-Resource = Literal["products", "collections", "blogs", "articles", "locations", "capabilities"]
+Resource = Literal["products", "collections", "blogs", "articles", "locations", "glossary", "capabilities"]
 SyncDirection = Literal["shopify_to_wagtail", "wagtail_to_shopify"] | None
 
 SHOP_CONFIG_PREREQ = "ShopConfig with valid offline access token"
@@ -18,6 +18,10 @@ ROOT_PAGE_PREREQ = "ShopifyRootPage with slug=root under Wagtail site"
 LOCATIONS_ROOT_PREREQ = (
     'ShopifyRootPage with slug=local-us under Wagtail site '
     '(optional parent_page_id on create_location; env LOCATIONS_PARENT_PAGE_ID)'
+)
+GLOSSARY_ROOT_PREREQ = (
+    'ShopifyRootPage with slug=glossary under Wagtail site '
+    '(optional parent_page_id on create_glossary_term)'
 )
 
 
@@ -375,6 +379,58 @@ CAPABILITIES: dict[str, AgentCapability] = {
         (SHOP_CONFIG_PREREQ,),
         sync_direction="wagtail_to_shopify",
     ),
+    # Glossary (no pull)
+    "list_glossary_terms": _cap(
+        "list_glossary_terms", "GET", "/glossary/",
+        "discover", "glossary",
+        "List Glossary term pages from Wagtail",
+        "Discover Wagtail-origin glossary terms before push to Shopify metaobjects.",
+        "List[GlossaryTermOut]",
+        ("get_glossary_term", "create_glossary_term"),
+    ),
+    "create_glossary_term": _cap(
+        "create_glossary_term", "POST", "/glossary/",
+        "create", "glossary",
+        "Create a Glossary term page in Wagtail",
+        "Author glossary term content in Wagtail; push to Shopify metaobject type glossary_term.",
+        "GlossaryTermOut",
+        ("update_glossary_term", "push_glossary_term"),
+        (GLOSSARY_ROOT_PREREQ,),
+    ),
+    "get_glossary_term": _cap(
+        "get_glossary_term", "GET", "/glossary/{page_id}",
+        "read", "glossary",
+        "Get a single Glossary term page",
+        "Verify shopify_id and last_synced_at after push.",
+        "GlossaryTermOut",
+        ("update_glossary_term", "push_glossary_term"),
+    ),
+    "update_glossary_term": _cap(
+        "update_glossary_term", "PATCH", "/glossary/{page_id}",
+        "update", "glossary",
+        "Update a Glossary term page",
+        "Edit term fields; publish=true optional before push.",
+        "GlossaryTermOut",
+        ("push_glossary_term", "get_glossary_term"),
+    ),
+    "delete_glossary_term": _cap(
+        "delete_glossary_term", "DELETE", "/glossary/{page_id}",
+        "delete", "glossary",
+        "Delete a Glossary term page from Wagtail",
+        "Removes Wagtail page only — Shopify metaobject is untouched.",
+        "None",
+        ("list_glossary_terms",),
+    ),
+    "push_glossary_term": _cap(
+        "push_glossary_term", "POST", "/glossary/{page_id}/push",
+        "sync_outbound", "glossary",
+        "Push Glossary term page to Shopify metaobject",
+        "Upserts metaobject glossary_term; saves shopify_id on first success.",
+        "SyncResultSchema",
+        ("get_glossary_term",),
+        (SHOP_CONFIG_PREREQ,),
+        sync_direction="wagtail_to_shopify",
+    ),
     # Capabilities catalog
     "list_agent_capabilities": _cap(
         "list_agent_capabilities", "GET", "/capabilities/",
@@ -412,6 +468,12 @@ WORKFLOWS: dict[str, tuple[str, ...]] = {
         "push_location",
         "get_location",
     ),
+    "glossary_wagtail_origin": (
+        "create_glossary_term",
+        "update_glossary_term",
+        "push_glossary_term",
+        "get_glossary_term",
+    ),
 }
 
 TAG_DESCRIPTIONS: dict[str, str] = {
@@ -434,6 +496,10 @@ TAG_DESCRIPTIONS: dict[str, str] = {
     "Locations": (
         "Capability group: Wagtail-origin Location pages pushed to Shopify metaobjects "
         "(type local_page). No pull endpoint — content is authored in Wagtail."
+    ),
+    "Glossary": (
+        "Capability group: Wagtail-origin Glossary term pages pushed to Shopify metaobjects "
+        "(type glossary_term). No pull endpoint — content is authored in Wagtail."
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."
