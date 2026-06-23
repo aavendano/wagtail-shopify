@@ -12,7 +12,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import PRODUCT_BODY_BLOCKS
 
 
@@ -100,6 +100,7 @@ class ProductPage(Page):
     )
     sync_enabled = models.BooleanField(
         default=True,
+        db_default=True,
         help_text='When unchecked, publishing will NOT sync to Shopify.',
     )
     last_synced_at = models.DateTimeField(null=True, blank=True)
@@ -153,11 +154,7 @@ class ProductPage(Page):
         InlinePanel('metafields', label='Metafields'),
     ]
 
-    promote_panels = [
-        MultiFieldPanel([
-            FieldPanel('seo_title'),
-            FieldPanel('search_description'),
-        ], heading='SEO'),
+    promote_panels = SHOPIFY_SEO_PANELS + [
         MultiFieldPanel([
             FieldPanel('slug'),
         ], heading='Wagtail Internal'),

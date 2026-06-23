@@ -7,6 +7,13 @@ class ShopifyContentConfig(AppConfig):
     verbose_name = 'Shopify Content'
 
     def ready(self):
+        import shopify_content.wagtail_ai_setup  # noqa: F401
+        import shopify_content.indexes  # noqa: F401
+        from shopify_content.wagtail_ai_debug import install_wagtail_ai_debug_hooks
+        from shopify_content.wagtail_ai_fixes import install_suggested_content_fallback
+
+        install_wagtail_ai_debug_hooks()
+        install_suggested_content_fallback()
         import shopify_content.wagtail_hooks  # noqa: F401
         from shopify_content.signals import register_publish_signals
         from shopify_content.publish_debug import register_publish_debug_handlers

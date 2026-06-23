@@ -10,7 +10,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import COLLECTION_BODY_BLOCKS
 
 
@@ -50,7 +50,7 @@ class CollectionPage(Page):
         help_text='Shopify GID, e.g. gid://shopify/Collection/12345678',
     )
     handle = models.SlugField(max_length=255, blank=True)
-    sync_enabled = models.BooleanField(default=True)
+    sync_enabled = models.BooleanField(default=True, db_default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
     sort_order = models.CharField(
@@ -108,11 +108,7 @@ class CollectionPage(Page):
         InlinePanel('metafields', label='Metafields'),
     ]
 
-    promote_panels = [
-        MultiFieldPanel([
-            FieldPanel('seo_title'),
-            FieldPanel('search_description'),
-        ], heading='SEO'),
+    promote_panels = SHOPIFY_SEO_PANELS + [
         MultiFieldPanel([
             FieldPanel('slug'),
         ], heading='Wagtail Internal'),

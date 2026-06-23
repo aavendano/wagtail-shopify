@@ -4,15 +4,30 @@ from modelcluster.fields import ParentalKey
 from modelcluster.contrib.taggit import ClusterTaggableManager
 from taggit.models import TaggedItemBase
 
-from wagtail.models import Page
+from wagtail.models import Page, Orderable
 from wagtail.fields import StreamField
 from wagtail.admin.panels import (
     FieldPanel, InlinePanel, MultiFieldPanel, ObjectList, TabbedInterface,
 )
+from wagtail_ai.panels import AIMultipleChooserPanel
 from wagtail.search import index
 
-from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS
+from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
+
+
+def _article_related_pages_panel():
+    from django.conf import settings
+
+    if getattr(settings, 'WAGTAIL_AI_PGVECTOR', False):
+        return AIMultipleChooserPanel(
+            'article_related_pages',
+            chooser_field_name='related_page',
+            heading='Related Pages',
+            label='Page',
+            vector_index='PageIndex',
+        )
+    return InlinePanel('article_related_pages', label='Related Pages')
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +57,7 @@ class BlogPage(Page):
         help_text='Shopify GID, e.g. gid://shopify/Blog/12345678',
     )
     handle = models.SlugField(max_length=255, blank=True)
-    sync_enabled = models.BooleanField(default=True)
+    sync_enabled = models.BooleanField(default=True, db_default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
     comment_policy = models.CharField(
@@ -80,11 +95,7 @@ class BlogPage(Page):
         InlinePanel('faqs', label='FAQs'),
     ]
 
-    promote_panels = [
-        MultiFieldPanel([
-            FieldPanel('seo_title'),
-            FieldPanel('search_description'),
-        ], heading='SEO (synced as Shopify metafields global.title_tag / description_tag)'),
+    promote_panels = SHOPIFY_SEO_PANELS + [
         MultiFieldPanel([
             FieldPanel('slug'),
         ], heading='Wagtail Internal'),
@@ -144,6 +155,25 @@ class ArticlePageMetafield(ShopifyMetafield):
     )
 
 
+class ArticleRelatedPage(Orderable, models.Model):
+    page = ParentalKey(
+        'shopify_content.ArticlePage',
+        related_name='article_related_pages',
+        on_delete=models.CASCADE,
+    )
+    related_page = models.ForeignKey(
+        'wagtailcore.Page',
+        related_name='+',
+        on_delete=models.CASCADE,
+    )
+
+    panels = [FieldPanel('related_page')]
+
+    class Meta(Orderable.Meta):
+        verbose_name = 'Related page'
+        verbose_name_plural = 'Related pages'
+
+
 class ArticlePage(Page):
     """
     Mirrors a Shopify Article inside a Blog.
@@ -169,7 +199,7 @@ class ArticlePage(Page):
         help_text='Shopify GID, e.g. gid://shopify/Article/12345678',
     )
     handle = models.SlugField(max_length=255, blank=True)
-    sync_enabled = models.BooleanField(default=True)
+    sync_enabled = models.BooleanField(default=True, db_default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
     author = models.CharField(
@@ -240,15 +270,12 @@ class ArticlePage(Page):
         ], heading='Shopify Featured Image (URL)'),
         FieldPanel('summary'),
         FieldPanel('body'),
+        _article_related_pages_panel(),
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]
 
-    promote_panels = [
-        MultiFieldPanel([
-            FieldPanel('seo_title'),
-            FieldPanel('search_description'),
-        ], heading='SEO (synced as Shopify metafields global.title_tag / description_tag)'),
+    promote_panels = SHOPIFY_SEO_PANELS + [
         MultiFieldPanel([
             FieldPanel('slug'),
         ], heading='Wagtail Internal'),

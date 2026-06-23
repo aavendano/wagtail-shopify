@@ -26,3 +26,7 @@ celery>=5.4
 django-celery-beat>=2.9
 redis>=5.0
 psycopg2-binary>=2.9
+wagtail-ai
+llm-gemini
+pgvector
+any-llm-sdk[gemini]

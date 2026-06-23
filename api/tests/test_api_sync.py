@@ -323,6 +323,62 @@ class GlossaryApiTests(TestCase):
         self.assertEqual(patch_response.json()["locale_code"], "es")
         self.assertEqual(patch_response.json()["definition"], "<p>Updated definition.</p>")
 
+    def test_get_glossary_term_locale_returns_locale_code(self):
+        create_response = self.client.post(
+            "/glossary/",
+            json={"term": "Spanish Term", "locale_code": "es"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+
+        get_response = self.client.get(
+            f"/glossary/{page_id}",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(get_response.status_code, 200)
+        data = get_response.json()
+        self.assertEqual(data["locale_code"], "es")
+        self.assertEqual(data["locale"], "es")
+        self.assertNotIn("United States", data["locale"])
+
+    def test_get_glossary_term_after_push_includes_timestamps(self):
+        from shopify_content.sync.outbound import _mark_synced
+
+        create_response = self.client.post(
+            "/glossary/",
+            json={"term": "Synced Term", "locale_code": "en"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+        self.client.patch(
+            f"/glossary/{page_id}",
+            json={"publish": True},
+            headers=_auth_headers(self.key.key),
+        )
+
+        def _sync_and_mark(page):
+            _mark_synced(type(page), page.pk)
+            return True, "Glossary term synced to Shopify metaobject successfully."
+
+        with patch(
+            "api.routers.glossary.sync_glossary_term_page",
+            side_effect=_sync_and_mark,
+        ):
+            push_response = self.client.post(
+                f"/glossary/{page_id}/push",
+                headers=_auth_headers(self.key.key),
+            )
+        self.assertTrue(push_response.json()["success"])
+
+        get_response = self.client.get(
+            f"/glossary/{page_id}",
+            headers=_auth_headers(self.key.key),
+        )
+        data = get_response.json()
+        self.assertIsNotNone(data["last_synced_at"])
+        self.assertIsNotNone(data["first_published_at"])
+        self.assertIsNotNone(data["last_published_at"])
+
     @patch(
         "api.routers.glossary.sync_glossary_term_page",
         return_value=(True, "Glossary term synced to Shopify metaobject successfully."),

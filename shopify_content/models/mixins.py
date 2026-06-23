@@ -2,6 +2,8 @@ from django.db import models
 from wagtail.models import Orderable
 from wagtail.admin.panels import FieldPanel, MultiFieldPanel
 
+from wagtail_ai.panels import AIDescriptionFieldPanel
+
 
 # Reusable panel list for the Shopify sync tab — imported by each page model.
 # These panel names must match the fields defined in each page model class.
@@ -12,6 +14,13 @@ SHOPIFY_SYNC_PANELS = [
         FieldPanel('sync_enabled'),
         FieldPanel('last_synced_at', read_only=True),
     ], heading='Shopify Sync'),
+]
+
+SHOPIFY_SEO_PANELS = [
+    MultiFieldPanel([
+        FieldPanel('seo_title'),
+        AIDescriptionFieldPanel('search_description'),
+    ], heading='SEO'),
 ]
 
 

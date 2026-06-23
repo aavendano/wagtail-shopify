@@ -19,6 +19,17 @@ from .sync.publish_sync import is_syncable_page
 logger = logging.getLogger(__name__)
 
 
+@hooks.register('insert_global_admin_js', order=1000)
+def shopify_wai_chooser_patch_js():
+    from django.utils.html import format_html
+    from wagtail.admin.staticfiles import versioned_static
+
+    return format_html(
+        '<script src="{}"></script>',
+        versioned_static('shopify_content/wai_chooser_patch.js'),
+    )
+
+
 @hooks.register('register_admin_urls')
 def register_shopify_sync_urls():
     return [

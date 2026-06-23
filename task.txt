@@ -1,0 +1,356 @@
+
+Publica una ciudad pendiente de PlayLoveToys en PLT-CMS. Corre cada 30 min hasta completar las 65 ciudades.
+
+
+
+
+
+## PlayLoveToys — Publicar siguiente ciudad en PLT-CMS
+
+
+
+### ESTADO ACTUAL
+
+```json
+
+{
+
+  "next_index": 20,
+
+  "total": 65,
+
+  "completed": [
+
+    {"index": 0, "city": "Memphis", "state": "Tennessee", "note": "already existed in CMS"},
+
+    {"index": 1, "city": "Oklahoma City", "state": "Oklahoma", "id": 2474},
+
+    {"index": 2, "city": "Milwaukee", "state": "Wisconsin", "id": 2476},
+
+    {"index": 3, "city": "Cincinnati", "state": "Ohio", "id": 2477},
+
+    {"index": 4, "city": "Honolulu", "state": "Hawaii", "id": 2478},
+
+    {"index": 5, "city": "Colorado Springs", "state": "Colorado", "id": "duplicate"},
+
+    {"index": 6, "city": "Arlington", "state": "Texas", "id": 2480},
+
+    {"index": 7, "city": "Virginia Beach", "state": "Virginia", "id": 2481},
+
+    {"index": 8, "city": "Long Beach", "state": "California", "id": 2482},
+
+    {"index": 9, "city": "Omaha", "state": "Nebraska", "id": 2483},
+
+    {"index": 10, "city": "Oakland", "state": "California", "id": 2484},
+
+    {"index": 11, "city": "Fresno", "state": "California", "id": "duplicate"},
+
+    {"index": 12, "city": "Irvine", "state": "California", "id": "duplicate"},
+
+    {"index": 13, "city": "Mesa", "state": "Arizona", "id": 2491},
+
+    {"index": 14, "city": "Aurora", "state": "Colorado", "id": 2492},
+
+    {"index": 15, "city": "Cleveland", "state": "Ohio", "id": 2493},
+
+    {"index": 16, "city": "Lexington", "state": "Kentucky", "id": 2495},
+
+    {"index": 17, "city": "Chandler", "state": "Arizona", "id": 2497},
+
+    {"index": 18, "city": "Plano", "state": "Texas", "id": 2499},
+
+    {"index": 19, "city": "Anaheim", "state": "California", "id": 2502}
+
+  ]
+
+}
+
+```
+
+
+
+### LISTA DE CIUDADES PENDIENTES
+
+```json
+
+[
+
+  {"index":0,"city":"Memphis","state":"Tennessee","slug":"sex-toys-memphis"},
+
+  {"index":1,"city":"Oklahoma City","state":"Oklahoma","slug":"sex-toys-oklahoma-city"},
+
+  {"index":2,"city":"Milwaukee","state":"Wisconsin","slug":"sex-toys-milwaukee"},
+
+  {"index":3,"city":"Cincinnati","state":"Ohio","slug":"sex-toys-cincinnati"},
+
+  {"index":4,"city":"Honolulu","state":"Hawaii","slug":"sex-toys-honolulu"},
+
+  {"index":5,"city":"Colorado Springs","state":"Colorado","slug":"sex-toys-colorado-springs"},
+
+  {"index":6,"city":"Arlington","state":"Texas","slug":"sex-toys-arlington"},
+
+  {"index":7,"city":"Virginia Beach","state":"Virginia","slug":"sex-toys-virginia-beach"},
+
+  {"index":8,"city":"Long Beach","state":"California","slug":"sex-toys-long-beach"},
+
+  {"index":9,"city":"Omaha","state":"Nebraska","slug":"sex-toys-omaha"},
+
+  {"index":10,"city":"Oakland","state":"California","slug":"sex-toys-oakland"},
+
+  {"index":11,"city":"Fresno","state":"California","slug":"sex-toys-fresno"},
+
+  {"index":12,"city":"Irvine","state":"California","slug":"sex-toys-irvine"},
+
+  {"index":13,"city":"Mesa","state":"Arizona","slug":"sex-toys-mesa"},
+
+  {"index":14,"city":"Aurora","state":"Colorado","slug":"sex-toys-aurora"},
+
+  {"index":15,"city":"Cleveland","state":"Ohio","slug":"sex-toys-cleveland"},
+
+  {"index":16,"city":"Lexington","state":"Kentucky","slug":"sex-toys-lexington"},
+
+  {"index":17,"city":"Chandler","state":"Arizona","slug":"sex-toys-chandler"},
+
+  {"index":18,"city":"Plano","state":"Texas","slug":"sex-toys-plano"},
+
+  {"index":19,"city":"Anaheim","state":"California","slug":"sex-toys-anaheim"},
+
+  {"index":20,"city":"Henderson","state":"Nevada","slug":"sex-toys-henderson"},
+
+  {"index":21,"city":"Riverside","state":"California","slug":"sex-toys-riverside"},
+
+  {"index":22,"city":"Stockton","state":"California","slug":"sex-toys-stockton"},
+
+  {"index":23,"city":"Greensboro","state":"North Carolina","slug":"sex-toys-greensboro"},
+
+  {"index":24,"city":"Corpus Christi","state":"Texas","slug":"sex-toys-corpus-christi"},
+
+  {"index":25,"city":"St. Louis","state":"Missouri","slug":"sex-toys-st-louis"},
+
+  {"index":26,"city":"Des Moines","state":"Iowa","slug":"sex-toys-des-moines"},
+
+  {"index":27,"city":"Spokane","state":"Washington","slug":"sex-toys-spokane"},
+
+  {"index":28,"city":"Tacoma","state":"Washington","slug":"sex-toys-tacoma"},
+
+  {"index":29,"city":"Knoxville","state":"Tennessee","slug":"sex-toys-knoxville"},
+
+  {"index":30,"city":"Grand Rapids","state":"Michigan","slug":"sex-toys-grand-rapids"},
+
+  {"index":31,"city":"Bakersfield","state":"California","slug":"sex-toys-bakersfield"},
+
+  {"index":32,"city":"Winston-Salem","state":"North Carolina","slug":"sex-toys-winston-salem"},
+
+  {"index":33,"city":"Tallahassee","state":"Florida","slug":"sex-toys-tallahassee"},
+
+  {"index":34,"city":"Huntsville","state":"Alabama","slug":"sex-toys-huntsville"},
+
+  {"index":35,"city":"Rochester","state":"New York","slug":"sex-toys-rochester"},
+
+  {"index":36,"city":"Norfolk","state":"Virginia","slug":"sex-toys-norfolk"},
+
+  {"index":37,"city":"Gilbert","state":"Arizona","slug":"sex-toys-gilbert"},
+
+  {"index":38,"city":"Garland","state":"Texas","slug":"sex-toys-garland"},
+
+  {"index":39,"city":"Lubbock","state":"Texas","slug":"sex-toys-lubbock"},
+
+  {"index":40,"city":"Glendale","state":"Arizona","slug":"sex-toys-glendale-az"},
+
+  {"index":41,"city":"North Las Vegas","state":"Nevada","slug":"sex-toys-north-las-vegas"},
+
+  {"index":42,"city":"Chesapeake","state":"Virginia","slug":"sex-toys-chesapeake"},
+
+  {"index":43,"city":"Baton Rouge","state":"Louisiana","slug":"sex-toys-baton-rouge"},
+
+  {"index":44,"city":"Fremont","state":"California","slug":"sex-toys-fremont"},
+
+  {"index":45,"city":"Fayetteville","state":"North Carolina","slug":"sex-toys-fayetteville"},
+
+  {"index":46,"city":"Chattanooga","state":"Tennessee","slug":"sex-toys-chattanooga"},
+
+  {"index":47,"city":"Fort Lauderdale","state":"Florida","slug":"sex-toys-fort-lauderdale"},
+
+  {"index":48,"city":"Overland Park","state":"Kansas","slug":"sex-toys-overland-park"},
+
+  {"index":49,"city":"Modesto","state":"California","slug":"sex-toys-modesto"},
+
+  {"index":50,"city":"Birmingham","state":"Alabama","slug":"sex-toys-birmingham"},
+
+  {"index":51,"city":"Akron","state":"Ohio","slug":"sex-toys-akron"},
+
+  {"index":52,"city":"Anchorage","state":"Alaska","slug":"sex-toys-anchorage"},
+
+  {"index":53,"city":"Santa Ana","state":"California","slug":"sex-toys-santa-ana"},
+
+  {"index":54,"city":"Fontana","state":"California","slug":"sex-toys-fontana"},
+
+  {"index":55,"city":"Moreno Valley","state":"California","slug":"sex-toys-moreno-valley"},
+
+  {"index":56,"city":"Columbus","state":"Georgia","slug":"sex-toys-columbus-ga"},
+
+  {"index":57,"city":"Yonkers","state":"New York","slug":"sex-toys-yonkers"},
+
+  {"index":58,"city":"San Bernardino","state":"California","slug":"sex-toys-san-bernardino"},
+
+  {"index":59,"city":"Newport News","state":"Virginia","slug":"sex-toys-newport-news"},
+
+  {"index":60,"city":"Laredo","state":"Texas","slug":"sex-toys-laredo"},
+
+  {"index":61,"city":"Montgomery","state":"Alabama","slug":"sex-toys-montgomery"},
+
+  {"index":62,"city":"Hialeah","state":"Florida","slug":"sex-toys-hialeah"},
+
+  {"index":63,"city":"St. Paul","state":"Minnesota","slug":"sex-toys-st-paul"},
+
+  {"index":64,"city":"Glendale","state":"California","slug":"sex-toys-glendale-ca"}
+
+]
+
+```
+
+
+
+---
+
+
+
+## INSTRUCCIONES DE EJECUCIÓN
+
+
+
+### Paso 1 — Verificar estado
+
+Lee el bloque `ESTADO ACTUAL` de este prompt:
+
+- Extrae `next_index`
+
+- Si `next_index >= 65`: reporta "✅ Todas las ciudades completadas" y termina
+
+- La ciudad a publicar es la del array con `"index": next_index`
+
+
+
+### Paso 2 — Generar contenido SEO
+
+
+
+**SOBRE PlayLoveToys:**
+
+- Tienda 100% online de juguetes sexuales y bienestar íntimo
+
+- Envíos discretos a todo EE.UU. — SIN tiendas físicas
+
+- NUNCA usar: "visit our store", "come see us", "our local shop", "stop by"
+
+- Tono: profesional, moderno, inclusivo, positivo
+
+
+
+**REGLAS DE CONTENIDO:**
+
+- Referencias locales reales: universidades, barrios, economía, cultura, landmarks
+
+- Al menos 30% del contenido relacionado directamente con la ciudad
+
+- 1,500–2,200 palabras totales
+
+- HTML solo con: `<p>`, `<h2>`, `<h3>`, `<ul>`, `<li>`, `<strong>`, `<em>`
+
+- Keywords naturales (sin keyword stuffing): "Sex Toys in {City}", "Adult Toys in {City}", "Vibrators in {City}", "Dildos in {City}", "Couples Toys in {City}", "Online Sex Shop in {City}", "Adult Store Alternative in {City}"
+
+
+
+**CAMPOS A GENERAR:**
+
+- `titulo`: "Sex Toys in {City} — Premium Adult Toys Delivered Discreetly"
+
+- `handle`: el valor `slug` del array
+
+- `subtitulo`: "{City}'s Trusted Online Adult Store for Vibrators, Dildos, Couples Toys & Sexual Wellness"
+
+- `intro`: 3 párrafos HTML con contexto local único
+
+- `country`: "United States"
+
+- `state`: estado de la ciudad
+
+- `city`: nombre de la ciudad
+
+- `titulo_2`: "The Best Adult Toys for {City}'s Shoppers"
+
+- `subtitulo_h2`: subtítulo descriptivo
+
+- `content_2`: HTML — vibrators + dildos + couples toys + `<ul>` 5 razones
+
+- `titulo_3`: "Why an Online Adult Store Is the Smarter Choice in {City}"
+
+- `subtitulo_3`: subtítulo sección online
+
+- `content_3`: HTML — ventajas online, privacidad, zonas de envío, cultura local
+
+- `brand_section_title`: "PlayLoveToys — {City}'s Trusted Online Adult Store"
+
+- `brand_section_subtitle`: "Premium sex toys. Discreet shipping. Total privacy."
+
+- `brand_section_content`: HTML — 2 párrafos + `<ul>` 4 beneficios con `<em>`
+
+- `map_title`: "Shipping Sex Toys Across {City}"
+
+- `map_content`: HTML — párrafo + `<ul>` 6 zonas reales + párrafo packaging discreto
+
+- `after_page_content`: HTML — `<h2>` FAQ + 8 preguntas `<h3>` con `<p>`
+
+- `seo_title`: "Sex Toys in {City} | Adult Toys, Vibrators & Dildos | PlayLoveToys"
+
+- `search_description`: 150-160 caracteres
+
+- `shopify_locale`: "en-US"
+
+- `locale`: "en-US"
+
+- `sync_enabled`: true
+
+- `faqs`: array de 8 objetos `{"question":"...","answer":"..."}`
+
+
+
+### Paso 3 — Publicar en PLT-CMS
+
+
+
+Llama a `mcp__5a695f89-52b5-4d5a-a259-2854b17ef7c9__create_location` con todos los campos generados.
+
+
+
+**MANEJO DE ERRORES:**
+
+- Respuesta 201 con `id` numérico = éxito ✅
+
+- Error 400 con mensaje "slug already in use" = la ciudad ya existe, tratar como éxito y avanzar ✅
+
+- Error 400 con otro mensaje = fallo real, NO avanzar ❌
+
+- Error 500 = fallo transitorio, NO avanzar ❌
+
+
+
+### Paso 4 — Actualizar este prompt (CRÍTICO)
+
+
+
+Si la publicación fue exitosa (201 o slug duplicado), llama a `mcp__scheduled-tasks__update_scheduled_task` con `taskId: "plt-publish-next-city"` y el mismo prompt pero con el bloque `ESTADO ACTUAL` actualizado:
+
+- `next_index`: incrementado en 1
+
+- `completed`: agregar `{"index": N, "city": "...", "id": [ID o "duplicate"]}`
+
+
+
+Si falló (500 o 400 real), NO actualices — la próxima ejecución reintentará.
+
+
+
+### Paso 5 — Verificar finalización
+
+Si el nuevo `next_index` es 65, agrega `"status": "COMPLETED"` al estado y reporta éxito total.

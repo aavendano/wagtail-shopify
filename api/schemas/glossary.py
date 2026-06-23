@@ -136,7 +136,10 @@ class GlossaryTermOut(LocaleOutFields):
         description="UTC timestamp of last successful push to Shopify metaobject.",
     )
     live: bool = Field(..., description="True if published in Wagtail.")
-    locale: str = Field(..., description="Wagtail locale code.")
+    locale: str = Field(
+        ...,
+        description="Shopify metaobject locale pushed on sync (en/es/fr). Mirrors locale_code.",
+    )
     url: Optional[str] = Field(None, description="Public page URL if site configured.")
     first_published_at: Optional[datetime] = Field(None, description="First publish timestamp.")
     last_published_at: Optional[datetime] = Field(None, description="Most recent publish timestamp.")
@@ -166,7 +169,19 @@ class GlossaryTermOut(LocaleOutFields):
 
     @staticmethod
     def resolve_locale(obj):
-        return str(obj.locale)
+        return obj.locale_code
+
+    @staticmethod
+    def resolve_last_synced_at(obj):
+        return obj.last_synced_at
+
+    @staticmethod
+    def resolve_first_published_at(obj):
+        return obj.first_published_at
+
+    @staticmethod
+    def resolve_last_published_at(obj):
+        return obj.last_published_at
 
     @staticmethod
     def resolve_url(obj):

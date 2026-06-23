@@ -1,7 +1,9 @@
 from wagtail.blocks import StructBlock, CharBlock, URLBlock
 from wagtail.images.blocks import ImageChooserBlock
+from wagtail_ai.blocks import ai_image_block
 
 
+@ai_image_block(alt_text_field_name='alt_text', image_field_name='image')
 class ImageBlock(StructBlock):
     """
     Embedded image block. On outbound sync, the Wagtail image URL is

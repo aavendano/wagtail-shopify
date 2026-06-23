@@ -35,7 +35,7 @@ class GlossaryTermPage(Page):
         max_length=255, blank=True,
         help_text='Shopify metaobject handle (defaults to slugified term)',
     )
-    sync_enabled = models.BooleanField(default=True)
+    sync_enabled = models.BooleanField(default=True, db_default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
     term = models.CharField(max_length=255, verbose_name='Term')

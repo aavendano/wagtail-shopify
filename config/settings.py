@@ -55,17 +55,30 @@ if _shopify_app_url:
 # Shopify CLI --use-localhost terminates TLS and proxies to Django over HTTP.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Related pages (vector index) needs PostgreSQL pgvector. The extension must be
+# created once by a DB superuser (CREATE EXTENSION vector) before enabling.
+WAGTAIL_AI_PGVECTOR = os.environ.get('WAGTAIL_AI_PGVECTOR', 'false').lower() == 'true'
+
+_wagtail_ai_apps = [
+    'wagtail_ai',
+    'django_ai_core',
+    'django_ai_core.contrib.index',
+]
+if WAGTAIL_AI_PGVECTOR:
+    _wagtail_ai_apps.append('django_ai_core.contrib.index.storage.pgvector')
+
 # Application definition
 
 INSTALLED_APPS = [
     'daphne',
     'custom.apps.CustomConfig',
-
+    *_wagtail_ai_apps,
     #'wagtail_localize',
     'wagtail.locales',
 
     'wagtail.contrib.forms',
     'wagtail.contrib.redirects',
+    'wagtail.contrib.settings',
     'wagtail.contrib.simple_translation',
     'wagtail.embeds',
     'wagtail.sites',
@@ -99,6 +112,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'core.debug_middleware.ShopifyLocalProxyMiddleware',
+    'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware',
+    'shopify_content.wagtail_ai_debug.WagtailAISuggestDebugMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -231,6 +246,37 @@ SHOPIFY_ADMIN_API_VERSION = os.environ.get('SHOPIFY_ADMIN_API_VERSION', '2025-04
 
 WAGTAILADMIN_BASE_URL = os.environ.get('SHOPIFY_APP_URL', 'http://localhost:8000')
 WAGTAIL_SITE_NAME = 'Wagtail Shopify'
+
+_gemini_api_key = os.environ.get('GEMINI_API_KEY', '')
+if _gemini_api_key:
+    os.environ.setdefault('LLM_GEMINI_KEY', _gemini_api_key)
+    os.environ.setdefault('GOOGLE_API_KEY', _gemini_api_key)
+
+WAGTAIL_AI = {
+    'PROVIDERS': {
+        'default': {
+            'provider': 'gemini',
+            'model': 'gemini-2.5-flash',
+            'api_key': _gemini_api_key,
+        },
+        'vision': {
+            'provider': 'gemini',
+            'model': 'gemini-2.5-flash',
+            'api_key': _gemini_api_key,
+        },
+    },
+    'IMAGE_DESCRIPTION_PROVIDER': 'vision',
+    'BACKENDS': {
+        'default': {
+            'CLASS': 'wagtail_ai.ai.llm.LLMBackend',
+            'CONFIG': {
+                'MODEL_ID': 'gemini-2.5-flash',
+            },
+        },
+    },
+}
+
+WAGTAILIMAGES_IMAGE_FORM_BASE = 'wagtail_ai.forms.DescribeImageForm'
 
 _mcp_public_base = (SHOPIFY_APP_URL or WAGTAILADMIN_BASE_URL).rstrip('/')
 MCP_BASE_URL = f'{_mcp_public_base}/api/v1'
