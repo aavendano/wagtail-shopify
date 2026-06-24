@@ -1,6 +1,6 @@
 from wagtail.blocks import StreamBlock
 
-from .content import HeadingBlock, ParagraphBlock, HtmlBlock, CalloutBlock
+from .content import HeadingBlock, ParagraphBlock, HtmlBlock, CalloutBlock, ProductBannerBlock
 from .media import ImageBlock, VideoEmbedBlock
 from .product import ProductFeatureBlock
 from .metafield import MetafieldBlock
@@ -38,6 +38,7 @@ class ArticleBodyStreamBlock(StreamBlock):
     video = VideoEmbedBlock()
     callout = CalloutBlock()
     html = HtmlBlock()
+    product_banner = ProductBannerBlock()
 
     class Meta:
         label = 'Article Body'
@@ -59,6 +60,7 @@ __all__ = [
     'ProductBodyStreamBlock',
     'CollectionBodyStreamBlock',
     'ArticleBodyStreamBlock',
+    'ProductBannerBlock',
     'PRODUCT_BODY_BLOCKS',
     'COLLECTION_BODY_BLOCKS',
     'ARTICLE_BODY_BLOCKS',

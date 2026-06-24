@@ -1,0 +1,53 @@
+{% with product=value.product.specific %}
+
+
+<div class="b-section">
+    <div class="b-container">
+        <div class="b-notification">
+            <div class="b-columns b-is-mobile">
+                <div class="b-column b-is-2-desktop b-is-6">
+                    <shopify-context type="product" gid="{{ product.shopify_id }}">
+                        <template>
+                            <a shopify-attr--href="product.onlineStoreUrl" class="product__link" target="_blank">
+                                <figure class="b-image b-is-1by1" style="max-width: 350px;">
+                                    <img src="{{ product.shopify_images.first.url }}" style="object-fit: contain;"
+                                        alt="{{ product.shopify_images.first.alt_text|default:product.title }}">
+                                </figure>
+                            </a>
+                        </template>
+                    </shopify-context>
+                </div>
+                <div class="b-column b-is-6" style="display: flex; flex-direction: column; min-height: 100%;">
+                    <div class="b-block">
+                        <h3 class="b-title b-is-6">{{ product.title }}</h3>
+                        <p class="b-subtitle b-is-6">
+                            <shopify-context type="product" gid="{{ product.shopify_id }}">
+                                <template>
+                                    <shopify-money
+                                        query="product.selectedOrFirstAvailableVariant.price"></shopify-money>
+                                </template>
+                            </shopify-context>
+                        </p>
+                    </div>
+                    <button class="b-button b-is-primary b-is-medium b-is-rounded b-is-fullwidth b-mt-auto">
+                        <span class="b-icon b-has-text-white">
+                            <i class="b-my-auto b-mx-auto">
+                                <!-- Icon cart plus -->
+                                <svg xmlns="http://www.w3.org/2000/svg" width="1.5rem" height="1.5rem"
+                                    fill="currentColor" class="bi bi-cart-plus" viewBox="0 0 16 16">
+                                    <path
+                                        d="M9 5.5a.5.5 0 0 0-1 0V7H6.5a.5.5 0 0 0 0 1H8v1.5a.5.5 0 0 0 1 0V8h1.5a.5.5 0 0 0 0-1H9z" />
+                                    <path
+                                        d="M.5 1a.5.5 0 0 0 0 1h1.11l.401 1.607 1.498 7.985A.5.5 0 0 0 4 12h1a2 2 0 1 0 0 4 2 2 0 0 0 0-4h7a2 2 0 1 0 0 4 2 2 0 0 0 0-4h1a.5.5 0 0 0 .491-.408l1.5-8A.5.5 0 0 0 14.5 3H2.89l-.405-1.621A.5.5 0 0 0 2 1zm3.915 10L3.102 4h10.796l-1.313 7zM6 14a1 1 0 1 1-2 0 1 1 0 0 1 2 0m7 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0" />
+                                </svg>
+                            </i>
+                        </span>
+
+                    </button>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endwith %}

@@ -1,5 +1,5 @@
 from wagtail.blocks import (
-    StructBlock, CharBlock, ChoiceBlock, RichTextBlock, RawHTMLBlock,
+    StructBlock, CharBlock, ChoiceBlock, RichTextBlock, RawHTMLBlock, PageChooserBlock
 )
 
 
@@ -62,3 +62,12 @@ class CalloutBlock(StructBlock):
         icon = 'warning'
         label = 'Callout'
         template = 'shopify_content/blocks/callout_block.html'
+    
+class ProductBannerBlock(StructBlock):
+    """Product card block. Renders as a product card in Shopify HTML."""
+    product = PageChooserBlock(required=True, page_type='shopify_content.ProductPage', help_text='Select the product to display in banner.')
+
+    class Meta:
+        icon = 'snippet'
+        label = 'Product Banner'
+        template = 'shopify_content/blocks/product_banner_block.html'
