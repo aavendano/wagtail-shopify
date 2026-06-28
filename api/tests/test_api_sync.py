@@ -503,6 +503,556 @@ class CapabilitiesTests(TestCase):
         self.assertIn("glossary_wagtail_origin", workflows)
 
 
+class SearchEndpointTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="search-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        from shopify_content.models import BlogPage, ArticlePage
+        self.blog_parent = ShopifyRootPage(title="Root", slug="root-se", locale=locale)
+        home.add_child(instance=self.blog_parent)
+        self.blog_parent.save_revision().publish()
+        self.blog = BlogPage(title="Test Blog", slug="test-blog-se", locale=locale)
+        self.blog_parent.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+        self.article = ArticlePage(
+            title="Guía completa de vibradores",
+            slug="guia-vibradores",
+            locale=locale,
+            seo_title="SEO: Guía de vibradores",
+        )
+        self.blog.add_child(instance=self.article)
+        self.article.save_revision().publish()
+
+    def test_search_returns_200(self):
+        response = self.client.get(
+            "/search/?q=vibradores",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("total", data)
+        self.assertIn("results", data)
+
+    def test_search_returns_matching_article(self):
+        response = self.client.get(
+            "/search/?q=vibradores",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        titles = [r["title"] for r in response.json()["results"]]
+        self.assertIn("Guía completa de vibradores", titles)
+
+    def test_search_with_resource_filter(self):
+        response = self.client.get(
+            "/search/?q=vibradores&resource=articles",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        for r in response.json()["results"]:
+            self.assertEqual(r["resource"], "article")
+
+    def test_search_respects_limit(self):
+        response = self.client.get(
+            "/search/?q=test&limit=1",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(response.json()["results"]), 1)
+
+    def test_search_result_has_expected_fields(self):
+        response = self.client.get(
+            "/search/?q=vibradores",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        results = response.json()["results"]
+        if results:
+            item = results[0]
+            self.assertIn("resource", item)
+            self.assertIn("page_id", item)
+            self.assertIn("title", item)
+            self.assertIn("slug", item)
+            self.assertIn("locale", item)
+            self.assertIn("live", item)
+
+    def test_search_requires_auth(self):
+        response = self.client.get("/search/?q=test")
+        self.assertEqual(response.status_code, 401)
+
+
+class LinksIndexTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="links-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        from shopify_content.models import BlogPage, ArticlePage
+        self.root = ShopifyRootPage(title="Root", slug="root-li", locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+        self.blog = BlogPage(title="Blog A", slug="blog-a-li", locale=locale)
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+        self.article = ArticlePage(
+            title="Article One",
+            slug="article-one",
+            locale=locale,
+            handle="article-one",
+        )
+        self.blog.add_child(instance=self.article)
+        self.article.save_revision().publish()
+
+    def test_links_index_returns_200(self):
+        response = self.client.get(
+            "/links/index/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("generated_at", data)
+        self.assertIn("total", data)
+        self.assertIn("index", data)
+
+    def test_links_index_contains_article(self):
+        response = self.client.get(
+            "/links/index/?resource=articles",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        slugs = [item["slug"] for item in response.json()["index"]]
+        self.assertIn("article-one", slugs)
+
+    def test_links_index_resource_filter(self):
+        response = self.client.get(
+            "/links/index/?resource=articles",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        for item in response.json()["index"]:
+            self.assertEqual(item["resource"], "article")
+
+    def test_links_index_requires_auth(self):
+        response = self.client.get("/links/index/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_links_index_item_has_expected_fields(self):
+        response = self.client.get(
+            "/links/index/?resource=articles",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        items = response.json()["index"]
+        if items:
+            item = items[0]
+            self.assertIn("resource", item)
+            self.assertIn("page_id", item)
+            self.assertIn("title", item)
+            self.assertIn("slug", item)
+            self.assertIn("locale", item)
+            self.assertIn("shopify_handle", item)
+
+
+class BulkUpdateTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="bulk-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        from shopify_content.models import BlogPage, ArticlePage
+        self.root = ShopifyRootPage(title="Root", slug="root-bu", locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+        self.blog = BlogPage(title="Test Blog", slug="test-blog-bulk", locale=locale)
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+        self.article = ArticlePage(
+            title="Bulk Article",
+            slug="bulk-article",
+            locale=locale,
+        )
+        self.blog.add_child(instance=self.article)
+        self.article.save_revision().publish()
+
+    def test_bulk_update_happy_path(self):
+        response = self.client.post(
+            "/bulk/update/",
+            json={
+                "operations": [
+                    {
+                        "resource": "article",
+                        "page_id": self.article.pk,
+                        "fields": {"seo_title": "Updated SEO Title"},
+                        "publish": False,
+                    }
+                ]
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["succeeded"], 1)
+        self.assertEqual(data["failed"], 0)
+        self.assertEqual(data["results"][0]["status"], "ok")
+
+    def test_bulk_update_nonexistent_page_returns_error_in_result(self):
+        response = self.client.post(
+            "/bulk/update/",
+            json={
+                "operations": [
+                    {
+                        "resource": "article",
+                        "page_id": 999999,
+                        "fields": {"seo_title": "x"},
+                        "publish": False,
+                    }
+                ]
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["failed"], 1)
+        self.assertEqual(data["results"][0]["status"], "error")
+        self.assertIsNotNone(data["results"][0]["error"])
+
+    def test_bulk_update_over_50_returns_400(self):
+        ops = [
+            {"resource": "article", "page_id": i + 1, "fields": {}, "publish": False}
+            for i in range(51)
+        ]
+        response = self.client.post(
+            "/bulk/update/",
+            json={"operations": ops},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_bulk_update_partial_failure_does_not_stop_others(self):
+        response = self.client.post(
+            "/bulk/update/",
+            json={
+                "operations": [
+                    {
+                        "resource": "article",
+                        "page_id": 999999,
+                        "fields": {"seo_title": "Bad"},
+                        "publish": False,
+                    },
+                    {
+                        "resource": "article",
+                        "page_id": self.article.pk,
+                        "fields": {"seo_title": "Good"},
+                        "publish": False,
+                    },
+                ]
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(data["succeeded"], 1)
+        self.assertEqual(data["failed"], 1)
+
+    def test_bulk_update_requires_auth(self):
+        response = self.client.post("/bulk/update/", json={"operations": []})
+        self.assertEqual(response.status_code, 401)
+
+
+class BodyPatchTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="bodypatch-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        from shopify_content.models import BlogPage, ArticlePage
+        self.root = ShopifyRootPage(title="Root", slug="root-bp", locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+        self.blog = BlogPage(title="Blog BP", slug="blog-bp", locale=locale)
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+        self.article = ArticlePage(
+            title="Body Article",
+            slug="body-article",
+            locale=locale,
+        )
+        self.blog.add_child(instance=self.article)
+        self.article.save_revision().publish()
+
+    def test_append_operation(self):
+        response = self.client.post(
+            f"/articles/{self.article.pk}/body/patch/",
+            json={
+                "operations": [
+                    {"op": "append", "content": "<p>New paragraph</p>"}
+                ],
+                "publish": False,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("id", data)
+
+    def test_empty_operations_returns_400(self):
+        response = self.client.post(
+            f"/articles/{self.article.pk}/body/patch/",
+            json={"operations": [], "publish": False},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_nonexistent_article_returns_404(self):
+        response = self.client.post(
+            "/articles/999999/body/patch/",
+            json={
+                "operations": [{"op": "append", "content": "<p>x</p>"}],
+                "publish": False,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_insert_after_missing_target_returns_400(self):
+        response = self.client.post(
+            f"/articles/{self.article.pk}/body/patch/",
+            json={
+                "operations": [
+                    {"op": "insert_after", "target": "h2:Nonexistent Heading", "content": "<p>x</p>"}
+                ],
+                "publish": False,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_body_patch_requires_auth(self):
+        response = self.client.post(
+            f"/articles/{self.article.pk}/body/patch/",
+            json={"operations": [{"op": "append", "content": "<p>x</p>"}]},
+        )
+        self.assertEqual(response.status_code, 401)
+
+
+class ArticleVersionsTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="versions-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        from shopify_content.models import BlogPage, ArticlePage
+        self.root = ShopifyRootPage(title="Root", slug="root-v", locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+        self.blog = BlogPage(title="Blog V", slug="blog-v", locale=locale)
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+        self.article = ArticlePage(
+            title="Versioned Article",
+            slug="versioned-article",
+            locale=locale,
+        )
+        self.blog.add_child(instance=self.article)
+        rev1 = self.article.save_revision()
+        rev1.publish()
+        self.article.title = "Versioned Article v2"
+        rev2 = self.article.save_revision()
+        rev2.publish()
+        self.article.refresh_from_db()
+
+    def test_list_versions_returns_200(self):
+        response = self.client.get(
+            f"/articles/{self.article.pk}/versions/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertGreater(len(data), 0)
+
+    def test_list_versions_has_expected_fields(self):
+        response = self.client.get(
+            f"/articles/{self.article.pk}/versions/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        item = response.json()[0]
+        self.assertIn("revision_id", item)
+        self.assertIn("created_at", item)
+        self.assertIn("is_latest", item)
+
+    def test_list_versions_latest_flag(self):
+        response = self.client.get(
+            f"/articles/{self.article.pk}/versions/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        items = response.json()
+        latest_flags = [item["is_latest"] for item in items if item["is_latest"]]
+        self.assertEqual(len(latest_flags), 1)
+
+    def test_list_versions_nonexistent_returns_404(self):
+        response = self.client.get(
+            "/articles/999999/versions/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_get_specific_version(self):
+        versions_response = self.client.get(
+            f"/articles/{self.article.pk}/versions/",
+            headers=_auth_headers(self.key.key),
+        )
+        revision_id = versions_response.json()[0]["revision_id"]
+
+        response = self.client.get(
+            f"/articles/{self.article.pk}/versions/{revision_id}/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("id", response.json())
+
+    def test_get_nonexistent_version_returns_404(self):
+        response = self.client.get(
+            f"/articles/{self.article.pk}/versions/999999/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_revert_article_version(self):
+        versions_response = self.client.get(
+            f"/articles/{self.article.pk}/versions/",
+            headers=_auth_headers(self.key.key),
+        )
+        items = versions_response.json()
+        oldest_revision_id = items[-1]["revision_id"]
+
+        response = self.client.post(
+            f"/articles/{self.article.pk}/revert/{oldest_revision_id}/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("id", response.json())
+
+    def test_revert_nonexistent_revision_returns_404(self):
+        response = self.client.post(
+            f"/articles/{self.article.pk}/revert/999999/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_versions_require_auth(self):
+        response = self.client.get(f"/articles/{self.article.pk}/versions/")
+        self.assertEqual(response.status_code, 401)
+
+
+class ArticleListFiltersTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="filter-agent")
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
+        from shopify_content.models import BlogPage, ArticlePage
+        self.root = ShopifyRootPage(title="Root", slug="root-flt", locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+        self.blog = BlogPage(title="Filter Blog", slug="filter-blog", locale=locale)
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+        self.article = ArticlePage(
+            title="Tagged Article",
+            slug="tagged-article",
+            locale=locale,
+        )
+        self.blog.add_child(instance=self.article)
+        rev = self.article.save_revision()
+        rev.publish()
+        self.article.tags.add("test-tag")
+        self.article.save()
+
+    def test_filter_by_live_true(self):
+        response = self.client.get(
+            "/articles/?live=true",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        for item in response.json():
+            self.assertTrue(item["live"])
+
+    def test_filter_by_tag(self):
+        response = self.client.get(
+            "/articles/?tag=test-tag",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        titles = [item["title"] for item in response.json()]
+        self.assertIn("Tagged Article", titles)
+
+    def test_filter_by_search_shorthand(self):
+        response = self.client.get(
+            "/articles/?search=Tagged",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        titles = [item["title"] for item in response.json()]
+        self.assertIn("Tagged Article", titles)
+
+    def test_ordering_by_title(self):
+        response = self.client.get(
+            "/articles/?ordering=title",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_capabilities_includes_new_workflows(self):
+        response = self.client.get(
+            "/capabilities/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        workflows = response.json()["workflows"]
+        self.assertIn("search_and_link", workflows)
+        self.assertIn("bulk_meta_update", workflows)
+        self.assertIn("body_surgery", workflows)
+        self.assertEqual(workflows["search_and_link"], ["search_content", "links_index", "update_article"])
+        self.assertEqual(workflows["bulk_meta_update"], ["links_index", "bulk_update"])
+        self.assertEqual(workflows["body_surgery"], ["get_article", "body_patch_article", "push_article"])
+
+    def test_capabilities_includes_new_tool_ids(self):
+        response = self.client.get(
+            "/capabilities/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        tool_ids = {t["operation_id"] for t in response.json()["tools"]}
+        for op_id in [
+            "search_content",
+            "links_index",
+            "bulk_update",
+            "body_patch_article",
+            "list_article_versions",
+            "get_article_version",
+            "revert_article_version",
+        ]:
+            self.assertIn(op_id, tool_ids)
+
+
 class OpenAPIAgentMetadataTests(TestCase):
     def test_pull_products_has_x_agent_fields(self):
         schema = get_schema(api=api, path_prefix="")

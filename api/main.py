@@ -11,6 +11,11 @@ from .routers.articles import router as articles_router
 from .routers.locations import router as locations_router
 from .routers.glossary import router as glossary_router
 from .routers.capabilities import router as capabilities_router
+from .routers.search import router as search_router
+from .routers.links import router as links_router
+from .routers.bulk import router as bulk_router
+from .routers.body_patch import router as body_patch_router
+from .routers.versions import router as versions_router
 
 API_DESCRIPTION = """
 # Wagtail-Shopify Content API (AI Agent Tool Registry)
@@ -124,9 +129,14 @@ api.add_router('/products/', products_router, tags=['Products'])
 api.add_router('/collections/', collections_router, tags=['Collections'])
 api.add_router('/blogs/', blogs_router, tags=['Blogs'])
 api.add_router('/articles/', articles_router, tags=['Articles'])
+api.add_router('/articles/', body_patch_router, tags=['Articles'])
+api.add_router('/articles/', versions_router, tags=['Versions'])
 api.add_router('/locations/', locations_router, tags=['Locations'])
 api.add_router('/glossary/', glossary_router, tags=['Glossary'])
 api.add_router('/capabilities/', capabilities_router, tags=['Capabilities'])
+api.add_router('/search/', search_router, tags=['Search'])
+api.add_router('/links/', links_router, tags=['Links'])
+api.add_router('/bulk/', bulk_router, tags=['Bulk'])
 
 from .mcp import setup_mcp  # noqa: E402
 

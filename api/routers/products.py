@@ -38,24 +38,53 @@ def list_products(
     status: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    # Enhanced filters
+    live: Optional[bool] = None,
+    updated_after: Optional[str] = None,
+    tag: Optional[str] = None,
+    search: Optional[str] = None,
+    ordering: Optional[str] = None,
+    collection_id: Optional[int] = None,
 ):
     """Discover products before read/update."""
-    # #region agent log
-    import json, time
-    # #endregion
+    from django.db.models import Q
+    from django.utils.dateparse import parse_datetime
+
     qs = ProductPage.objects.select_related('locale').prefetch_related(
         'metafields', 'tagged_items__tag', 'shopify_images'
     )
     if live_only:
         qs = qs.live()
+    # New param: live (overrides live_only if explicitly set)
+    if live is not None:
+        qs = qs.live() if live else qs.filter(live=False)
     qs = filter_queryset_by_locale(qs, locale)
     if status:
         qs = qs.filter(status=status)
+    if updated_after:
+        dt = parse_datetime(updated_after)
+        if dt:
+            qs = qs.filter(last_published_at__gt=dt)
+    if tag:
+        qs = qs.filter(tagged_items__tag__name=tag)
+    if search:
+        qs = qs.filter(title__icontains=search)
+    if ordering:
+        valid = {'title', '-title', 'last_published_at', '-last_published_at',
+                 'first_published_at', '-first_published_at'}
+        if ordering in valid:
+            qs = qs.order_by(ordering)
+    if collection_id:
+        # Filter products whose shopify_handle matches any handle stored in the collection.
+        # Practical approach: filter by handle using CollectionPage's handle field.
+        from shopify_content.models import CollectionPage
+        try:
+            collection = CollectionPage.objects.get(pk=collection_id)
+            qs = qs.filter(handle=collection.handle)
+        except CollectionPage.DoesNotExist:
+            qs = qs.none()
+
     pages = list(qs[offset:offset + limit])
-    # #region agent log
-    with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-fdc58d.log', 'a', encoding='utf-8') as _f:
-        _f.write(json.dumps({'sessionId':'fdc58d','hypothesisId':'C','location':'products.py:list_products','message':'list_products returning pages','data':{'count':len(pages),'offset':offset,'limit':limit},'timestamp':int(time.time()*1000),'runId':'post-fix'})+'\n')
-    # #endregion
     return pages
 
 
