@@ -97,6 +97,7 @@ class LocationApiTests(TestCase):
             json={
                 "titulo": "Austin Store",
                 "city": "Austin",
+                "state": "Texas",
                 "country": "United States",
             },
             headers=_auth_headers(self.key.key),
@@ -108,6 +109,31 @@ class LocationApiTests(TestCase):
         page = LocationPage.objects.get(pk=page_id)
         self.assertEqual(page.get_parent().pk, self.locales_parent.pk)
         self.assertNotEqual(page.get_parent().pk, self.products_parent.pk)
+        self.assertEqual(page.slug, "en-us-austin-texas")
+        self.assertEqual(page.handle, "en-us-austin-texas")
+        self.assertEqual(response.json()["slug"], "en-us-austin-texas")
+        self.assertEqual(response.json()["handle"], "en-us-austin-texas")
+
+    def test_patch_city_recalculates_slug_and_handle(self):
+        create_response = self.client.post(
+            "/locations/",
+            json={"titulo": "Texas Store", "city": "Austin", "state": "Texas"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+
+        patch_response = self.client.patch(
+            f"/locations/{page_id}",
+            json={"city": "Dallas"},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["slug"], "en-us-dallas-texas")
+        self.assertEqual(patch_response.json()["handle"], "en-us-dallas-texas")
+
+        page = LocationPage.objects.get(pk=page_id)
+        self.assertEqual(page.slug, "en-us-dallas-texas")
+        self.assertEqual(page.handle, "en-us-dallas-texas")
 
     def test_create_location_with_explicit_parent_page_id(self):
         response = self.client.post(
@@ -194,7 +220,9 @@ class LocationApiTests(TestCase):
         page = LocationPage(
             title="Denver",
             titulo="Denver",
-            slug="denver",
+            city="Denver",
+            slug="en-us-denver",
+            handle="en-us-denver",
             locale=Locale.get_default(),
         )
         self.parent.add_child(instance=page)
@@ -219,7 +247,9 @@ class LocationApiTests(TestCase):
         page = LocationPage(
             title="Denver",
             titulo="Denver",
-            slug="denver",
+            city="Denver",
+            slug="en-us-denver",
+            handle="en-us-denver",
             locale=Locale.get_default(),
         )
         self.parent.add_child(instance=page)

@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import time
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -13,6 +15,28 @@ from ninja_mcp import NinjaMCP
 from ninja_mcp.transport.sse import DjangoSseServerTransport
 
 logger = logging.getLogger(__name__)
+
+_DEBUG_LOG_PATH = "/home/alejandro/apps/wagtail-shopify/.cursor/debug-4100ed.log"
+_DEBUG_SESSION_ID = "4100ed"
+
+
+def _agent_debug_log(*, hypothesis_id: str, location: str, message: str, data: dict | None = None) -> None:
+    # #region agent log
+    try:
+        payload = {
+            "sessionId": _DEBUG_SESSION_ID,
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data or {},
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as log_file:
+            log_file.write(json.dumps(payload) + "\n")
+    except OSError:
+        pass
+    # #endregion
 
 
 class AuthForwardingSseTransport(DjangoSseServerTransport):
@@ -31,6 +55,19 @@ class AuthForwardingSseTransport(DjangoSseServerTransport):
 
     async def handle_post_message(self, session_id: UUID, message: types.JSONRPCMessage):
         writer = self._read_stream_writers.get(session_id)
+        # #region agent log
+        _agent_debug_log(
+            hypothesis_id="H4",
+            location="api/mcp.py:handle_post_message",
+            message="MCP POST message received",
+            data={
+                "session_id": str(session_id),
+                "session_found": writer is not None,
+                "active_sessions": len(self._read_stream_writers),
+                "method": getattr(message, "method", None),
+            },
+        )
+        # #endregion
         if not writer:
             return JsonResponse({"error": "Could not find session"}, status=404)
 
@@ -42,7 +79,23 @@ class AuthForwardingSseTransport(DjangoSseServerTransport):
         logger.debug("Setting up SSE connection with auth forwarding")
 
         session_id = uuid4()
-        auth_header = request.META.get("HTTP_AUTHORIZATION", "") or self._mcp.default_auth_header
+        request_auth = request.META.get("HTTP_AUTHORIZATION", "")
+        fallback_auth = self._mcp.default_auth_header
+        auth_header = request_auth or fallback_auth
+        # #region agent log
+        _agent_debug_log(
+            hypothesis_id="H1",
+            location="api/mcp.py:connect_sse",
+            message="MCP SSE connection opened",
+            data={
+                "session_id": str(session_id),
+                "has_request_auth": bool(request_auth),
+                "uses_fallback_auth": bool(not request_auth and fallback_auth),
+                "auth_scheme": request_auth.split(" ", 1)[0] if request_auth else None,
+                "user_agent": request.META.get("HTTP_USER_AGENT", "")[:80],
+            },
+        )
+        # #endregion
         self._session_auth[session_id] = auth_header
 
         read_stream_writer, read_stream = anyio.create_memory_object_stream(0)

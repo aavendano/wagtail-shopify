@@ -275,6 +275,74 @@ class MetaobjectClientTests(TestCase):
             client.upsert(metaobject, validate=False)
 
     @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
+    def test_update_success(self, mock_execute):
+        mock_execute.return_value = _ok_result(
+            {
+                "metaobjectUpdate": {
+                    "metaobject": {
+                        "id": "gid://shopify/Metaobject/1",
+                        "type": "fabric",
+                        "handle": "renamed-cotton",
+                        "fields": [{"key": "fabric_name", "value": "Cotton"}],
+                        "metafields": {"edges": []},
+                    },
+                    "userErrors": [],
+                }
+            }
+        )
+        client = MetaobjectClient("test-shop.myshopify.com")
+        metaobject = Metaobject(
+            type="fabric",
+            handle="renamed-cotton",
+            fields={"fabric_name": "Cotton"},
+        )
+        result = client.update("gid://shopify/Metaobject/1", metaobject, validate=False)
+        self.assertEqual(result.handle, "renamed-cotton")
+        variables = mock_execute.call_args.kwargs["variables"]
+        self.assertEqual(variables["id"], "gid://shopify/Metaobject/1")
+        self.assertEqual(variables["metaobject"]["handle"], "renamed-cotton")
+        self.assertTrue(variables["metaobject"]["redirectNewHandle"])
+
+    @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
+    def test_sync_uses_update_when_existing_id_provided(self, mock_execute):
+        mock_execute.return_value = _ok_result(
+            {
+                "metaobjectUpdate": {
+                    "metaobject": {
+                        "id": "gid://shopify/Metaobject/1",
+                        "type": "fabric",
+                        "handle": "renamed-cotton",
+                        "fields": [{"key": "fabric_name", "value": "Cotton"}],
+                        "metafields": {"edges": []},
+                    },
+                    "userErrors": [],
+                }
+            }
+        )
+        client = MetaobjectClient("test-shop.myshopify.com")
+        definition = MetaobjectDefinitionSpec(
+            type="fabric",
+            name="Fabric",
+            description="Test",
+            fields=[
+                MetaobjectFieldSpec(
+                    key="fabric_name",
+                    name="Fabric Name",
+                    type="single_line_text_field",
+                ),
+            ],
+        )
+        result = client.sync(
+            {"handle": "renamed-cotton", "fabric_name": "Cotton"},
+            definition=definition,
+            ensure_definition=False,
+            validate=False,
+            existing_id="gid://shopify/Metaobject/1",
+        )
+        self.assertEqual(result.handle, "renamed-cotton")
+        self.assertIn("metaobjectUpdate", mock_execute.call_args.args[0])
+
+    @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
     def test_sync_end_to_end(self, mock_execute):
         mock_execute.side_effect = [
             _ok_result({"metaobjectDefinitionByType": None}),

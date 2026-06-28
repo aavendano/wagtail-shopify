@@ -9,9 +9,10 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from .mixins import FAQItem, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
+from .mixins import FAQItem, SHOPIFY_SEO_PANELS
 
 from config.settings import ALLOWED_LOCALE_CODES
+from ..location_slug import location_page_slug
 
 
 class LocationPage(Page):
@@ -30,7 +31,7 @@ class LocationPage(Page):
     )
     handle = models.SlugField(
         max_length=255, blank=True,
-        help_text='Shopify metaobject handle (defaults to page slug)',
+        help_text='Shopify metaobject handle (auto-derived as <locale>-<city>[-<state>])',
     )
     sync_enabled = models.BooleanField(default=True, db_default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
@@ -147,7 +148,14 @@ class LocationPage(Page):
         FieldPanel('slug'),
     ]
 
-    settings_panels = SHOPIFY_SYNC_PANELS
+    settings_panels = [
+        MultiFieldPanel([
+            FieldPanel('shopify_id'),
+            FieldPanel('handle', read_only=True),
+            FieldPanel('sync_enabled'),
+            FieldPanel('last_synced_at', read_only=True),
+        ], heading='Shopify Sync'),
+    ]
 
     edit_handler = TabbedInterface([
         ObjectList(content_panels, heading='Content'),
@@ -158,6 +166,13 @@ class LocationPage(Page):
     class Meta:
         verbose_name = 'Location Page'
         verbose_name_plural = 'Location Pages'
+
+    def clean(self):
+        super().clean()
+        canonical = location_page_slug(self)
+        if canonical:
+            self.slug = canonical
+            self.handle = canonical
 
     def get_seo_title(self):
         return self.seo_title or self.titulo

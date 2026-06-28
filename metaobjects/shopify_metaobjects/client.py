@@ -6,7 +6,7 @@ from shopify_requests.graphql_service import execute_admin_graphql
 from .definition import MetaobjectDefinitionSpec
 from .exceptions import DefinitionError, UpsertError
 from .metaobject import Metaobject
-from .mutations import METAOBJECT_DEFINITION_CREATE, METAOBJECT_UPSERT
+from .mutations import METAOBJECT_DEFINITION_CREATE, METAOBJECT_UPDATE, METAOBJECT_UPSERT
 from .queries import METAOBJECT_BY_HANDLE, METAOBJECT_DEFINITION_BY_TYPE
 from .validation import validate_metaobject
 
@@ -89,6 +89,60 @@ class MetaobjectClient:
             return None
         return Metaobject.from_shopify_data(metaobject_data)
 
+    def update(
+        self,
+        metaobject_id: str,
+        metaobject: Metaobject,
+        *,
+        definition: MetaobjectDefinitionSpec | None = None,
+        validate: bool = True,
+        redirect_new_handle: bool = True,
+    ) -> Metaobject:
+        if validate and definition is not None:
+            errors = validate_metaobject(metaobject, definition)
+            if errors:
+                raise UpsertError("; ".join(errors))
+
+        field_types = (
+            {field.key: field.type for field in definition.fields}
+            if definition is not None
+            else {}
+        )
+        shopify_fields = metaobject.to_shopify_fields(field_types)
+        metaobject_input: dict[str, Any] = {
+            'handle': metaobject.handle,
+            'fields': shopify_fields,
+        }
+        capabilities = _publishable_active_input(definition)
+        if capabilities:
+            metaobject_input['capabilities'] = capabilities
+        if redirect_new_handle:
+            metaobject_input['redirectNewHandle'] = True
+        result = execute_admin_graphql(
+            METAOBJECT_UPDATE,
+            shop=self.shop,
+            variables={
+                "id": metaobject_id,
+                "metaobject": metaobject_input,
+            },
+        )
+        if not result.ok:
+            raise UpsertError(
+                result.log_detail or "Failed to update metaobject",
+                error_code=result.error_code,
+            )
+        payload = (result.data or {}).get("metaobjectUpdate", {})
+        user_errors = payload.get("userErrors") or []
+        if user_errors:
+            raise UpsertError(
+                "; ".join(error.get("message", str(error)) for error in user_errors),
+                user_errors=user_errors,
+            )
+        metaobject_data = payload.get("metaobject")
+        if not metaobject_data:
+            raise UpsertError("metaobjectUpdate returned no metaobject")
+        return Metaobject.from_shopify_data(metaobject_data)
+
     def upsert(
         self,
         metaobject: Metaobject,
@@ -163,6 +217,7 @@ class MetaobjectClient:
         definition: MetaobjectDefinitionSpec,
         ensure_definition: bool = True,
         validate: bool = True,
+        existing_id: str | None = None,
     ) -> Metaobject:
         if ensure_definition:
             self.ensure_definition(definition)
@@ -174,4 +229,11 @@ class MetaobjectClient:
             metaobject = data
         else:
             raise TypeError("data must be a dict, dataclass instance, or Metaobject")
+        if existing_id:
+            return self.update(
+                existing_id,
+                metaobject,
+                definition=definition,
+                validate=validate,
+            )
         return self.upsert(metaobject, definition=definition, validate=validate)

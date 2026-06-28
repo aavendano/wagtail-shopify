@@ -36,8 +36,8 @@ class LocationIn(LocaleCreateFields):
     handle: Optional[str] = Field(
         None,
         description=(
-            "Shopify metaobject handle (URL slug). Defaults to slugified titulo. "
-            "Used in storefront metaobject URLs."
+            "Ignored. Handle is auto-derived as <locale>-<city>[-<state>]. "
+            "Set city, state, and locale instead."
         ),
     )
     subtitulo: Optional[str] = Field(None, description="Hero subtitle.", max_length=255)
@@ -87,7 +87,10 @@ class LocationIn(LocaleCreateFields):
 class LocationPatch(LocalePatchFields):
     titulo: Optional[str] = Field(None, description="Update hero title and Page.title.", max_length=255)
     shopify_id: Optional[str] = Field(None, description="Set or update Shopify metaobject GID.")
-    handle: Optional[str] = Field(None, description="Update metaobject handle; slug updated to match.")
+    handle: Optional[str] = Field(
+        None,
+        description="Ignored. Handle is read-only and derived from locale+city.",
+    )
     subtitulo: Optional[str] = Field(None, description="Update hero subtitle.")
     intro: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
     country: Optional[str] = Field(None, description="Update country.")
@@ -134,8 +137,14 @@ class LocationOut(LocaleOutFields):
     )
     titulo: str = Field(..., description="Hero title.")
     title: str = Field(..., description="Wagtail Page.title (mirrors titulo).")
-    handle: str = Field(..., description="Shopify metaobject handle.")
-    slug: str = Field(..., description="Wagtail page slug.")
+    handle: str = Field(
+        ...,
+        description="Shopify metaobject handle (<locale>-<city>[-<state>]).",
+    )
+    slug: str = Field(
+        ...,
+        description="Wagtail page slug; matches handle (<locale>-<city>[-<state>]).",
+    )
     subtitulo: str = Field(..., description="Hero subtitle.")
     intro: str = Field(..., description="Hero intro HTML.")
     country: str = Field(..., description="Country.")

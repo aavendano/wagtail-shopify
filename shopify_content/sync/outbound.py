@@ -683,6 +683,7 @@ def _location_page_definition():
             MetaobjectFieldSpec(key='country',                name='Country',               type='single_line_text_field'),
             MetaobjectFieldSpec(key='state',                  name='State / Province',      type='single_line_text_field'),
             MetaobjectFieldSpec(key='city',                   name='City',                  type='single_line_text_field'),
+            MetaobjectFieldSpec(key='slug',                   name='Slug',                  type='single_line_text_field'),
             MetaobjectFieldSpec(key='titulo_2',               name='Título 2',              type='single_line_text_field'),
             MetaobjectFieldSpec(key='subtitulo_h2',           name='Subtítulo H2',          type='single_line_text_field'),
             MetaobjectFieldSpec(key='content_2',              name='Content 2',             type='rich_text_field'),
@@ -703,6 +704,26 @@ def _location_page_definition():
     )
 
 
+def _resolve_location_shopify_id(client, page, canonical: str) -> str | None:
+    """
+    Resolve the Shopify metaobject GID to update in place.
+
+    When shopify_id is stored, always update that record (including handle renames).
+    Otherwise, look up a legacy handle still stored on the Wagtail page.
+    """
+    if page.shopify_id:
+        return page.shopify_id
+
+    legacy_handle = (page.handle or page.slug or '').strip()
+    if not legacy_handle or legacy_handle == canonical:
+        return None
+
+    existing = client.get_by_handle('local_page', legacy_handle)
+    if existing and existing.id:
+        return existing.id
+    return None
+
+
 def sync_location_page(page):
     """
     Push LocationPage → Shopify merchant-owned metaobject (type: local_page).
@@ -711,7 +732,9 @@ def sync_location_page(page):
 
     Uses MetaobjectClient.sync() which calls ensure_definition() on every sync
     (one extra GET per publish — safe and self-healing if definition is deleted).
-    Handle defaults to page.slug if page.handle is not set.
+    Handle and slug field are always derived as <locale>-<city>[-<state>] (e.g. en-us-glendale-arizona).
+    When a Shopify GID or legacy handle exists, updates the same metaobject via
+    metaobjectUpdate instead of creating a duplicate on handle rename.
     Rich text fields (RichTextField HTML) are converted to Shopify rich_text_field JSON.
     FAQs list is detected by to_shopify_fields() and serialized as json.dumps().
     """
@@ -723,14 +746,28 @@ def sync_location_page(page):
     except RuntimeError as exc:
         return False, str(exc)
 
-    handle = page.handle or page.slug
+    from shopify_content.location_slug import location_page_slug
+
+    canonical = location_page_slug(page)
+    if not canonical:
+        logger.error(
+            'LocationPage sync aborted pk=%s: city and locale required for slug',
+            page.pk,
+        )
+        return False, "Sync aborted: city and locale are required to build location slug."
+
+    handle = canonical
 
     if not _has_meaningful_sync_value(page.titulo):
         logger.error('LocationPage sync aborted pk=%s: titulo is required', page.pk)
         return False, "Sync aborted: titulo is required."
 
-    # Build field dict; always keep handle + required titulo
-    data: dict = {'handle': handle, 'titulo': str(_wagtail_field_value(page.titulo)).strip()}
+    # Build field dict; always keep handle + slug + required titulo
+    data: dict = {
+        'handle': handle,
+        'slug': handle,
+        'titulo': str(_wagtail_field_value(page.titulo)).strip(),
+    }
     for key, value in [
         ('subtitulo', page.subtitulo),
         ('intro', page.intro),
@@ -766,17 +803,34 @@ def sync_location_page(page):
 
     spec = _location_page_definition()
     client = MetaobjectClient(shop=shop)
+    existing_id = _resolve_location_shopify_id(client, page, canonical)
 
     try:
-        result = client.sync(data, definition=spec, ensure_definition=True, validate=False)
+        result = client.sync(
+            data,
+            definition=spec,
+            ensure_definition=True,
+            validate=False,
+            existing_id=existing_id,
+        )
     except (DefinitionError, UpsertError) as exc:
         detail = str(exc)
         logger.error('LocationPage sync failed pk=%s: %s', page.pk, detail)
         return False, f"Shopify metaobject error: {detail}"
 
-    if result.id and not page.shopify_id:
-        type(page).objects.filter(pk=page.pk).update(shopify_id=result.id)
-        page.shopify_id = result.id
+    updates = {}
+    resolved_id = result.id or existing_id
+    if resolved_id and page.shopify_id != resolved_id:
+        updates['shopify_id'] = resolved_id
+        page.shopify_id = resolved_id
+    if page.slug != canonical:
+        updates['slug'] = canonical
+        page.slug = canonical
+    if page.handle != canonical:
+        updates['handle'] = canonical
+        page.handle = canonical
+    if updates:
+        type(page).objects.filter(pk=page.pk).update(**updates)
 
     _mark_synced(type(page), page.pk)
     return True, "Location synced to Shopify metaobject successfully."

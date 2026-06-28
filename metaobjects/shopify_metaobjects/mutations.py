@@ -1,3 +1,24 @@
+METAOBJECT_UPDATE = """
+mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+    metaobjectUpdate(id: $id, metaobject: $metaobject) {
+        metaobject {
+            id
+            handle
+            type
+            fields {
+                key
+                value
+            }
+        }
+        userErrors {
+            field
+            message
+            code
+        }
+    }
+}
+"""
+
 METAOBJECT_UPSERT = """
 mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
     metaobjectUpsert(handle: $handle, metaobject: $metaobject) {

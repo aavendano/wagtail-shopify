@@ -24,8 +24,9 @@ class PublishSyncSignalTests(TestCase):
     def test_revision_publish_queues_outbound_sync(self, mock_sync):
         page = LocationPage(
             title='NYC',
-            slug='nyc',
+            slug='en-us-nyc',
             titulo='NYC',
+            city='NYC',
             locale=Locale.get_default(),
             sync_enabled=True,
         )
@@ -50,8 +51,9 @@ class PublishSyncSignalTests(TestCase):
 
         page = LocationPage(
             title='LA',
-            slug='la',
+            slug='en-us-la',
             titulo='LA',
+            city='LA',
             locale=Locale.get_default(),
             sync_enabled=True,
         )
@@ -65,8 +67,9 @@ class PublishSyncSignalTests(TestCase):
     def test_sync_disabled_skips_enqueue(self):
         page = LocationPage(
             title='Miami',
-            slug='miami',
+            slug='en-us-miami',
             titulo='Miami',
+            city='Miami',
             locale=Locale.get_default(),
             sync_enabled=False,
         )
@@ -95,11 +98,13 @@ class BulkPublishTransactionTests(TransactionTestCase):
         mock_delay.return_value = type('Result', (), {'id': 'task-id'})()
 
         pages = []
-        for slug in ('city-a', 'city-b', 'city-c'):
+        for city in ('city-a', 'city-b', 'city-c'):
+            slug = f'en-us-{city}'
             page = LocationPage(
-                title=slug,
+                title=city,
                 slug=slug,
-                titulo=slug,
+                titulo=city,
+                city=city,
                 locale=Locale.get_default(),
                 sync_enabled=True,
             )
