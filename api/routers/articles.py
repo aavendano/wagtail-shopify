@@ -37,18 +37,44 @@ def list_articles(
     blog_id: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
+    # Enhanced filters
+    live: Optional[bool] = None,
+    updated_after: Optional[str] = None,
+    tag: Optional[str] = None,
+    search: Optional[str] = None,
+    ordering: Optional[str] = None,
 ):
-    """Discover articles; filter by blog_id for one blog."""
+    """Discover articles; filter by blog_id, tag, locale, live, updated_after, or search."""
+    from django.db.models import Q
+    from django.utils.dateparse import parse_datetime
+
     qs = (
         ArticlePage.objects
         .select_related('locale', 'featured_image')
         .prefetch_related('metafields', 'tagged_items__tag')
     )
+    # Legacy param: live_only
     if live_only:
         qs = qs.live()
+    # New param: live (overrides live_only if explicitly set)
+    if live is not None:
+        qs = qs.live() if live else qs.filter(live=False)
     qs = filter_queryset_by_locale(qs, locale)
     if blog_id:
         qs = qs.child_of(BlogPage.objects.filter(pk=blog_id).first() or BlogPage())
+    if updated_after:
+        dt = parse_datetime(updated_after)
+        if dt:
+            qs = qs.filter(last_published_at__gt=dt)
+    if tag:
+        qs = qs.filter(tagged_items__tag__name=tag)
+    if search:
+        qs = qs.filter(title__icontains=search)
+    if ordering:
+        valid = {'title', '-title', 'last_published_at', '-last_published_at',
+                 'first_published_at', '-first_published_at'}
+        if ordering in valid:
+            qs = qs.order_by(ordering)
     return list(qs[offset:offset + limit])
 
 

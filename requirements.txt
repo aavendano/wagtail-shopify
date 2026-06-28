@@ -30,3 +30,4 @@ wagtail-ai
 llm-gemini
 pgvector
 any-llm-sdk[gemini]
+beautifulsoup4

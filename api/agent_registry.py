@@ -10,7 +10,10 @@ CapabilityType = Literal[
     "sync_inbound",
     "sync_outbound",
 ]
-Resource = Literal["products", "collections", "blogs", "articles", "locations", "glossary", "capabilities"]
+Resource = Literal[
+    "products", "collections", "blogs", "articles", "locations", "glossary",
+    "capabilities", "search", "links", "bulk",
+]
 SyncDirection = Literal["shopify_to_wagtail", "wagtail_to_shopify"] | None
 
 SHOP_CONFIG_PREREQ = "ShopConfig with valid offline access token"
@@ -440,6 +443,82 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "AgentCapabilitiesOut",
         ("pull_products_sync_post", "list_products"),
     ),
+    # Search
+    "search_content": _cap(
+        "search_content", "GET", "/search/",
+        "discover", "search",
+        "Full-text search across all content resources",
+        (
+            "Use to find pages by keyword before editing, linking, or auditing. "
+            "Filter by resource, locale, or live status. "
+            "Returns excerpt with match context."
+        ),
+        "SearchResponse",
+        ("get_article", "get_product", "links_index", "update_article"),
+    ),
+    # Links index
+    "links_index": _cap(
+        "links_index", "GET", "/links/index/",
+        "discover", "links",
+        "Complete slug/handle index for internal linking",
+        (
+            "Use to build internal links without iterating individual resource endpoints. "
+            "Returns all page slugs, URLs, and shopify_handles. Cached 5 min."
+        ),
+        "SlugIndexResponse",
+        ("get_article", "get_product", "bulk_update"),
+    ),
+    # Bulk update
+    "bulk_update": _cap(
+        "bulk_update", "POST", "/bulk/update/",
+        "update", "bulk",
+        "Batch-update up to 50 pages in a single call",
+        (
+            "Use to update SEO fields, locale, or other attributes across many pages efficiently. "
+            "Each operation is independent — one failure does not stop others. Max 50 ops."
+        ),
+        "BulkUpdateResponse",
+        ("links_index", "get_article", "get_product"),
+    ),
+    # Body patch
+    "body_patch_article": _cap(
+        "body_patch_article", "POST", "/articles/{page_id}/body/patch/",
+        "update", "articles",
+        "Patch article body with structured insert/replace/delete operations",
+        (
+            "Use to surgically edit article body content without replacing the whole field. "
+            "Target headings by tag:text or blocks by index. "
+            "Supports StreamField and RichTextField bodies automatically."
+        ),
+        "ArticleOut",
+        ("get_article", "push_article"),
+        ("Valid article page_id",),
+    ),
+    # Article versions
+    "list_article_versions": _cap(
+        "list_article_versions", "GET", "/articles/{page_id}/versions/",
+        "read", "articles",
+        "List available Wagtail revisions for an article",
+        "Use to audit edit history or find a revision_id before reverting.",
+        "List[RevisionItem]",
+        ("get_article_version", "revert_article_version"),
+    ),
+    "get_article_version": _cap(
+        "get_article_version", "GET", "/articles/{page_id}/versions/{revision_id}/",
+        "read", "articles",
+        "Get the content of a specific article revision",
+        "Use to preview or compare a past revision before deciding to revert.",
+        "ArticleOut",
+        ("revert_article_version",),
+    ),
+    "revert_article_version": _cap(
+        "revert_article_version", "POST", "/articles/{page_id}/revert/{revision_id}/",
+        "update", "articles",
+        "Restore a past article revision as the current draft",
+        "Use to roll back bad edits. Does NOT auto-publish — creates a new draft.",
+        "ArticleOut",
+        ("get_article", "push_article"),
+    ),
 }
 
 WORKFLOWS: dict[str, tuple[str, ...]] = {
@@ -474,6 +553,20 @@ WORKFLOWS: dict[str, tuple[str, ...]] = {
         "push_glossary_term",
         "get_glossary_term",
     ),
+    "search_and_link": (
+        "search_content",
+        "links_index",
+        "update_article",
+    ),
+    "bulk_meta_update": (
+        "links_index",
+        "bulk_update",
+    ),
+    "body_surgery": (
+        "get_article",
+        "body_patch_article",
+        "push_article",
+    ),
 }
 
 TAG_DESCRIPTIONS: dict[str, str] = {
@@ -503,5 +596,17 @@ TAG_DESCRIPTIONS: dict[str, str] = {
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."
+    ),
+    "Search": (
+        "Capability group: full-text cross-resource search. Returns excerpts and page metadata."
+    ),
+    "Links": (
+        "Capability group: slug/handle index for building internal links without iterating resources."
+    ),
+    "Bulk": (
+        "Capability group: batch updates across up to 50 pages in a single API call."
+    ),
+    "Versions": (
+        "Capability group: Wagtail revision history for articles — list, get, and revert revisions."
     ),
 }
