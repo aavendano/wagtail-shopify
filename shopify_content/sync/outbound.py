@@ -196,6 +196,26 @@ def _push_faq_metafield(shop, owner_gid, faq_queryset):
     }])
 
 
+def _push_internal_links_metafield(shop, owner_gid, page):
+    """Push semantic internal links as JSON metafield (default custom.internal_links)."""
+    from django.conf import settings
+
+    from shopify_content.semantic_links.serialization import serialize_semantic_links
+
+    links = serialize_semantic_links(page)
+    if not links:
+        return True
+    namespace = getattr(settings, 'SEMANTIC_LINKS_METAFIELD_NAMESPACE', 'custom')
+    key = getattr(settings, 'SEMANTIC_LINKS_METAFIELD_KEY', 'internal_links')
+    return _push_metafields(shop, [{
+        'ownerId': owner_gid,
+        'namespace': namespace,
+        'key': key,
+        'type': 'json',
+        'value': json.dumps(links, ensure_ascii=False),
+    }])
+
+
 def _push_seo_metafields(shop, owner_gid, seo_title, seo_description):
     """
     Push SEO data as Shopify metafields.
@@ -416,6 +436,7 @@ def sync_product_page(page):
     mf_inputs += _collect_streamfield_metafields(primary.body, shopify_id)
     _push_metafields(shop, mf_inputs)
     _push_faq_metafield(shop, shopify_id, primary.faqs)
+    _push_internal_links_metafield(shop, shopify_id, primary)
     _push_hreflang_metafields(page, shop, shopify_id)
     _register_shopify_translations(
         page, shop, shopify_id,
@@ -471,6 +492,7 @@ def sync_collection_page(page):
     mf_inputs = _collect_inline_metafields(primary, shopify_id)
     _push_metafields(shop, mf_inputs)
     _push_faq_metafield(shop, shopify_id, primary.faqs)
+    _push_internal_links_metafield(shop, shopify_id, primary)
     _push_hreflang_metafields(page, shop, shopify_id)
     _register_shopify_translations(
         page, shop, shopify_id,
@@ -641,6 +663,7 @@ def sync_article_page(page):
         mf_inputs += _collect_streamfield_metafields(primary.body, page.shopify_id)
         _push_metafields(shop, mf_inputs)
         _push_faq_metafield(shop, page.shopify_id, primary.faqs)
+        _push_internal_links_metafield(shop, page.shopify_id, primary)
 
         _push_hreflang_metafields(page, shop, page.shopify_id)
         _register_shopify_translations(
@@ -901,7 +924,12 @@ def sync_glossary_term_page(page):
         data['definition'] = _wagtail_field_value(page.definition)
     if page.locale_code:
         data['locale'] = page.locale_code
-    if page.related_links:
+    from shopify_content.semantic_links.serialization import serialize_semantic_links
+
+    related_links = serialize_semantic_links(page)
+    if related_links:
+        data['related_links'] = related_links
+    elif page.related_links:
         data['related_links'] = page.related_links
     if page.external_links:
         data['external_links'] = page.external_links

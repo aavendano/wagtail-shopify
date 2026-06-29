@@ -45,7 +45,6 @@ def _apply_glossary_fields(page: GlossaryTermPage, data, *, is_create: bool = Fa
         page.slug = slug
         page.sync_enabled = data.sync_enabled if data.sync_enabled is not None else True
         page.locale_code = data.locale_code or 'en'
-        page.related_links = _serialize_links(data.related_links)
         page.external_links = _serialize_links(data.external_links)
         page.synonyms = data.synonyms or []
         page.same_as = data.same_as or []
@@ -65,8 +64,6 @@ def _apply_glossary_fields(page: GlossaryTermPage, data, *, is_create: bool = Fa
             page.sync_enabled = data.sync_enabled
         if data.locale_code is not None:
             page.locale_code = data.locale_code
-        if data.related_links is not None:
-            page.related_links = _serialize_links(data.related_links)
         if data.external_links is not None:
             page.external_links = _serialize_links(data.external_links)
         if data.synonyms is not None:

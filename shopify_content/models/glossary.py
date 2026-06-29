@@ -7,6 +7,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
+from shopify_content.admin_panels import semantic_links_panel
 from .mixins import SHOPIFY_SYNC_PANELS
 
 LOCALE_CODE_CHOICES = [
@@ -85,7 +86,7 @@ class GlossaryTermPage(Page):
         FieldPanel('term'),
         FieldPanel('definition'),
         FieldPanel('locale_code'),
-        FieldPanel('related_links'),
+        semantic_links_panel(),
         FieldPanel('external_links'),
         FieldPanel('synonyms'),
         FieldPanel('same_as'),

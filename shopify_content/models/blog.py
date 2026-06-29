@@ -9,25 +9,11 @@ from wagtail.fields import StreamField
 from wagtail.admin.panels import (
     FieldPanel, InlinePanel, MultiFieldPanel, ObjectList, TabbedInterface,
 )
-from wagtail_ai.panels import AIMultipleChooserPanel
 from wagtail.search import index
 
+from shopify_content.admin_panels import semantic_links_panel
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
-
-
-def _article_related_pages_panel():
-    from django.conf import settings
-
-    if getattr(settings, 'WAGTAIL_AI_PGVECTOR', False):
-        return AIMultipleChooserPanel(
-            'article_related_pages',
-            chooser_field_name='related_page',
-            heading='Related Pages',
-            label='Page',
-            vector_index='PageIndex',
-        )
-    return InlinePanel('article_related_pages', label='Related Pages')
 
 
 # ---------------------------------------------------------------------------
@@ -155,25 +141,6 @@ class ArticlePageMetafield(ShopifyMetafield):
     )
 
 
-class ArticleRelatedPage(Orderable, models.Model):
-    page = ParentalKey(
-        'shopify_content.ArticlePage',
-        related_name='article_related_pages',
-        on_delete=models.CASCADE,
-    )
-    related_page = models.ForeignKey(
-        'wagtailcore.Page',
-        related_name='+',
-        on_delete=models.CASCADE,
-    )
-
-    panels = [FieldPanel('related_page')]
-
-    class Meta(Orderable.Meta):
-        verbose_name = 'Related page'
-        verbose_name_plural = 'Related pages'
-
-
 class ArticlePage(Page):
     """
     Mirrors a Shopify Article inside a Blog.
@@ -270,7 +237,7 @@ class ArticlePage(Page):
         ], heading='Shopify Featured Image (URL)'),
         FieldPanel('summary'),
         FieldPanel('body'),
-        _article_related_pages_panel(),
+        semantic_links_panel(),
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]

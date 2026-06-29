@@ -202,6 +202,24 @@ Implementada como **merchant-owned metaobject** (tipo `glossary_term`) en Shopif
 
 Sin campos SEO dedicados — `renderable` usa `term` y `definition` como fallback.
 
+### Internal links semánticos (cross-type)
+
+ProductPage, CollectionPage, ArticlePage y GlossaryTermPage comparten el modelo `SemanticPageLink` (FK a cualquier `Page` + flag `is_auto`).
+
+- **Manual:** panel *Internal Links* en Wagtail admin (`AIMultipleChooserPanel` cuando `WAGTAIL_AI_PGVECTOR=true`).
+- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True`).
+- **Shopify:** productos, colecciones y artículos reciben metafield `custom.internal_links` (JSON). Glosario usa el campo metaobject `related_links` derivado de las FK.
+- **Requisitos:** `CREATE EXTENSION vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, índice poblado con `index_pages_batch`.
+
+```bash
+python manage.py index_pages_batch --model all
+python manage.py refresh_semantic_links_batch
+python manage.py migrate_glossary_links_to_fk   # opcional: JSON legacy → FK manuales
+python manage.py sync_semantic_links_revisions  # si el batch ya corrió sin revisiones
+```
+
+Definir en Shopify Admin → Custom data el metafield `custom.internal_links` (tipo JSON) para PRODUCT, COLLECTION y ARTICLE.
+
 ### Actualizar definición `glossary_term` existente
 
 Si el tipo `glossary_term` ya existe en Shopify (instalación previa), añadir campos nuevos al spec **no los crea solos** en la primera versión del código. A partir de este cambio, `MetaobjectClient.ensure_definition()` compara el spec local con la definición remota y emite `metaobjectDefinitionUpdate` para crear `fieldDefinitions` faltantes.

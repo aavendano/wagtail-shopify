@@ -17,7 +17,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--model',
-            choices=['article', 'product', 'all'],
+            choices=['article', 'product', 'collection', 'glossary', 'all'],
             default='all',
             help='Which page type to index (default: all).',
         )
@@ -55,7 +55,9 @@ class Command(BaseCommand):
             raise CommandError('--batch-size must be at least 1')
 
         targets = (
-            ['article', 'product'] if model_choice == 'all' else [model_choice]
+            ['article', 'product', 'collection', 'glossary']
+            if model_choice == 'all'
+            else [model_choice]
         )
 
         index = registry.get('PageIndex')()

@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema
 
 
 SORT_ORDER_DESCRIPTION = (
@@ -184,6 +184,10 @@ class CollectionOut(LocaleOutFields):
         ...,
         description="Attached Shopify metafields with namespace, key, type, and value.",
     )
+    related_links: List[RelatedLinkSchema] = Field(
+        default_factory=list,
+        description="Semantic internal links from Wagtail FK relations (auto + manual).",
+    )
     sync_enabled: bool = Field(..., description="When true, publishing triggers an outbound sync to Shopify.")
     last_synced_at: Optional[datetime] = Field(
         None,
@@ -221,6 +225,11 @@ class CollectionOut(LocaleOutFields):
             {"namespace": m.namespace, "key": m.key, "type": m.type, "value": m.value}
             for m in obj.metafields.all()
         ]
+
+    @staticmethod
+    def resolve_related_links(obj):
+        from shopify_content.semantic_links.serialization import serialize_semantic_links
+        return serialize_semantic_links(obj)
 
     @staticmethod
     def resolve_locale(obj):

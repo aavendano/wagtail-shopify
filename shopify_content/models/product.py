@@ -12,6 +12,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
+from shopify_content.admin_panels import semantic_links_panel
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import PRODUCT_BODY_BLOCKS
 
@@ -149,6 +150,7 @@ class ProductPage(Page):
             FieldPanel('status'),
         ], heading='Shopify Product Details'),
         FieldPanel('body'),
+        semantic_links_panel(),
         InlinePanel('shopify_images', label='Shopify Images (URLs)'),
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),

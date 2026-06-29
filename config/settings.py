@@ -59,6 +59,22 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # created once by a DB superuser (CREATE EXTENSION vector) before enabling.
 WAGTAIL_AI_PGVECTOR = os.environ.get('WAGTAIL_AI_PGVECTOR', 'false').lower() == 'true'
 
+# Semantic internal links (vector search + auto-generation on publish)
+SEMANTIC_LINKS_ENABLED = WAGTAIL_AI_PGVECTOR
+SEMANTIC_LINKS_AUTO_ON_PUBLISH = (
+    os.environ.get('SEMANTIC_LINKS_AUTO_ON_PUBLISH', 'true').lower() == 'true'
+)
+SEMANTIC_LINKS_LIMIT_PER_TYPE = int(os.environ.get('SEMANTIC_LINKS_LIMIT_PER_TYPE', '5'))
+SEMANTIC_LINKS_INDEX_ON_PUBLISH = (
+    os.environ.get('SEMANTIC_LINKS_INDEX_ON_PUBLISH', 'true').lower() == 'true'
+)
+SEMANTIC_LINKS_METAFIELD_NAMESPACE = os.environ.get(
+    'SEMANTIC_LINKS_METAFIELD_NAMESPACE', 'custom',
+)
+SEMANTIC_LINKS_METAFIELD_KEY = os.environ.get(
+    'SEMANTIC_LINKS_METAFIELD_KEY', 'internal_links',
+)
+
 _wagtail_ai_apps = [
     'wagtail_ai',
     'django_ai_core',

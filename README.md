@@ -82,6 +82,26 @@ python manage.py import_shopify_collections
 | `import_shopify_blogs` | Importa blogs y artículos → `BlogPage` / `ArticlePage` |
 | `setup_locales` | Crea los 4 objetos `Locale` de Wagtail (en-US, es-US, en-CA, fr-CA) |
 | `setup_celery_beat_schedules` | Crea la tarea periódica de importación (deshabilitada por defecto) |
+| `index_pages_batch` | Indexa páginas en PageIndex (pgvector) para sugerencias de internal links |
+| `refresh_semantic_links_batch` | Genera internal links semánticos para páginas live (backfill) |
+| `sync_semantic_links_revisions` | Sincroniza revisiones Wagtail para links ya existentes en BD (fix admin UI) |
+| `migrate_glossary_links_to_fk` | Importa `related_links` JSON del glosario a FK manuales |
+
+### Semantic internal links (pgvector + Gemini)
+
+Requisitos: extensión PostgreSQL `vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`.
+
+```bash
+# Una vez (superuser PostgreSQL):
+# CREATE EXTENSION IF NOT EXISTS vector;
+
+python manage.py migrate
+python manage.py index_pages_batch --model all
+python manage.py refresh_semantic_links_batch  # backfill opcional
+python manage.py sync_semantic_links_revisions  # si links existen en BD pero no en admin
+```
+
+Al publicar, Celery genera links semánticos cross-type (producto, colección, artículo, glosario) y los empuja a Shopify como metafield `custom.internal_links` (o `related_links` en metaobject glossary).
 
 ---
 

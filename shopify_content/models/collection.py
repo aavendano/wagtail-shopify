@@ -10,6 +10,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
+from shopify_content.admin_panels import semantic_links_panel
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import COLLECTION_BODY_BLOCKS
 
@@ -100,6 +101,7 @@ class CollectionPage(Page):
     content_panels = Page.content_panels + [
         FieldPanel('sort_order'),
         FieldPanel('description'),
+        semantic_links_panel(),
         MultiFieldPanel([
             FieldPanel('image_url'),
             FieldPanel('image_alt_text'),

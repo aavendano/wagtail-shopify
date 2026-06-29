@@ -1,8 +1,30 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 from ninja import Schema
 from pydantic import Field
 
 from ..locale_utils import LOCALE_FIELD_DESCRIPTION, TRANSLATION_OF_FIELD_DESCRIPTION
+
+
+class RelatedLinkSchema(Schema):
+    type: Literal['product', 'collection', 'blog', 'article', 'page', 'metaobject'] = Field(
+        ...,
+        description="Target resource type in Shopify.",
+    )
+    handle: str = Field(..., description="Resource handle in Shopify.")
+    label: str = Field(..., description="Display label for the link.")
+    blog_handle: Optional[str] = Field(
+        None,
+        description="Required when type is 'article'. Parent blog handle.",
+    )
+    url_handle: Optional[str] = Field(
+        None,
+        description="Required when type is 'metaobject'. Metaobject definition URL handle.",
+    )
+
+
+class ExternalLinkSchema(Schema):
+    url: str = Field(..., description="Absolute external URL.")
+    label: str = Field(..., description="Display label for the external link.")
 
 
 class LocaleCreateFields(Schema):

@@ -5,7 +5,13 @@ from pydantic import Field
 
 from wagtail.rich_text import expand_db_html
 
-from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields
+from .common import (
+    LocaleCreateFields,
+    LocalePatchFields,
+    LocaleOutFields,
+    RelatedLinkSchema,
+    ExternalLinkSchema,
+)
 
 RICH_TEXT_DESCRIPTION = (
     "Rich text content as HTML string. On read, internal Wagtail references are expanded to URLs. "
@@ -16,28 +22,6 @@ LOCALE_CODE_DESCRIPTION = (
     "Shopify metaobject locale field pushed on sync. Values: 'en', 'es', 'fr'. "
     "Distinct from Wagtail page locale used for translation linking."
 )
-
-
-class RelatedLinkSchema(Schema):
-    type: Literal['product', 'collection', 'blog', 'article', 'page', 'metaobject'] = Field(
-        ...,
-        description="Target resource type in Shopify.",
-    )
-    handle: str = Field(..., description="Resource handle in Shopify.")
-    label: str = Field(..., description="Display label for the link.")
-    blog_handle: Optional[str] = Field(
-        None,
-        description="Required when type is 'article'. Parent blog handle.",
-    )
-    url_handle: Optional[str] = Field(
-        None,
-        description="Required when type is 'metaobject'. Metaobject definition URL handle.",
-    )
-
-
-class ExternalLinkSchema(Schema):
-    url: str = Field(..., description="Absolute external URL.")
-    label: str = Field(..., description="Display label for the external link.")
 
 
 class GlossaryTermIn(LocaleCreateFields):
@@ -185,7 +169,9 @@ class GlossaryTermOut(LocaleOutFields):
 
     @staticmethod
     def resolve_related_links(obj):
-        return obj.related_links or []
+        from shopify_content.semantic_links.serialization import serialize_semantic_links
+        links = serialize_semantic_links(obj)
+        return links if links else (obj.related_links or [])
 
     @staticmethod
     def resolve_external_links(obj):

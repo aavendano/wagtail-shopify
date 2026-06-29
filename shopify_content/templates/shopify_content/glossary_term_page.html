@@ -1,8 +1,10 @@
 {% extends "wagtailcore/page.html" %}
+{% load semantic_links %}
 
 {% block content %}
 <h1>{{ page.term }}</h1>
 {% if page.definition %}
 <div>{{ page.definition|richtext }}</div>
 {% endif %}
+{% render_internal_links page %}
 {% endblock %}

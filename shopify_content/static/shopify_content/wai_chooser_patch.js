@@ -21,7 +21,7 @@
     });
 
     form.querySelectorAll('textarea, input[type="text"]').forEach((el) => {
-      if (el.name && !el.name.includes('article_related_pages')) {
+      if (el.name && !el.name.includes('semantic_links')) {
         add(el.value);
       }
     });

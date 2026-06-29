@@ -5,6 +5,7 @@ Celery tasks for Shopify ↔ Wagtail sync.
 import logging
 
 from celery import shared_task
+from django.conf import settings
 from wagtail.models import Page
 
 from shopify_content.models.sync_run import ShopifySyncRun
@@ -15,6 +16,41 @@ logger = logging.getLogger(__name__)
 
 def _get_sync_run(sync_run_id: int) -> ShopifySyncRun:
     return ShopifySyncRun.objects.get(pk=sync_run_id)
+
+
+def _prepare_semantic_links_and_index(specific):
+    """Refresh auto semantic links and update vector index before Shopify sync."""
+    from shopify_content.indexing import index_single_page
+    from shopify_content.semantic_links.service import is_semantic_linkable_page, refresh_semantic_links
+
+    if is_semantic_linkable_page(specific):
+        if getattr(settings, 'SEMANTIC_LINKS_ENABLED', False) and getattr(
+            settings, 'SEMANTIC_LINKS_AUTO_ON_PUBLISH', True
+        ):
+            try:
+                refresh_semantic_links(specific)
+            except Exception:
+                logger.exception(
+                    'Semantic links refresh failed for page pk=%s',
+                    specific.pk,
+                )
+        if getattr(settings, 'SEMANTIC_LINKS_INDEX_ON_PUBLISH', True):
+            try:
+                index_single_page(specific)
+            except Exception:
+                logger.exception(
+                    'PageIndex update failed for page pk=%s',
+                    specific.pk,
+                )
+
+
+@shared_task(bind=True, name='shopify_content.tasks.refresh_semantic_links_task')
+def refresh_semantic_links_task(self, page_id: int):
+    """Refresh semantic links and reindex when sync is disabled on publish."""
+    page = Page.objects.get(pk=page_id)
+    specific = page.specific
+    _prepare_semantic_links_and_index(specific)
+    return {'page_id': page_id}
 
 
 @shared_task(bind=True, name='shopify_content.tasks.run_shopify_import_task')
@@ -70,6 +106,8 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         page = Page.objects.get(pk=page_id)
         specific = page.specific
         sync_fn = page_sync_map.get(type(specific))
+
+        _prepare_semantic_links_and_index(specific)
 
         if sync_fn is None:
             sync_run.mark_failed(

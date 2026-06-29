@@ -1,4 +1,4 @@
-{% load wagtailcore_tags wagtailimages_tags %}
+{% load wagtailcore_tags wagtailimages_tags semantic_links %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -13,5 +13,6 @@
 {% image page.featured_image original as featured %}
 <img src="{{ featured.url }}" alt="{{ page.featured_image_alt|default:page.title }}" loading="lazy">
 {% endif %}
+{% render_internal_links page %}
 </body>
 </html>

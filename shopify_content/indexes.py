@@ -11,9 +11,14 @@ from django_ai_core.llm import LLMService
 
 from shopify_content.indexing import (
     ARTICLE_INDEX_FIELDS,
+    COLLECTION_INDEX_FIELDS,
+    GLOSSARY_INDEX_FIELDS,
     PRODUCT_INDEX_FIELDS,
+    live_queryset_for,
 )
 from shopify_content.models.blog import ArticlePage
+from shopify_content.models.collection import CollectionPage
+from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
 
 
@@ -64,12 +69,22 @@ def register_page_index():
             ModelSource(
                 model=ArticlePage,
                 content_fields=ARTICLE_INDEX_FIELDS,
-                queryset=ArticlePage.objects.live(),
+                queryset=live_queryset_for(ArticlePage),
             ),
             ModelSource(
                 model=ProductPage,
                 content_fields=PRODUCT_INDEX_FIELDS,
-                queryset=ProductPage.objects.live(),
+                queryset=live_queryset_for(ProductPage),
+            ),
+            ModelSource(
+                model=CollectionPage,
+                content_fields=COLLECTION_INDEX_FIELDS,
+                queryset=live_queryset_for(CollectionPage),
+            ),
+            ModelSource(
+                model=GlossaryTermPage,
+                content_fields=GLOSSARY_INDEX_FIELDS,
+                queryset=live_queryset_for(GlossaryTermPage),
             ),
         ]
         storage_provider = PgVectorProvider()
