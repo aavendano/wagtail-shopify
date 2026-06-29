@@ -2,8 +2,9 @@
 Bootstrap merchant-owned Shopify metaobject definitions.
 
 Run this once after installing the app on a new store, or after a definition
-is accidentally deleted from Shopify Admin. Safe to re-run — uses
-ensure_definition() which is a no-op if the type already exists.
+is accidentally deleted from Shopify Admin. Safe to re-run — creates missing
+definitions and adds any fieldDefinitions that are missing from existing types
+via metaobjectDefinitionUpdate.
 
 Usage:
     python manage.py ensure_metaobject_definitions

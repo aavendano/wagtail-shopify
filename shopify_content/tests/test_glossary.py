@@ -16,7 +16,10 @@ class GlossaryTermDefinitionTests(TestCase):
         self.assertEqual(spec.display_name_field, 'term')
         self.assertEqual(
             field_keys,
-            {'term', 'definition', 'locale', 'related_links', 'external_links'},
+            {
+                'term', 'definition', 'locale', 'related_links', 'external_links',
+                'synonyms', 'same_as',
+            },
         )
 
         renderable = spec.capabilities['renderable']['data']
@@ -139,6 +142,37 @@ class SyncGlossaryTermPageTests(TestCase):
         self.assertEqual(data['external_links'], external_links)
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_includes_synonyms_and_same_as_when_present(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='glossary_term',
+            handle='vibrator',
+            id='gid://shopify/Metaobject/5',
+        )
+        mock_client_cls.return_value = mock_client
+
+        synonyms = ['Vibrator', 'Personal massager']
+        same_as = ['https://en.wikipedia.org/wiki/Vibrator_(sex_toy)']
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            locale_code='en',
+            synonyms=synonyms,
+            same_as=same_as,
+            slug='vibrator',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        success, _ = sync_glossary_term_page(page)
+
+        self.assertTrue(success)
+        data = mock_client.sync.call_args.args[0]
+        self.assertEqual(data['synonyms'], synonyms)
+        self.assertEqual(data['same_as'], same_as)
+
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_skips_empty_json_fields(self, mock_client_cls):
         mock_client = MagicMock()
         mock_client.sync.return_value = Metaobject(
@@ -164,6 +198,8 @@ class SyncGlossaryTermPageTests(TestCase):
         data = mock_client.sync.call_args.args[0]
         self.assertNotIn('related_links', data)
         self.assertNotIn('external_links', data)
+        self.assertNotIn('synonyms', data)
+        self.assertNotIn('same_as', data)
 
     def test_sync_aborts_without_term(self):
         page = GlossaryTermPage(

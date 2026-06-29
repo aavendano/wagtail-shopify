@@ -3,10 +3,15 @@ from typing import Any
 
 from shopify_requests.graphql_service import execute_admin_graphql
 
-from .definition import MetaobjectDefinitionSpec
+from .definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
 from .exceptions import DefinitionError, UpsertError
 from .metaobject import Metaobject
-from .mutations import METAOBJECT_DEFINITION_CREATE, METAOBJECT_UPDATE, METAOBJECT_UPSERT
+from .mutations import (
+    METAOBJECT_DEFINITION_CREATE,
+    METAOBJECT_DEFINITION_UPDATE,
+    METAOBJECT_UPDATE,
+    METAOBJECT_UPSERT,
+)
 from .queries import METAOBJECT_BY_HANDLE, METAOBJECT_DEFINITION_BY_TYPE
 from .validation import validate_metaobject
 
@@ -45,8 +50,58 @@ class MetaobjectClient:
     ) -> MetaobjectDefinitionSpec:
         existing = self.get_definition(spec.type)
         if existing:
-            return existing
+            return self.sync_missing_fields(existing, spec)
         return self.create_definition(spec)
+
+    def sync_missing_fields(
+        self,
+        existing: MetaobjectDefinitionSpec,
+        spec: MetaobjectDefinitionSpec,
+    ) -> MetaobjectDefinitionSpec:
+        existing_keys = {field.key for field in existing.fields}
+        missing = [field for field in spec.fields if field.key not in existing_keys]
+        if not missing:
+            return existing
+        if not existing.id:
+            raise DefinitionError(
+                f"Cannot add fields to {spec.type}: definition id missing from Shopify response"
+            )
+        return self.add_definition_fields(existing.id, missing)
+
+    def add_definition_fields(
+        self,
+        definition_id: str,
+        fields: list[MetaobjectFieldSpec],
+    ) -> MetaobjectDefinitionSpec:
+        result = execute_admin_graphql(
+            METAOBJECT_DEFINITION_UPDATE,
+            shop=self.shop,
+            variables={
+                "id": definition_id,
+                "definition": {
+                    "fieldDefinitions": [
+                        {"create": field_spec.to_shopify_input()}
+                        for field_spec in fields
+                    ]
+                },
+            },
+        )
+        if not result.ok:
+            raise DefinitionError(
+                result.log_detail or "Failed to update metaobject definition",
+                error_code=result.error_code,
+            )
+        payload = (result.data or {}).get("metaobjectDefinitionUpdate", {})
+        user_errors = payload.get("userErrors") or []
+        if user_errors:
+            raise DefinitionError(
+                "; ".join(error.get("message", str(error)) for error in user_errors),
+                user_errors=user_errors,
+            )
+        definition_data = payload.get("metaobjectDefinition")
+        if not definition_data:
+            raise DefinitionError("metaobjectDefinitionUpdate returned no definition")
+        return MetaobjectDefinitionSpec.from_dict(definition_data)
 
     def create_definition(
         self, spec: MetaobjectDefinitionSpec

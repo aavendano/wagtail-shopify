@@ -73,6 +73,14 @@ class GlossaryTermIn(LocaleCreateFields):
         None,
         description="External reference links synced as JSON on push.",
     )
+    synonyms: Optional[List[str]] = Field(
+        None,
+        description="Synonyms, acronyms, or variants synced as Shopify list.single_line_text_field.",
+    )
+    same_as: Optional[List[str]] = Field(
+        None,
+        description="Canonical external entity URLs synced as Shopify list.url.",
+    )
     sync_enabled: Optional[bool] = Field(
         True,
         description="When true, publishing triggers outbound sync to Shopify metaobject.",
@@ -103,6 +111,14 @@ class GlossaryTermPatch(LocalePatchFields):
         None,
         description="Replace external links. Pass [] to clear. Omit to leave unchanged.",
     )
+    synonyms: Optional[List[str]] = Field(
+        None,
+        description="Replace synonyms. Pass [] to clear. Omit to leave unchanged.",
+    )
+    same_as: Optional[List[str]] = Field(
+        None,
+        description="Replace same-as URLs. Pass [] to clear. Omit to leave unchanged.",
+    )
     sync_enabled: Optional[bool] = Field(None, description="Enable or disable Shopify sync on publish.")
     publish: bool = Field(
         False,
@@ -129,6 +145,14 @@ class GlossaryTermOut(LocaleOutFields):
     external_links: List[ExternalLinkSchema] = Field(
         default_factory=list,
         description="External links synced to Shopify.",
+    )
+    synonyms: List[str] = Field(
+        default_factory=list,
+        description="Synonyms synced to Shopify.",
+    )
+    same_as: List[str] = Field(
+        default_factory=list,
+        description="Same-as URLs synced to Shopify.",
     )
     sync_enabled: bool = Field(..., description="Outbound sync enabled on publish.")
     last_synced_at: Optional[datetime] = Field(
@@ -166,6 +190,14 @@ class GlossaryTermOut(LocaleOutFields):
     @staticmethod
     def resolve_external_links(obj):
         return obj.external_links or []
+
+    @staticmethod
+    def resolve_synonyms(obj):
+        return obj.synonyms or []
+
+    @staticmethod
+    def resolve_same_as(obj):
+        return obj.same_as or []
 
     @staticmethod
     def resolve_locale(obj):

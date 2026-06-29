@@ -15,6 +15,7 @@ query getMetaobject($handle: String!, $type: String!) {
 METAOBJECT_DEFINITION_BY_TYPE = """
 query getMetaobjectDefinitionByType($type: String!) {
     metaobjectDefinitionByType(type: $type) {
+        id
         type
         name
         description

@@ -182,7 +182,7 @@ capabilities={
 python manage.py ensure_metaobject_definitions
 ```
 
-Esto llama `MetaobjectClient.ensure_definition()` — idempotente; no falla si la definición ya existe.
+Esto llama `MetaobjectClient.ensure_definition()` — idempotente; crea definiciones ausentes y añade campos faltantes a tipos existentes.
 
 ---
 
@@ -197,8 +197,23 @@ Implementada como **merchant-owned metaobject** (tipo `glossary_term`) en Shopif
 | `locale_code` (`en`/`es`/`fr`) | `locale` |
 | `related_links` (JSONField) | `related_links` |
 | `external_links` (JSONField) | `external_links` |
+| `synonyms` (JSONField, list of strings) | `synonyms` (`list.single_line_text_field`) |
+| `same_as` (JSONField, list of URLs) | `same_as` (`list.url`) |
 
 Sin campos SEO dedicados — `renderable` usa `term` y `definition` como fallback.
+
+### Actualizar definición `glossary_term` existente
+
+Si el tipo `glossary_term` ya existe en Shopify (instalación previa), añadir campos nuevos al spec **no los crea solos** en la primera versión del código. A partir de este cambio, `MetaobjectClient.ensure_definition()` compara el spec local con la definición remota y emite `metaobjectDefinitionUpdate` para crear `fieldDefinitions` faltantes.
+
+Tras desplegar:
+
+1. `python manage.py migrate`
+2. `python manage.py ensure_metaobject_definitions` **o** push de cualquier término (`POST /api/v1/glossary/{id}/push` o publish con sync habilitado)
+3. Verificar en Shopify Admin → Settings → Custom data → Metaobjects → **Glossary Term** que aparecen **Synonyms** y **Same As**
+4. Re-sincronizar un término de prueba con `synonyms` y `same_as` poblados; validar vía Admin API o Storefront API que los valores llegan como JSON array (p. ej. `'["Vibrator","Personal massager"]'`, no repr Python)
+
+Alternativa manual (solo emergencia): añadir los dos campos a mano en Shopify Admin con tipos `list.single_line_text_field` y `list.url` y keys exactas `synonyms` / `same_as`.
 
 ### API REST
 

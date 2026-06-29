@@ -307,6 +307,49 @@ class GlossaryApiTests(TestCase):
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.json()["definition"], "<p>A device that vibrates.</p>")
 
+    def test_create_without_synonyms_or_same_as_defaults_to_empty_lists(self):
+        response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Libido",
+                "locale_code": "en",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual(body["synonyms"], [])
+        self.assertEqual(body["same_as"], [])
+
+        page = GlossaryTermPage.objects.get(pk=body["id"])
+        self.assertEqual(page.synonyms, [])
+        self.assertEqual(page.same_as, [])
+
+    def test_patch_and_get_same_as(self):
+        create_response = self.client.post(
+            "/glossary/",
+            json={"term": "Libido", "locale_code": "en"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+        same_as = ["https://en.wikipedia.org/wiki/Libido"]
+
+        patch_response = self.client.patch(
+            f"/glossary/{page_id}",
+            json={"same_as": same_as, "synonyms": ["Sex drive"]},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["same_as"], same_as)
+        self.assertEqual(patch_response.json()["synonyms"], ["Sex drive"])
+
+        get_response = self.client.get(
+            f"/glossary/{page_id}",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(get_response.json()["same_as"], same_as)
+
     def test_create_with_explicit_parent_page_id(self):
         response = self.client.post(
             "/glossary/",

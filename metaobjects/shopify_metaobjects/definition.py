@@ -33,6 +33,7 @@ class MetaobjectDefinitionSpec:
     name: str
     description: str
     fields: list[MetaobjectFieldSpec]
+    id: str | None = None
     display_name_field: str | None = None
     capabilities: dict | None = None
     access: dict | None = None
@@ -89,6 +90,7 @@ class MetaobjectDefinitionSpec:
                 )
             )
         return cls(
+            id=data.get("id"),
             type=data["type"],
             name=data.get("name", data["type"]),
             description=data.get("description") or "",

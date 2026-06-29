@@ -13,6 +13,8 @@ SHOPIFY_TYPE_TO_PYTHON = {
     "date": str,
     "date_time": str,
     "json": (dict, list),
+    "list.single_line_text_field": list,
+    "list.url": list,
     "color": str,
     "rating": (int, float),
     "dimension": (int, float),

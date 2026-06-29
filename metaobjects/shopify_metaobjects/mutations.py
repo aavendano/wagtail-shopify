@@ -40,6 +40,36 @@ mutation UpsertMetaobject($handle: MetaobjectHandleInput!, $metaobject: Metaobje
 }
 """
 
+METAOBJECT_DEFINITION_UPDATE = """
+mutation updateMetaobjectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+    metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+        metaobjectDefinition {
+            id
+            type
+            name
+            description
+            fieldDefinitions {
+                key
+                name
+                required
+                type {
+                    name
+                }
+                validations {
+                    name
+                    value
+                }
+            }
+        }
+        userErrors {
+            field
+            message
+            code
+        }
+    }
+}
+"""
+
 METAOBJECT_DEFINITION_CREATE = """
 mutation createMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput!) {
     metaobjectDefinitionCreate(definition: $definition) {

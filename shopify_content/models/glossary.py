@@ -49,8 +49,26 @@ class GlossaryTermPage(Page):
         default='en',
         help_text='Locale pushed to the Shopify locale field.',
     )
-    related_links = models.JSONField(default=list, blank=True)
-    external_links = models.JSONField(default=list, blank=True)
+    related_links = models.JSONField(default=list, blank=True, db_default=[])
+    external_links = models.JSONField(default=list, blank=True, db_default=[])
+    synonyms = models.JSONField(
+        default=list,
+        blank=True,
+        db_default=[],
+        help_text=(
+            'Sinónimos / siglas / variantes. Lista de strings → '
+            'Shopify list.single_line_text_field'
+        ),
+    )
+    same_as = models.JSONField(
+        default=list,
+        blank=True,
+        db_default=[],
+        help_text=(
+            'URLs de entidad canónica externa (Wikipedia/Wikidata). '
+            'Lista de URLs → Shopify list.url'
+        ),
+    )
 
     template = 'shopify_content/glossary_term_page.html'
     parent_page_types = ['shopify_content.ShopifyRootPage']
@@ -60,6 +78,7 @@ class GlossaryTermPage(Page):
         index.FilterField('shopify_id'),
         index.SearchField('term'),
         index.SearchField('definition'),
+        index.SearchField('synonyms'),
     ]
 
     content_panels = [
@@ -68,6 +87,8 @@ class GlossaryTermPage(Page):
         FieldPanel('locale_code'),
         FieldPanel('related_links'),
         FieldPanel('external_links'),
+        FieldPanel('synonyms'),
+        FieldPanel('same_as'),
     ]
 
     promote_panels = [
@@ -89,4 +110,7 @@ class GlossaryTermPage(Page):
     def save(self, **kwargs):
         if self.term:
             self.title = self.term
+        for field_name in ('related_links', 'external_links', 'synonyms', 'same_as'):
+            if getattr(self, field_name) is None:
+                setattr(self, field_name, [])
         super().save(**kwargs)

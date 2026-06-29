@@ -37,6 +37,8 @@ def serialize_field_value(value: Any, shopify_type: str) -> str:
         return "true" if value else "false"
     if shopify_type == "json":
         return json.dumps(value)
+    if shopify_type.startswith("list."):
+        return json.dumps(value)
     if shopify_type == "rich_text_field":
         if isinstance(value, dict):
             return json.dumps(value)

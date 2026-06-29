@@ -9,7 +9,7 @@ from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
 from metaobjects.shopify_metaobjects.exceptions import UpsertError
 from metaobjects.shopify_metaobjects.metaobject import Metaobject
-from metaobjects.shopify_metaobjects.serialization import html_to_shopify_rich_text
+from metaobjects.shopify_metaobjects.serialization import html_to_shopify_rich_text, serialize_field_value
 from shopify_requests.graphql_service import AdminGraphqlResult
 
 
@@ -79,6 +79,36 @@ class MetaobjectSerializationTests(TestCase):
         parsed = json.loads(fields["intro"])
         self.assertEqual(parsed["type"], "root")
         self.assertEqual(parsed["children"][0]["type"], "paragraph")
+
+    def test_to_shopify_fields_serializes_list_types(self):
+        metaobject = Metaobject(
+            type="glossary_term",
+            handle="vibrator",
+            fields={
+                "synonyms": ["Vibrator", "Personal massager"],
+                "same_as": ["https://en.wikipedia.org/wiki/Vibrator_(sex_toy)"],
+            },
+        )
+        field_types = {
+            "synonyms": "list.single_line_text_field",
+            "same_as": "list.url",
+        }
+        fields = {item["key"]: item["value"] for item in metaobject.to_shopify_fields(field_types)}
+        self.assertEqual(fields["synonyms"], '["Vibrator", "Personal massager"]')
+        self.assertEqual(
+            fields["same_as"],
+            '["https://en.wikipedia.org/wiki/Vibrator_(sex_toy)"]',
+        )
+
+    def test_serialize_list_field_types(self):
+        self.assertEqual(
+            serialize_field_value(["a"], "list.single_line_text_field"),
+            '["a"]',
+        )
+        self.assertEqual(
+            serialize_field_value(["https://example.com"], "list.url"),
+            '["https://example.com"]',
+        )
 
     def test_html_to_shopify_rich_text_converts_paragraph(self):
         doc = html_to_shopify_rich_text("<p>Hello</p>")
@@ -164,6 +194,7 @@ class MetaobjectClientTests(TestCase):
         mock_execute.return_value = _ok_result(
             {
                 "metaobjectDefinitionByType": {
+                    "id": "gid://shopify/MetaobjectDefinition/1",
                     "type": "fabric",
                     "name": "Fabric",
                     "description": "Existing",
@@ -181,6 +212,118 @@ class MetaobjectClientTests(TestCase):
         result = client.ensure_definition(spec)
         self.assertEqual(result.name, "Fabric")
         mock_execute.assert_called_once()
+
+    @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
+    def test_ensure_definition_adds_missing_fields(self, mock_execute):
+        mock_execute.side_effect = [
+            _ok_result(
+                {
+                    "metaobjectDefinitionByType": {
+                        "id": "gid://shopify/MetaobjectDefinition/578408816",
+                        "type": "glossary_term",
+                        "name": "Glossary Term",
+                        "description": "Existing",
+                        "fieldDefinitions": [
+                            {
+                                "key": "term",
+                                "name": "Term",
+                                "required": True,
+                                "type": {"name": "single_line_text_field"},
+                                "validations": [],
+                            },
+                            {
+                                "key": "definition",
+                                "name": "Definition",
+                                "required": False,
+                                "type": {"name": "rich_text_field"},
+                                "validations": [],
+                            },
+                            {
+                                "key": "locale",
+                                "name": "Locale",
+                                "required": False,
+                                "type": {"name": "single_line_text_field"},
+                                "validations": [],
+                            },
+                            {
+                                "key": "related_links",
+                                "name": "Related Links",
+                                "required": False,
+                                "type": {"name": "json"},
+                                "validations": [],
+                            },
+                            {
+                                "key": "external_links",
+                                "name": "External Links",
+                                "required": False,
+                                "type": {"name": "json"},
+                                "validations": [],
+                            },
+                        ],
+                    }
+                }
+            ),
+            _ok_result(
+                {
+                    "metaobjectDefinitionUpdate": {
+                        "metaobjectDefinition": {
+                            "id": "gid://shopify/MetaobjectDefinition/578408816",
+                            "type": "glossary_term",
+                            "name": "Glossary Term",
+                            "description": "Existing",
+                            "fieldDefinitions": [
+                                {
+                                    "key": "term",
+                                    "name": "Term",
+                                    "required": True,
+                                    "type": {"name": "single_line_text_field"},
+                                    "validations": [],
+                                },
+                                {
+                                    "key": "synonyms",
+                                    "name": "Synonyms",
+                                    "required": False,
+                                    "type": {"name": "list.single_line_text_field"},
+                                    "validations": [],
+                                },
+                                {
+                                    "key": "same_as",
+                                    "name": "Same As",
+                                    "required": False,
+                                    "type": {"name": "list.url"},
+                                    "validations": [],
+                                },
+                            ],
+                        },
+                        "userErrors": [],
+                    }
+                }
+            ),
+        ]
+        client = MetaobjectClient("test-shop.myshopify.com")
+        spec = MetaobjectDefinitionSpec(
+            type="glossary_term",
+            name="Glossary Term",
+            description="Glossary term managed in Wagtail CMS",
+            fields=[
+                MetaobjectFieldSpec(key="term", name="Term", type="single_line_text_field", required=True),
+                MetaobjectFieldSpec(key="definition", name="Definition", type="rich_text_field"),
+                MetaobjectFieldSpec(key="locale", name="Locale", type="single_line_text_field"),
+                MetaobjectFieldSpec(key="related_links", name="Related Links", type="json"),
+                MetaobjectFieldSpec(key="external_links", name="External Links", type="json"),
+                MetaobjectFieldSpec(key="synonyms", name="Synonyms", type="list.single_line_text_field"),
+                MetaobjectFieldSpec(key="same_as", name="Same As", type="list.url"),
+            ],
+        )
+        result = client.ensure_definition(spec)
+        self.assertEqual(result.id, "gid://shopify/MetaobjectDefinition/578408816")
+        self.assertEqual(mock_execute.call_count, 2)
+        update_variables = mock_execute.call_args_list[1].kwargs["variables"]
+        created_keys = [
+            item["create"]["key"]
+            for item in update_variables["definition"]["fieldDefinitions"]
+        ]
+        self.assertEqual(created_keys, ["synonyms", "same_as"])
 
     @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
     def test_ensure_definition_creates_when_missing(self, mock_execute):

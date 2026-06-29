@@ -297,9 +297,28 @@ class ArticleTeaser:
 
 ### Tests
 
+**No uses `pytest` del sistema** (`/usr/bin/pytest`): no tiene Django ni `pytest-django` (verás `Unknown config option: DJANGO_SETTINGS_MODULE`).
+
+Opciones (cualquiera funciona):
+
 ```bash
-python manage.py test metaobjects.shopify_metaobjects.tests
+# 1. Makefile (recomendado)
+make install-test-deps   # primera vez
+make test-glossary
+
+# 2. Wrapper del repo
+bin/pytest shopify_content/tests/test_glossary.py metaobjects/shopify_metaobjects/tests/test_client.py
+
+# 3. Venv explícito
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m pytest shopify_content/tests/test_glossary.py metaobjects/shopify_metaobjects/tests/test_client.py
+
+# 4. Alternativa Django test runner
+python manage.py test shopify_content.tests.test_glossary metaobjects.shopify_metaobjects.tests.test_client
 ```
+
+Con [direnv](https://direnv.net/) instalado, `direnv allow` en el repo añade `.venv/bin` al PATH al entrar en el directorio y `pytest` usará el del proyecto.
 
 ### Referencia completa
 

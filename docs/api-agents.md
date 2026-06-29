@@ -210,10 +210,22 @@ curl -X POST -H "Authorization: Bearer $API_KEY" \
     "term": "Vibrator",
     "locale_code": "en",
     "definition": "<p>A device that vibrates.</p>",
+    "synonyms": ["Personal massager"],
+    "same_as": ["https://en.wikipedia.org/wiki/Vibrator_(sex_toy)"],
     "related_links": [
       {"type": "product", "handle": "satisfyer-pro-2", "label": "Satisfyer Pro 2"}
     ]
   }' \
+  "$BASE/glossary/"
+```
+
+`synonyms` y `same_as` son opcionales: omitir o enviar `[]` deja listas vacías (default). `same_as` son URLs externas schema.org (Wikipedia/Wikidata), distintas de `translation_of` (variantes Wagtail por locale).
+
+```bash
+# Crear término mínimo (sin synonyms/same_as)
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"term": "Libido", "locale_code": "en"}' \
   "$BASE/glossary/"
 
 # 2. Publicar (opcional)

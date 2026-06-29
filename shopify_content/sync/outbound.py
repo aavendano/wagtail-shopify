@@ -862,6 +862,8 @@ def _glossary_term_definition():
             MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
             MetaobjectFieldSpec(key='related_links', name='Related Links', type='json'),
             MetaobjectFieldSpec(key='external_links', name='External Links', type='json'),
+            MetaobjectFieldSpec(key='synonyms', name='Synonyms', type='list.single_line_text_field'),
+            MetaobjectFieldSpec(key='same_as', name='Same As', type='list.url'),
         ],
     )
 
@@ -873,7 +875,7 @@ def sync_glossary_term_page(page):
     Returns (success, message). Message is human-readable and safe for API clients.
 
     Handle defaults to slugified term if page.handle is not set.
-    related_links and external_links are omitted when empty.
+    related_links, external_links, synonyms, and same_as are omitted when empty.
     """
     if not page.sync_enabled:
         return False, "Sync disabled: enable sync_enabled on this glossary term page."
@@ -903,6 +905,10 @@ def sync_glossary_term_page(page):
         data['related_links'] = page.related_links
     if page.external_links:
         data['external_links'] = page.external_links
+    if page.synonyms:
+        data['synonyms'] = page.synonyms
+    if page.same_as:
+        data['same_as'] = page.same_as
 
     from metaobjects.shopify_metaobjects.client import MetaobjectClient
     from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
