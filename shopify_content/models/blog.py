@@ -11,7 +11,7 @@ from wagtail.admin.panels import (
 )
 from wagtail.search import index
 
-from shopify_content.admin_panels import semantic_links_panel
+from shopify_content.admin_panels import semantic_links_panels
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
 
@@ -237,7 +237,7 @@ class ArticlePage(Page):
         ], heading='Shopify Featured Image (URL)'),
         FieldPanel('summary'),
         FieldPanel('body'),
-        semantic_links_panel(),
+        *semantic_links_panels().children,
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),
     ]

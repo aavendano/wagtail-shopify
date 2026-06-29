@@ -12,6 +12,17 @@ from shopify_content.models.blog import ArticlePage
 from shopify_content.models.collection import CollectionPage
 from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
+from shopify_content.models.semantic_links import (
+    all_related_page_pks,
+    count_auto_semantic_links,
+    delete_auto_semantic_links,
+    get_typed_link_model,
+    manual_related_page_pks,
+    relation_for_page_type,
+)
+from shopify_content.semantic_links.constants import (
+    SEMANTIC_LINK_RELATION_NAMES,
+)
 from shopify_content.semantic_links.serialization import (
     LINKABLE_PAGE_TYPES,
     serialize_semantic_links,
@@ -24,6 +35,19 @@ SEMANTIC_LINK_PAGE_TYPES = LINKABLE_PAGE_TYPES
 
 def is_semantic_linkable_page(page) -> bool:
     return isinstance(page.specific, SEMANTIC_LINK_PAGE_TYPES)
+
+
+def page_type_key_for(page) -> str | None:
+    specific = page.specific if isinstance(page, Page) else page
+    if isinstance(specific, ProductPage):
+        return 'product'
+    if isinstance(specific, CollectionPage):
+        return 'collection'
+    if isinstance(specific, ArticlePage):
+        return 'article'
+    if isinstance(specific, GlossaryTermPage):
+        return 'glossary'
+    return None
 
 
 def extract_page_content(page) -> str:
@@ -62,19 +86,6 @@ def extract_page_content(page) -> str:
     return '\n\n'.join(parts)
 
 
-def _page_type_key(page) -> str | None:
-    specific = page.specific
-    if isinstance(specific, ProductPage):
-        return 'product'
-    if isinstance(specific, CollectionPage):
-        return 'collection'
-    if isinstance(specific, ArticlePage):
-        return 'article'
-    if isinstance(specific, GlossaryTermPage):
-        return 'glossary'
-    return None
-
-
 def classify_and_cap(pages, *, source_page, limit_per_type: int) -> dict[str, list[Page]]:
     """Group candidate pages by type and apply per-type caps with locale filtering."""
     source_locale_id = source_page.locale_id
@@ -93,18 +104,12 @@ def classify_and_cap(pages, *, source_page, limit_per_type: int) -> dict[str, li
         if page.locale_id != source_locale_id:
             continue
 
+        key = page_type_key_for(page)
+        if key is None:
+            continue
+
         specific = page.specific
-        if isinstance(specific, ProductPage):
-            if specific.status != 'ACTIVE':
-                continue
-            key = 'product'
-        elif isinstance(specific, CollectionPage):
-            key = 'collection'
-        elif isinstance(specific, ArticlePage):
-            key = 'article'
-        elif isinstance(specific, GlossaryTermPage):
-            key = 'glossary'
-        else:
+        if isinstance(specific, ProductPage) and specific.status != 'ACTIVE':
             continue
 
         if len(grouped[key]) >= limit_per_type:
@@ -114,7 +119,13 @@ def classify_and_cap(pages, *, source_page, limit_per_type: int) -> dict[str, li
     return grouped
 
 
-def search_similar_pages(content: str, *, exclude_pks: list[int], limit: int) -> list[Page]:
+def search_similar_pages(
+    content: str,
+    *,
+    exclude_pks: list[int],
+    limit: int,
+    allowed_types: list[str] | None = None,
+) -> list[Page]:
     if not content.strip():
         return []
     if not getattr(settings, 'WAGTAIL_AI_PGVECTOR', False):
@@ -133,28 +144,35 @@ def search_similar_pages(content: str, *, exclude_pks: list[int], limit: int) ->
     pages: list[Page] = []
     for item in results or []:
         if isinstance(item, Page):
-            pages.append(item)
+            page = item
+        else:
+            pk = getattr(item, 'pk', None)
+            if pk is None and isinstance(item, dict):
+                pk = item.get('pk') or item.get('id')
+            if pk is None:
+                continue
+            try:
+                page = Page.objects.get(pk=int(pk))
+            except (Page.DoesNotExist, TypeError, ValueError):
+                continue
+
+        type_key = page_type_key_for(page)
+        if allowed_types and type_key not in allowed_types:
             continue
-        pk = getattr(item, 'pk', None)
-        if pk is None and isinstance(item, dict):
-            pk = item.get('pk') or item.get('id')
-        if pk is None:
-            continue
-        try:
-            pages.append(Page.objects.get(pk=int(pk)))
-        except (Page.DoesNotExist, TypeError, ValueError):
-            continue
+        pages.append(page)
     return pages
 
 
 def _existing_manual_related_pks(page) -> set[int]:
-    return set(
-        page.semantic_links.filter(is_auto=False).values_list('related_page_id', flat=True)
-    )
+    return manual_related_page_pks(page)
 
 
 def _sync_glossary_related_links_cache(page: GlossaryTermPage):
     page.related_links = serialize_semantic_links(page)
+
+
+def _semantic_link_prefetch_names() -> list[str]:
+    return [f'{name}__related_page' for name in SEMANTIC_LINK_RELATION_NAMES]
 
 
 @contextmanager
@@ -185,14 +203,11 @@ def suppress_page_published_signals():
 
 def persist_semantic_links_revision(specific, *, skip_publish_signals: bool = True):
     """
-    Write semantic_links cluster children into the Wagtail revision graph.
-
-    Without this step, links created via ORM are in the DB but the admin editor
-    may still show an older revision snapshot (when has_unpublished_changes=True).
+    Write typed semantic link cluster children into the Wagtail revision graph.
     """
     model_class = type(specific)
     specific = model_class.objects.prefetch_related(
-        'semantic_links__related_page',
+        *_semantic_link_prefetch_names(),
     ).get(pk=specific.pk)
 
     signal_guard = suppress_page_published_signals() if skip_publish_signals else nullcontext()
@@ -212,7 +227,7 @@ def refresh_semantic_links(
     skip_publish_signals: bool = True,
 ) -> dict[str, int]:
     """
-    Replace is_auto semantic links with fresh vector suggestions.
+    Replace is_auto semantic links with fresh vector suggestions per typed relation.
 
     Returns counts: {'created': N, 'removed': N, 'manual_kept': N}
     """
@@ -226,7 +241,7 @@ def refresh_semantic_links(
     limit_per_type = getattr(settings, 'SEMANTIC_LINKS_LIMIT_PER_TYPE', 5)
     content = extract_page_content(specific)
     manual_pks = _existing_manual_related_pks(specific)
-    exclude_pks = [specific.pk, *manual_pks, *specific.semantic_links.values_list('related_page_id', flat=True)]
+    exclude_pks = [specific.pk, *manual_pks, *all_related_page_pks(specific)]
 
     candidates = search_similar_pages(
         content,
@@ -235,39 +250,46 @@ def refresh_semantic_links(
     )
     grouped = classify_and_cap(candidates, source_page=specific, limit_per_type=limit_per_type)
 
-    new_pages: list[Page] = []
-    for key in ('product', 'collection', 'article', 'glossary'):
-        new_pages.extend(grouped[key])
+    created_count = sum(len(grouped[key]) for key in grouped)
+    removed_count = count_auto_semantic_links(specific)
 
     if dry_run:
         return {
-            'created': len(new_pages),
-            'removed': specific.semantic_links.filter(is_auto=True).count(),
+            'created': created_count,
+            'removed': removed_count,
             'manual_kept': len(manual_pks),
         }
 
-    removed = specific.semantic_links.filter(is_auto=True).delete()[0]
+    removed_count = delete_auto_semantic_links(specific)
+    specific = type(specific).objects.get(pk=specific.pk)
 
-    max_sort = (
-        specific.semantic_links.order_by('-sort_order').values_list('sort_order', flat=True).first()
-    )
-    next_sort = (max_sort + 1) if max_sort is not None else 0
-
-    for related in new_pages:
-        if related.pk in manual_pks:
-            continue
-        specific.semantic_links.create(
-            related_page=related,
-            is_auto=True,
-            sort_order=next_sort,
+    for type_key in ('product', 'collection', 'article', 'glossary'):
+        relation_name = relation_for_page_type(type_key)
+        model_cls = get_typed_link_model(specific, relation_name)
+        max_sort = (
+            model_cls.objects.filter(page_id=specific.pk)
+            .order_by('-sort_order')
+            .values_list('sort_order', flat=True)
+            .first()
         )
-        next_sort += 1
+        next_sort = (max_sort + 1) if max_sort is not None else 0
+
+        for related in grouped[type_key]:
+            if related.pk in manual_pks:
+                continue
+            model_cls.objects.create(
+                page_id=specific.pk,
+                related_page=related,
+                is_auto=True,
+                sort_order=next_sort,
+            )
+            next_sort += 1
 
     if isinstance(specific, GlossaryTermPage):
         _sync_glossary_related_links_cache(specific)
         type(specific).objects.filter(pk=specific.pk).update(related_links=specific.related_links)
 
-    links_changed = removed > 0 or bool(new_pages)
+    links_changed = removed_count > 0 or created_count > 0
     if update_revision and links_changed:
         try:
             persist_semantic_links_revision(
@@ -281,7 +303,7 @@ def refresh_semantic_links(
             )
 
     return {
-        'created': len(new_pages),
-        'removed': removed,
+        'created': created_count,
+        'removed': removed_count,
         'manual_kept': len(manual_pks),
     }

@@ -23,6 +23,16 @@ LOCALE_CODE_DESCRIPTION = (
     "Distinct from Wagtail page locale used for translation linking."
 )
 
+SEO_TITLE_DESCRIPTION = (
+    "SEO page title. Maps to Shopify metaobject meta_title on push. "
+    "Falls back to term when blank."
+)
+
+SEO_DESCRIPTION_DESCRIPTION = (
+    "SEO meta description. Maps to Shopify metaobject meta_description on push. "
+    "Falls back to plain-text definition when blank."
+)
+
 
 class GlossaryTermIn(LocaleCreateFields):
     term: str = Field(
@@ -45,6 +55,15 @@ class GlossaryTermIn(LocaleCreateFields):
         ),
     )
     definition: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
+    seo_title: Optional[str] = Field(
+        None,
+        description=SEO_TITLE_DESCRIPTION,
+        max_length=255,
+    )
+    search_description: Optional[str] = Field(
+        None,
+        description=SEO_DESCRIPTION_DESCRIPTION,
+    )
     locale_code: Optional[Literal['en', 'es', 'fr']] = Field(
         'en',
         description=LOCALE_CODE_DESCRIPTION,
@@ -83,6 +102,15 @@ class GlossaryTermPatch(LocalePatchFields):
     shopify_id: Optional[str] = Field(None, description="Set or update Shopify metaobject GID.")
     handle: Optional[str] = Field(None, description="Update metaobject handle; slug updated to match.")
     definition: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
+    seo_title: Optional[str] = Field(
+        None,
+        description=SEO_TITLE_DESCRIPTION,
+        max_length=255,
+    )
+    search_description: Optional[str] = Field(
+        None,
+        description=SEO_DESCRIPTION_DESCRIPTION,
+    )
     locale_code: Optional[Literal['en', 'es', 'fr']] = Field(
         None,
         description=LOCALE_CODE_DESCRIPTION,
@@ -121,6 +149,8 @@ class GlossaryTermOut(LocaleOutFields):
     handle: str = Field(..., description="Shopify metaobject handle.")
     slug: str = Field(..., description="Wagtail page slug.")
     definition: str = Field(..., description="Definition HTML.")
+    seo_title: str = Field(..., description=SEO_TITLE_DESCRIPTION)
+    search_description: str = Field(..., description=SEO_DESCRIPTION_DESCRIPTION)
     locale_code: str = Field(..., description="Shopify locale pushed on sync (en/es/fr).")
     related_links: List[RelatedLinkSchema] = Field(
         default_factory=list,

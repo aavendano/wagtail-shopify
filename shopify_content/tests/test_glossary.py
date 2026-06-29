@@ -17,22 +17,23 @@ class GlossaryTermDefinitionTests(TestCase):
         self.assertEqual(
             field_keys,
             {
-                'term', 'definition', 'locale', 'related_links', 'external_links',
+                'term', 'definition', 'locale', 'meta_title', 'meta_description',
+                'related_links', 'external_links',
                 'synonyms', 'same_as',
             },
         )
 
         renderable = spec.capabilities['renderable']['data']
-        self.assertEqual(renderable['metaTitleKey'], 'term')
-        self.assertEqual(renderable['metaDescriptionKey'], 'definition')
+        self.assertEqual(renderable['metaTitleKey'], 'meta_title')
+        self.assertEqual(renderable['metaDescriptionKey'], 'meta_description')
 
         online_store = spec.capabilities['onlineStore']['data']
         self.assertEqual(online_store['urlHandle'], 'glossary')
 
         payload = spec.to_shopify_input()
         renderable_data = payload['capabilities']['renderable']['data']
-        self.assertEqual(renderable_data['metaTitleKey'], 'term')
-        self.assertEqual(renderable_data['metaDescriptionKey'], 'definition')
+        self.assertEqual(renderable_data['metaTitleKey'], 'meta_title')
+        self.assertEqual(renderable_data['metaDescriptionKey'], 'meta_description')
 
 
 class SyncGlossaryTermPageTests(TestCase):
@@ -76,6 +77,38 @@ class SyncGlossaryTermPageTests(TestCase):
         self.assertEqual(data['term'], 'Vibrator')
         self.assertEqual(data['locale'], 'en')
         self.assertEqual(data['definition'], '<p>A device that vibrates.</p>')
+        self.assertEqual(data['meta_title'], 'Vibrator')
+        self.assertEqual(data['meta_description'], 'A device that vibrates.')
+
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_uses_explicit_seo_fields(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='glossary_term',
+            handle='vibrator',
+            id='gid://shopify/Metaobject/6',
+        )
+        mock_client_cls.return_value = mock_client
+
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            definition='<p>A device that vibrates.</p>',
+            seo_title='Best Vibrator Guide',
+            search_description='Learn about vibrators.',
+            locale_code='en',
+            slug='vibrator',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        success, _ = sync_glossary_term_page(page)
+
+        self.assertTrue(success)
+        data = mock_client.sync.call_args.args[0]
+        self.assertEqual(data['meta_title'], 'Best Vibrator Guide')
+        self.assertEqual(data['meta_description'], 'Learn about vibrators.')
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_handle_defaults_to_slugified_term(self, mock_client_cls):

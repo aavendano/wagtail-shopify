@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils.html import strip_tags
 
 from wagtail.models import Page
 from wagtail.fields import RichTextField
@@ -6,9 +7,10 @@ from wagtail.admin.panels import (
     FieldPanel, ObjectList, TabbedInterface,
 )
 from wagtail.search import index
+from wagtail.rich_text import expand_db_html
 
-from shopify_content.admin_panels import semantic_links_panel
-from .mixins import SHOPIFY_SYNC_PANELS
+from shopify_content.admin_panels import semantic_links_panels
+from .mixins import SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 
 LOCALE_CODE_CHOICES = [
     ('en', 'English'),
@@ -78,6 +80,7 @@ class GlossaryTermPage(Page):
     search_fields = Page.search_fields + [
         index.FilterField('shopify_id'),
         index.SearchField('term'),
+        index.SearchField('seo_title'),
         index.SearchField('definition'),
         index.SearchField('synonyms'),
     ]
@@ -86,13 +89,13 @@ class GlossaryTermPage(Page):
         FieldPanel('term'),
         FieldPanel('definition'),
         FieldPanel('locale_code'),
-        semantic_links_panel(),
+        *semantic_links_panels().children,
         FieldPanel('external_links'),
         FieldPanel('synonyms'),
         FieldPanel('same_as'),
     ]
 
-    promote_panels = [
+    promote_panels = SHOPIFY_SEO_PANELS + [
         FieldPanel('slug'),
     ]
 
@@ -115,3 +118,13 @@ class GlossaryTermPage(Page):
             if getattr(self, field_name) is None:
                 setattr(self, field_name, [])
         super().save(**kwargs)
+
+    def get_seo_title(self):
+        return self.seo_title or self.term or self.title
+
+    def get_seo_description(self):
+        if self.search_description:
+            return self.search_description
+        if self.definition:
+            return strip_tags(expand_db_html(str(self.definition))).strip()
+        return ''

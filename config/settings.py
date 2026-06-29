@@ -74,6 +74,12 @@ SEMANTIC_LINKS_METAFIELD_NAMESPACE = os.environ.get(
 SEMANTIC_LINKS_METAFIELD_KEY = os.environ.get(
     'SEMANTIC_LINKS_METAFIELD_KEY', 'internal_links',
 )
+SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED = (
+    os.environ.get('SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED', 'true').lower() == 'true'
+)
+SEMANTIC_LINKS_BACKFILL_ONLY_MISSING = (
+    os.environ.get('SEMANTIC_LINKS_BACKFILL_ONLY_MISSING', 'true').lower() == 'true'
+)
 
 _wagtail_ai_apps = [
     'wagtail_ai',

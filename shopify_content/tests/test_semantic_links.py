@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
@@ -10,14 +10,15 @@ from shopify_content.models import (
     ShopifyRootPage,
 )
 from shopify_content.models.blog import ArticlePage, BlogPage
+from shopify_content.models.sync_run import ShopifySyncRun
+from shopify_content.semantic_links.backfill import run_semantic_links_backfill
 from shopify_content.semantic_links.serialization import (
     page_to_related_link,
     related_link_url,
     serialize_semantic_links,
 )
 from shopify_content.semantic_links.service import classify_and_cap, refresh_semantic_links
-from shopify_content.tasks import sync_page_to_shopify_task
-from shopify_content.models.sync_run import ShopifySyncRun
+from shopify_content.tasks import backfill_semantic_links_task, sync_page_to_shopify_task
 
 
 class PageToRelatedLinkTests(TestCase):
@@ -125,7 +126,7 @@ class RefreshSemanticLinksTests(TestCase):
         self.root.add_child(instance=self.target)
         self.target.save_revision().publish()
 
-        self.source.semantic_links.create(
+        self.source.related_collections.create(
             related_page=self.target,
             is_auto=False,
             sort_order=0,
@@ -145,12 +146,15 @@ class RefreshSemanticLinksTests(TestCase):
 
         refresh_semantic_links(self.source)
 
-        manual = self.source.semantic_links.filter(is_auto=False).count()
-        auto = self.source.semantic_links.filter(is_auto=True).count()
+        manual = self.source.related_collections.filter(is_auto=False).count()
+        auto_articles = self.source.related_articles.filter(is_auto=True).count()
         self.assertEqual(manual, 1)
-        self.assertEqual(auto, 1)
+        self.assertEqual(auto_articles, 1)
         self.assertTrue(
-            self.source.semantic_links.filter(related_page=self.target, is_auto=False).exists()
+            self.source.related_collections.filter(
+                related_page=self.target,
+                is_auto=False,
+            ).exists()
         )
 
     @override_settings(SEMANTIC_LINKS_ENABLED=True)
@@ -165,7 +169,7 @@ class RefreshSemanticLinksTests(TestCase):
         self.root.add_child(instance=other)
         other.save_revision().publish()
 
-        self.source.semantic_links.create(
+        self.source.related_products.create(
             related_page=other,
             is_auto=True,
             sort_order=1,
@@ -182,8 +186,25 @@ class RefreshSemanticLinksTests(TestCase):
 
         refresh_semantic_links(self.source)
 
-        self.assertFalse(self.source.semantic_links.filter(related_page=other, is_auto=True).exists())
-        self.assertTrue(self.source.semantic_links.filter(related_page=article, is_auto=True).exists())
+        from shopify_content.models.semantic_links import (
+            ProductRelatedArticleLink,
+            ProductRelatedProductLink,
+        )
+
+        self.assertFalse(
+            ProductRelatedProductLink.objects.filter(
+                page_id=self.source.pk,
+                related_page=other,
+                is_auto=True,
+            ).exists()
+        )
+        self.assertTrue(
+            ProductRelatedArticleLink.objects.filter(
+                page_id=self.source.pk,
+                related_page=article,
+                is_auto=True,
+            ).exists()
+        )
 
 
 class ClassifyAndCapTests(TestCase):
@@ -276,19 +297,25 @@ class RevisionPersistenceTests(TestCase):
         root.add_child(instance=target)
         target.save_revision().publish()
 
-        # Simulate stale draft revision without semantic links.
         source.save_revision(log_action=False)
 
         mock_search.return_value = [target]
         refresh_semantic_links(source)
 
+        from shopify_content.models.semantic_links import GlossaryTermRelatedProductLink
+
+        self.assertEqual(
+            GlossaryTermRelatedProductLink.objects.filter(page_id=source.pk).count(),
+            1,
+        )
+
         page = Page.objects.get(pk=source.pk)
         editor_page = page.get_latest_revision_as_object()
-        self.assertEqual(editor_page.semantic_links.count(), 1)
+        self.assertEqual(editor_page.related_products.count(), 1)
 
 
 class SerializeSemanticLinksTests(TestCase):
-    def test_serializes_fk_rows(self):
+    def test_serializes_fk_rows_from_all_relations(self):
         locale = Locale.get_default()
         home = Page.objects.first()
         if home is None:
@@ -305,8 +332,65 @@ class SerializeSemanticLinksTests(TestCase):
         root.add_child(instance=collection)
         collection.save_revision().publish()
 
-        product.semantic_links.create(related_page=collection, is_auto=True, sort_order=0)
+        product.related_collections.create(related_page=collection, is_auto=True, sort_order=0)
 
         links = serialize_semantic_links(product)
         self.assertEqual(len(links), 1)
         self.assertEqual(links[0]['type'], 'collection')
+
+
+@override_settings(
+    CELERY_TASK_ALWAYS_EAGER=True,
+    SEMANTIC_LINKS_ENABLED=True,
+)
+class BackfillSemanticLinksTaskTests(TestCase):
+    def setUp(self):
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
+        self.root = ShopifyRootPage(title='Root', slug='root-backfill', locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+
+        self.product = ProductPage(
+            title='Backfill Product',
+            slug='backfill-product',
+            handle='backfill-product',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.product)
+        self.product.save_revision().publish()
+
+    @patch('shopify_content.semantic_links.backfill.refresh_semantic_links')
+    def test_backfill_only_missing_skips_populated_pages(self, mock_refresh):
+        collection = CollectionPage(
+            title='Existing Collection',
+            slug='existing-collection',
+            handle='existing-collection',
+            locale=self.product.locale,
+        )
+        self.root.add_child(instance=collection)
+        collection.save_revision().publish()
+
+        self.product.related_collections.create(
+            related_page=collection,
+            is_auto=True,
+            sort_order=0,
+        )
+        self.product.save_revision().publish()
+
+        result = run_semantic_links_backfill(model='product', only_missing=True)
+
+        self.assertEqual(result['pages_skipped'], 1)
+        self.assertEqual(result['pages_processed'], 0)
+        mock_refresh.assert_not_called()
+
+    @patch('shopify_content.semantic_links.backfill.refresh_semantic_links')
+    def test_backfill_task_delegates_to_runner(self, mock_refresh):
+        mock_refresh.return_value = {'created': 2, 'removed': 0, 'manual_kept': 0}
+
+        result = backfill_semantic_links_task(model='product', only_missing=True)
+
+        self.assertEqual(result['pages_processed'], 1)
+        mock_refresh.assert_called_once()

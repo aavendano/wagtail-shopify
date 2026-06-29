@@ -396,6 +396,44 @@ class GlossaryApiTests(TestCase):
         self.assertEqual(patch_response.json()["locale_code"], "es")
         self.assertEqual(patch_response.json()["definition"], "<p>Updated definition.</p>")
 
+    def test_create_and_patch_glossary_seo_fields(self):
+        create_response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Orgasm",
+                "locale_code": "en",
+                "seo_title": "Orgasm SEO Title",
+                "search_description": "Orgasm meta description.",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(create_response.status_code, 201)
+        page_id = create_response.json()["id"]
+        self.assertEqual(create_response.json()["seo_title"], "Orgasm SEO Title")
+        self.assertEqual(
+            create_response.json()["search_description"],
+            "Orgasm meta description.",
+        )
+
+        page = GlossaryTermPage.objects.get(pk=page_id)
+        self.assertEqual(page.seo_title, "Orgasm SEO Title")
+        self.assertEqual(page.search_description, "Orgasm meta description.")
+
+        patch_response = self.client.patch(
+            f"/glossary/{page_id}",
+            json={
+                "seo_title": "Updated SEO Title",
+                "search_description": "Updated meta description.",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["seo_title"], "Updated SEO Title")
+        self.assertEqual(
+            patch_response.json()["search_description"],
+            "Updated meta description.",
+        )
+
     def test_get_glossary_term_locale_returns_locale_code(self):
         create_response = self.client.post(
             "/glossary/",

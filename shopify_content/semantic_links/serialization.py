@@ -8,6 +8,7 @@ from shopify_content.models.blog import ArticlePage, BlogPage
 from shopify_content.models.collection import CollectionPage
 from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
+from shopify_content.semantic_links.constants import SEMANTIC_LINK_RELATION_NAMES
 
 GLOSSARY_METAOBJECT_URL_HANDLE = 'glossary'
 
@@ -94,35 +95,39 @@ def related_link_url(link: dict[str, Any]) -> str:
 
 
 def serialize_semantic_links(source_page) -> list[dict[str, Any]]:
-    """Read semantic_links FK rows and serialize to RelatedLinkSchema dicts."""
-    if not hasattr(source_page, 'semantic_links'):
+    """Read typed semantic link FK rows and serialize to RelatedLinkSchema dicts."""
+    if not any(hasattr(source_page, name) for name in SEMANTIC_LINK_RELATION_NAMES):
         return []
 
     links = []
     seen_handles: set[tuple[str, str, str | None]] = set()
 
-    for row in source_page.semantic_links.select_related('related_page').order_by('sort_order'):
-        related = row.related_page
-        if related is None:
+    for relation_name in SEMANTIC_LINK_RELATION_NAMES:
+        manager = getattr(source_page, relation_name, None)
+        if manager is None:
             continue
-        try:
-            related = related.specific
-        except Exception:
-            continue
+        for row in manager.select_related('related_page').order_by('sort_order'):
+            related = row.related_page
+            if related is None:
+                continue
+            try:
+                related = related.specific
+            except Exception:
+                continue
 
-        link = page_to_related_link(related)
-        if link is None:
-            continue
+            link = page_to_related_link(related)
+            if link is None:
+                continue
 
-        dedupe_key = (
-            link['type'],
-            link['handle'],
-            link.get('blog_handle') or link.get('url_handle'),
-        )
-        if dedupe_key in seen_handles:
-            continue
-        seen_handles.add(dedupe_key)
-        links.append(link)
+            dedupe_key = (
+                link['type'],
+                link['handle'],
+                link.get('blog_handle') or link.get('url_handle'),
+            )
+            if dedupe_key in seen_handles:
+                continue
+            seen_handles.add(dedupe_key)
+            links.append(link)
 
     return links
 

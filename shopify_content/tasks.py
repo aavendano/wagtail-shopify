@@ -149,6 +149,27 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         raise
 
 
+@shared_task(name='shopify_content.tasks.backfill_semantic_links_task')
+def backfill_semantic_links_task(
+    model='all',
+    only_missing=None,
+    dry_run=False,
+):
+    """Backfill auto semantic internal links for live pages (Beat / post-index)."""
+    from shopify_content.semantic_links.backfill import run_semantic_links_backfill
+
+    if only_missing is None:
+        only_missing = getattr(settings, 'SEMANTIC_LINKS_BACKFILL_ONLY_MISSING', True)
+
+    return run_semantic_links_backfill(
+        model=model,
+        only_missing=only_missing,
+        dry_run=dry_run,
+        update_revision=True,
+        skip_publish_signals=True,
+    )
+
+
 @shared_task(name='shopify_content.tasks.scheduled_import_new_content')
 def scheduled_import_new_content():
     """Periodic beat entrypoint: import all new Shopify content into Wagtail."""

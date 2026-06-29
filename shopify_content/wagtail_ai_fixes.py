@@ -86,13 +86,33 @@ def install_suggested_content_fallback():
     original_execute = SuggestedContentAgent.execute
 
     def execute_with_fallback(self, *args, **kwargs):
+        allowed_types = kwargs.pop('allowed_types', None)
         content = kwargs.get('content') or ''
         exclude_pks = kwargs.get('exclude_pks') or []
         if not content.strip() and exclude_pks:
             fallback_content = _page_text_from_pk(exclude_pks[0])
             if fallback_content:
                 kwargs = {**kwargs, 'content': fallback_content}
-        return original_execute(self, *args, **kwargs)
+        result = original_execute(self, *args, **kwargs)
+        if not allowed_types:
+            return result
+        from shopify_content.semantic_links.service import page_type_key_for
+
+        limit = kwargs.get('limit', 3)
+        filtered = []
+        for item in result or []:
+            pk = item.get('id') if isinstance(item, dict) else getattr(item, 'pk', None)
+            if pk is None:
+                continue
+            try:
+                page = Page.objects.get(pk=int(pk))
+            except (Page.DoesNotExist, TypeError, ValueError):
+                continue
+            if page_type_key_for(page) in allowed_types:
+                filtered.append(item)
+            if len(filtered) >= limit:
+                break
+        return filtered
 
     execute_with_fallback._wai_fallback_wrapped = True
     SuggestedContentAgent.execute = execute_with_fallback

@@ -5,12 +5,7 @@ from .blog import (
     BlogPage, BlogPageFAQ,
     ArticlePage, ArticlePageFAQ, ArticlePageMetafield, ArticlePageTag,
 )
-from .semantic_links import (
-    ArticleSemanticLink,
-    ProductSemanticLink,
-    CollectionSemanticLink,
-    GlossarySemanticLink,
-)
+from .semantic_links import ALL_TYPED_SEMANTIC_LINK_MODELS
 from .location_page import LocationPage, LocationPageFAQ
 from .glossary import GlossaryTermPage
 from .root import ShopifyRootPage
@@ -33,13 +28,10 @@ __all__ = [
     'ArticlePageFAQ',
     'ArticlePageMetafield',
     'ArticlePageTag',
-    'ArticleSemanticLink',
-    'ProductSemanticLink',
-    'CollectionSemanticLink',
-    'GlossarySemanticLink',
     'LocationPage',
     'LocationPageFAQ',
     'GlossaryTermPage',
     'ShopifyRootPage',
     'ShopifySyncRun',
+    *[model.__name__ for model in ALL_TYPED_SEMANTIC_LINK_MODELS],
 ]

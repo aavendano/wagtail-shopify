@@ -2,6 +2,7 @@
 import gc
 import time
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django_ai_core.contrib.index.base import registry
 
@@ -38,6 +39,11 @@ class Command(BaseCommand):
             type=int,
             default=0,
             help='Resume indexing pages with pk greater than this value.',
+        )
+        parser.add_argument(
+            '--skip-semantic-backfill',
+            action='store_true',
+            help='Do not enqueue semantic links backfill when indexing completes.',
         )
 
     def handle(self, *args, **options):
@@ -127,4 +133,20 @@ class Command(BaseCommand):
                 f'Last pk processed: {last_pk}.'
             )
         )
+
+        if (
+            getattr(settings, 'SEMANTIC_LINKS_ENABLED', False)
+            and not options['skip_semantic_backfill']
+        ):
+            from shopify_content.tasks import backfill_semantic_links_task
+
+            result = backfill_semantic_links_task.delay(
+                model=model_choice,
+                only_missing=True,
+            )
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'Semantic links backfill enqueued (task id={result.id}).'
+                )
+            )
 

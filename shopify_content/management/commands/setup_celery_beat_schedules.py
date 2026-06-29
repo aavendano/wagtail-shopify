@@ -35,3 +35,34 @@ class Command(BaseCommand):
                 'Enable it in Django Admin → Periodic tasks.'
             )
         )
+
+        backfill_schedule, _ = CrontabSchedule.objects.get_or_create(
+            minute='0',
+            hour='4',
+            day_of_week='*',
+            day_of_month='*',
+            month_of_year='*',
+            timezone=ZoneInfo(settings.TIME_ZONE),
+        )
+
+        backfill_enabled = (
+            getattr(settings, 'SEMANTIC_LINKS_ENABLED', False)
+            and getattr(settings, 'SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED', True)
+        )
+        backfill_task, backfill_created = PeriodicTask.objects.update_or_create(
+            name='Backfill semantic internal links',
+            defaults={
+                'task': 'shopify_content.tasks.backfill_semantic_links_task',
+                'crontab': backfill_schedule,
+                'enabled': backfill_enabled,
+                'kwargs': '{"model": "all", "only_missing": true}',
+            },
+        )
+
+        backfill_verb = 'Created' if backfill_created else 'Updated'
+        self.stdout.write(
+            self.style.SUCCESS(
+                f'{backfill_verb} periodic task "{backfill_task.name}" '
+                f'(enabled={backfill_task.enabled}).'
+            )
+        )

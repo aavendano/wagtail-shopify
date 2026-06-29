@@ -1,4 +1,15 @@
 (function () {
+  const RELATION_PREFIXES = [
+    'related_products',
+    'related_collections',
+    'related_articles',
+    'related_glossary_terms',
+  ];
+
+  function isSemanticLinkField(name) {
+    return RELATION_PREFIXES.some((prefix) => name && name.includes(prefix));
+  }
+
   function collectFormContent() {
     const form = document.querySelector('[data-edit-form]');
     if (!form) {
@@ -21,7 +32,7 @@
     });
 
     form.querySelectorAll('textarea, input[type="text"]').forEach((el) => {
-      if (el.name && !el.name.includes('semantic_links')) {
+      if (el.name && !isSemanticLinkField(el.name)) {
         add(el.value);
       }
     });
@@ -31,6 +42,22 @@
     });
 
     return chunks.join('\n\n');
+  }
+
+  function filterSuggestionsByType(results, filterType) {
+    if (!filterType || !Array.isArray(results)) {
+      return results;
+    }
+    return results.filter((item) => {
+      const type = item.page_type || item.type;
+      if (type === filterType) {
+        return true;
+      }
+      if (filterType === 'glossary' && type === 'metaobject') {
+        return true;
+      }
+      return false;
+    });
   }
 
   async function fetchSuggestions(controller) {
@@ -51,6 +78,8 @@
       ...controller.getFormsetChildIds(),
     ].filter(Boolean);
 
+    const filterType = controller.element?.dataset?.waiFilterType;
+
     const response = await fetch(controller.urlValue, {
       method: 'POST',
       headers: {
@@ -64,6 +93,7 @@
           content: formContent,
           limit,
           chunk_size: controller.hasChunkSizeValue ? controller.chunkSizeValue : undefined,
+          allowed_types: filterType ? [filterType] : undefined,
         },
       }),
       signal: controller.abortController?.signal,
@@ -74,7 +104,8 @@
     }
 
     const payload = await response.json();
-    return payload.data;
+    const data = payload.data || [];
+    return filterSuggestionsByType(data, filterType);
   }
 
   function patchControllerInstance(controller) {

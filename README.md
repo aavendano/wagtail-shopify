@@ -82,8 +82,8 @@ python manage.py import_shopify_collections
 | `import_shopify_blogs` | Importa blogs y artículos → `BlogPage` / `ArticlePage` |
 | `setup_locales` | Crea los 4 objetos `Locale` de Wagtail (en-US, es-US, en-CA, fr-CA) |
 | `setup_celery_beat_schedules` | Crea la tarea periódica de importación (deshabilitada por defecto) |
-| `index_pages_batch` | Indexa páginas en PageIndex (pgvector) para sugerencias de internal links |
-| `refresh_semantic_links_batch` | Genera internal links semánticos para páginas live (backfill) |
+| `index_pages_batch` | Indexa páginas en PageIndex (pgvector) y encola backfill de internal links al finalizar |
+| `refresh_semantic_links_batch` | Genera internal links semánticos para páginas live (backfill manual) |
 | `sync_semantic_links_revisions` | Sincroniza revisiones Wagtail para links ya existentes en BD (fix admin UI) |
 | `migrate_glossary_links_to_fk` | Importa `related_links` JSON del glosario a FK manuales |
 
@@ -96,12 +96,13 @@ Requisitos: extensión PostgreSQL `vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_
 # CREATE EXTENSION IF NOT EXISTS vector;
 
 python manage.py migrate
-python manage.py index_pages_batch --model all
-python manage.py refresh_semantic_links_batch  # backfill opcional
+python manage.py setup_celery_beat_schedules  # Beat 04:00 backfill (si SEMANTIC_LINKS_ENABLED)
+python manage.py index_pages_batch --model all  # encola backfill al terminar
+python manage.py refresh_semantic_links_batch --only-missing  # backfill manual opcional
 python manage.py sync_semantic_links_revisions  # si links existen en BD pero no en admin
 ```
 
-Al publicar, Celery genera links semánticos cross-type (producto, colección, artículo, glosario) y los empuja a Shopify como metafield `custom.internal_links` (o `related_links` en metaobject glossary).
+En el admin Wagtail, cada página linkable muestra cuatro paneles: **Related products**, **Related collections**, **Related articles** y **Related glossary terms**. El backfill nocturno (Celery Beat, 04:00) y el encolado post-`index_pages_batch` usan `only_missing=true` por defecto.
 
 ---
 

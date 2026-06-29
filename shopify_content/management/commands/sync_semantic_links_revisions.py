@@ -1,15 +1,15 @@
-"""Sync existing semantic_links FK rows into Wagtail revisions (admin visibility fix)."""
+"""Sync existing typed semantic link FK rows into Wagtail revisions (admin visibility fix)."""
 
 from django.core.management.base import BaseCommand
-from django.db.models import Count
 
 from shopify_content.indexing import INDEX_MODELS, live_queryset_for
+from shopify_content.models.semantic_links import page_has_semantic_links
 from shopify_content.semantic_links.service import persist_semantic_links_revision
 
 
 class Command(BaseCommand):
     help = (
-        'Save/publish Wagtail revisions for pages that already have semantic_links rows. '
+        'Save/publish Wagtail revisions for pages that already have typed internal link rows. '
         'Use after refresh_semantic_links_batch if links exist in DB but not in admin UI.'
     )
 
@@ -33,17 +33,14 @@ class Command(BaseCommand):
 
         for key in targets:
             model, _fields = INDEX_MODELS[key]
-            qs = (
-                live_queryset_for(model)
-                .annotate(_link_count=Count('semantic_links'))
-                .filter(_link_count__gt=0)
-            )
-            total = qs.count()
+            qs = live_queryset_for(model)
             self.stdout.write(
-                f'Syncing revisions for {model._meta.label} ({total} pages with links)...'
+                f'Scanning {model._meta.label} ({qs.count()} live pages)...'
             )
 
             for page in qs.iterator(chunk_size=100):
+                if not page_has_semantic_links(page):
+                    continue
                 persist_semantic_links_revision(page)
                 synced += 1
 

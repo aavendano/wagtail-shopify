@@ -195,28 +195,37 @@ Implementada como **merchant-owned metaobject** (tipo `glossary_term`) en Shopif
 | `term` (requerido) | `term` |
 | `definition` (RichTextField) | `definition` |
 | `locale_code` (`en`/`es`/`fr`) | `locale` |
+| `seo_title` (Page) | `meta_title` |
+| `search_description` (Page) | `meta_description` |
 | `related_links` (JSONField) | `related_links` |
 | `external_links` (JSONField) | `external_links` |
 | `synonyms` (JSONField, list of strings) | `synonyms` (`list.single_line_text_field`) |
 | `same_as` (JSONField, list of URLs) | `same_as` (`list.url`) |
 
-Sin campos SEO dedicados — `renderable` usa `term` y `definition` como fallback.
+`seo_title` y `search_description` se editan en la pestaña **Promote** del admin Wagtail. En push, `get_seo_title()` / `get_seo_description()` resuelven fallback a `term` / definición en texto plano si están vacíos. Las capabilities `renderable` apuntan a `meta_title` y `meta_description`.
+
+Tras desplegar cambios en la definición, ejecutar `python manage.py ensure_metaobject_definitions` o push de un término con `ensure_definition=True`.
 
 ### Internal links semánticos (cross-type)
 
-ProductPage, CollectionPage, ArticlePage y GlossaryTermPage comparten el modelo `SemanticPageLink` (FK a cualquier `Page` + flag `is_auto`).
+ProductPage, CollectionPage, ArticlePage y GlossaryTermPage usan **cuatro relaciones tipadas** (`related_products`, `related_collections`, `related_articles`, `related_glossary_terms`) con FK a `Page` y flag `is_auto`.
 
-- **Manual:** panel *Internal Links* en Wagtail admin (`AIMultipleChooserPanel` cuando `WAGTAIL_AI_PGVECTOR=true`).
-- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True`).
+- **Manual:** cuatro paneles en Wagtail admin bajo *Internal Links* (`AIMultipleChooserPanel` por tipo cuando `WAGTAIL_AI_PGVECTOR=true`; suggest filtrado por tipo).
+- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True` en cada relación).
+- **Backfill:** Celery Beat diario a las 04:00 (`backfill_semantic_links_task`) y encolado al terminar `index_pages_batch` (omitir con `--skip-semantic-backfill`). Por defecto `only_missing=true`.
 - **Shopify:** productos, colecciones y artículos reciben metafield `custom.internal_links` (JSON). Glosario usa el campo metaobject `related_links` derivado de las FK.
 - **Requisitos:** `CREATE EXTENSION vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, índice poblado con `index_pages_batch`.
 
 ```bash
+python manage.py migrate
+python manage.py setup_celery_beat_schedules
 python manage.py index_pages_batch --model all
-python manage.py refresh_semantic_links_batch
+python manage.py refresh_semantic_links_batch --only-missing
 python manage.py migrate_glossary_links_to_fk   # opcional: JSON legacy → FK manuales
 python manage.py sync_semantic_links_revisions  # si el batch ya corrió sin revisiones
 ```
+
+Variables opcionales: `SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED`, `SEMANTIC_LINKS_BACKFILL_ONLY_MISSING`.
 
 Definir en Shopify Admin → Custom data el metafield `custom.internal_links` (tipo JSON) para PRODUCT, COLLECTION y ARTICLE.
 

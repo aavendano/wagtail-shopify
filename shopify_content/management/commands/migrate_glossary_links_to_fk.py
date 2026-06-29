@@ -1,17 +1,21 @@
-"""Import existing glossary related_links JSON into manual semantic link FK rows."""
+"""Import existing glossary related_links JSON into manual typed semantic link FK rows."""
 
 from django.core.management.base import BaseCommand
 
-from shopify_content.models import GlossarySemanticLink, GlossaryTermPage
+from shopify_content.models import GlossaryTermPage
 from shopify_content.models.blog import ArticlePage, BlogPage
 from shopify_content.models.collection import CollectionPage
 from shopify_content.models.product import ProductPage
-from shopify_content.semantic_links.service import persist_semantic_links_revision
+from shopify_content.models.semantic_links import relation_for_page_type
+from shopify_content.semantic_links.service import page_type_key_for, persist_semantic_links_revision
 from wagtail.models import Page
 
 
 class Command(BaseCommand):
-    help = 'Migrate GlossaryTermPage.related_links JSON entries to semantic_links FK rows (is_auto=False).'
+    help = (
+        'Migrate GlossaryTermPage.related_links JSON entries to typed related_* FK rows '
+        '(is_auto=False).'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -31,31 +35,39 @@ class Command(BaseCommand):
             if not links:
                 continue
 
-            sort_order = (
-                term_page.semantic_links.order_by('-sort_order')
-                .values_list('sort_order', flat=True)
-                .first()
-            )
-            next_sort = (sort_order + 1) if sort_order is not None else 0
-
             for link in links:
                 target = self._resolve_page(link, locale_id=term_page.locale_id)
                 if target is None:
                     skipped += 1
                     continue
-                if term_page.semantic_links.filter(related_page=target).exists():
+
+                type_key = page_type_key_for(target)
+                if type_key is None:
                     skipped += 1
                     continue
+
+                relation_name = relation_for_page_type(type_key)
+                manager = getattr(term_page, relation_name)
+                if manager.filter(related_page=target).exists():
+                    skipped += 1
+                    continue
+
+                sort_order = (
+                    manager.order_by('-sort_order')
+                    .values_list('sort_order', flat=True)
+                    .first()
+                )
+                next_sort = (sort_order + 1) if sort_order is not None else 0
+
                 if dry_run:
                     created += 1
                     continue
-                GlossarySemanticLink.objects.create(
-                    page=term_page,
+
+                manager.create(
                     related_page=target,
                     is_auto=False,
                     sort_order=next_sort,
                 )
-                next_sort += 1
                 created += 1
                 terms_updated.add(term_page.pk)
 

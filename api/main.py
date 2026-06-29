@@ -76,7 +76,7 @@ Locations have **no pull** — content is authored in Wagtail and pushed to Shop
 Glossary terms have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `glossary_term`.
 The `/pages/glossary` list page is managed by the Shopify theme in Liquid.
 
-1. `POST /glossary/` with `term`, `locale_code`, and optional `definition`, `related_links`, `external_links`, `synonyms`, `same_as` (omit or pass `[]` for empty lists).
+1. `POST /glossary/` with `term`, `locale_code`, and optional `definition`, `seo_title`, `search_description`, `related_links`, `external_links`, `synonyms`, `same_as` (omit or pass `[]` for empty lists).
 2. `PATCH /glossary/{id}` with `"publish": true` (optional).
 3. `POST /glossary/{id}/push` — upserts metaobject; `shopify_id` saved on first success.
 4. `GET /glossary/{id}` — verify `last_synced_at` and `shopify_id`.

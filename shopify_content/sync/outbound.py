@@ -874,8 +874,8 @@ def _glossary_term_definition():
             'publishable': {'enabled': True},
             'onlineStore': {'enabled': True, 'data': {'urlHandle': 'glossary'}},
             'renderable': {'enabled': True, 'data': {
-                'metaTitleKey': 'term',
-                'metaDescriptionKey': 'definition',
+                'metaTitleKey': 'meta_title',
+                'metaDescriptionKey': 'meta_description',
             }},
         },
         access={'storefront': 'PUBLIC_READ'},
@@ -883,6 +883,8 @@ def _glossary_term_definition():
             MetaobjectFieldSpec(key='term', name='Term', type='single_line_text_field', required=True),
             MetaobjectFieldSpec(key='definition', name='Definition', type='rich_text_field'),
             MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='meta_title', name='Meta Title', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='meta_description', name='Meta Description', type='single_line_text_field'),
             MetaobjectFieldSpec(key='related_links', name='Related Links', type='json'),
             MetaobjectFieldSpec(key='external_links', name='External Links', type='json'),
             MetaobjectFieldSpec(key='synonyms', name='Synonyms', type='list.single_line_text_field'),
@@ -924,6 +926,12 @@ def sync_glossary_term_page(page):
         data['definition'] = _wagtail_field_value(page.definition)
     if page.locale_code:
         data['locale'] = page.locale_code
+    for key, value in [
+        ('meta_title', page.get_seo_title()),
+        ('meta_description', page.get_seo_description()),
+    ]:
+        if _has_meaningful_sync_value(value):
+            data[key] = _wagtail_field_value(value)
     from shopify_content.semantic_links.serialization import serialize_semantic_links
 
     related_links = serialize_semantic_links(page)
