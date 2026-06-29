@@ -22,27 +22,6 @@ from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
 
 
-def _debug_log_index(message, data=None):
-    # #region agent log
-    import json
-    import time
-    try:
-        payload = {
-            'sessionId': '0938b0',
-            'runId': 'pre-fix',
-            'hypothesisId': 'C',
-            'location': 'shopify_content/indexes.py',
-            'message': message,
-            'data': data or {},
-            'timestamp': int(time.time() * 1000),
-        }
-        with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-0938b0.log', 'a', encoding='utf-8') as log_file:
-            log_file.write(json.dumps(payload) + '\n')
-    except OSError:
-        pass
-    # #endregion
-
-
 def _gemini_api_key():
     wagtail_ai = getattr(settings, 'WAGTAIL_AI', {})
     default_provider = wagtail_ai.get('PROVIDERS', {}).get('default', {})
@@ -51,10 +30,8 @@ def _gemini_api_key():
 
 def register_page_index():
     if not getattr(settings, 'WAGTAIL_AI_PGVECTOR', False):
-        _debug_log_index('PageIndex skipped: WAGTAIL_AI_PGVECTOR disabled')
         return
     if not _gemini_api_key():
-        _debug_log_index('PageIndex skipped: missing Gemini API key')
         return
 
     llm_embedding_service = LLMService.create(
@@ -95,8 +72,4 @@ def register_page_index():
     return PageIndex
 
 
-result = register_page_index()
-_debug_log_index(
-    'PageIndex registration complete',
-    {'registered': result is not None, 'registry_keys': list(registry.list().keys())},
-)
+register_page_index()

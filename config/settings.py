@@ -129,7 +129,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'core.debug_middleware.ShopifyLocalProxyMiddleware',
     'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware',
-    'shopify_content.wagtail_ai_debug.WagtailAISuggestDebugMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
