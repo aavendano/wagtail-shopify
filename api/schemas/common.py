@@ -20,6 +20,10 @@ class RelatedLinkSchema(Schema):
         None,
         description="Required when type is 'metaobject'. Metaobject definition URL handle.",
     )
+    shopify_id: Optional[str] = Field(
+        None,
+        description="Shopify resource GID when available (e.g. gid://shopify/Product/123).",
+    )
 
 
 class ExternalLinkSchema(Schema):

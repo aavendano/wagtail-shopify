@@ -3,6 +3,8 @@ from typing import Any, Self
 
 from .serialization import field_specs_from_dataclass
 
+_glossary_definition_gid_cache: dict[str, str | None] = {}
+
 
 @dataclass
 class MetaobjectFieldSpec:
@@ -98,6 +100,38 @@ class MetaobjectDefinitionSpec:
         )
 
     @classmethod
+    def glossary_native_reference_fields(
+        cls, glossary_definition_gid: str | None = None
+    ) -> list['MetaobjectFieldSpec']:
+        fields = [
+            MetaobjectFieldSpec(
+                key='related_products',
+                name='Related Products',
+                type='list.product_reference',
+            ),
+            MetaobjectFieldSpec(
+                key='related_collections',
+                name='Related Collections',
+                type='list.collection_reference',
+            ),
+        ]
+        if glossary_definition_gid:
+            fields.append(
+                MetaobjectFieldSpec(
+                    key='related_glossary_terms',
+                    name='Related Glossary Terms',
+                    type='list.metaobject_reference',
+                    validations=[
+                        {
+                            'name': 'metaobject_definition_id',
+                            'value': glossary_definition_gid,
+                        },
+                    ],
+                ),
+            )
+        return fields
+
+    @classmethod
     def from_dataclass(
         cls,
         dc_type: type,
@@ -114,3 +148,25 @@ class MetaobjectDefinitionSpec:
             description=description,
             fields=[MetaobjectFieldSpec(**spec) for spec in specs],
         )
+
+
+def glossary_definition_gid(shop: str) -> str | None:
+    """Cached lookup of glossary_term metaobject definition GID for reference validations."""
+    if shop in _glossary_definition_gid_cache:
+        return _glossary_definition_gid_cache[shop]
+
+    from .client import MetaobjectClient
+
+    try:
+        definition = MetaobjectClient(shop=shop).get_definition('glossary_term')
+    except Exception:
+        _glossary_definition_gid_cache[shop] = None
+        return None
+
+    gid = definition.id if definition else None
+    _glossary_definition_gid_cache[shop] = gid
+    return gid
+
+
+def clear_glossary_definition_gid_cache() -> None:
+    _glossary_definition_gid_cache.clear()

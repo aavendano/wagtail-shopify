@@ -73,16 +73,17 @@ class MetaobjectClient:
         definition_id: str,
         fields: list[MetaobjectFieldSpec],
     ) -> MetaobjectDefinitionSpec:
+        create_payload = [
+            {"create": field_spec.to_shopify_input()}
+            for field_spec in fields
+        ]
         result = execute_admin_graphql(
             METAOBJECT_DEFINITION_UPDATE,
             shop=self.shop,
             variables={
                 "id": definition_id,
                 "definition": {
-                    "fieldDefinitions": [
-                        {"create": field_spec.to_shopify_input()}
-                        for field_spec in fields
-                    ]
+                    "fieldDefinitions": create_payload,
                 },
             },
         )

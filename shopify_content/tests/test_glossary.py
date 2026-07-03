@@ -4,8 +4,12 @@ from django.test import TestCase
 from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
-from shopify_content.models import GlossaryTermPage, ShopifyRootPage
-from shopify_content.sync.outbound import _glossary_term_definition, sync_glossary_term_page
+from shopify_content.models import GlossaryTermPage, ProductPage, ShopifyRootPage
+from shopify_content.sync.outbound import (
+    _glossary_term_definition,
+    ensure_glossary_term_definition,
+    sync_glossary_term_page,
+)
 from metaobjects.shopify_metaobjects.metaobject import Metaobject
 
 
@@ -20,8 +24,15 @@ class GlossaryTermDefinitionTests(TestCase):
                 'term', 'definition', 'locale', 'meta_title', 'meta_description',
                 'related_links', 'external_links',
                 'synonyms', 'same_as',
+                'related_products', 'related_collections',
             },
         )
+
+    def test_definition_includes_glossary_terms_field_with_gid(self):
+        gid = 'gid://shopify/MetaobjectDefinition/99'
+        spec = _glossary_term_definition(gid)
+        field_keys = {field.key for field in spec.fields}
+        self.assertIn('related_glossary_terms', field_keys)
 
         renderable = spec.capabilities['renderable']['data']
         self.assertEqual(renderable['metaTitleKey'], 'meta_title')
@@ -34,6 +45,59 @@ class GlossaryTermDefinitionTests(TestCase):
         renderable_data = payload['capabilities']['renderable']['data']
         self.assertEqual(renderable_data['metaTitleKey'], 'meta_title')
         self.assertEqual(renderable_data['metaDescriptionKey'], 'meta_description')
+
+    def test_native_reference_fields_include_metaobject_validation(self):
+        gid = 'gid://shopify/MetaobjectDefinition/99'
+        fields = _glossary_term_definition(gid).fields
+        glossary_field = next(f for f in fields if f.key == 'related_glossary_terms')
+        self.assertEqual(glossary_field.type, 'list.metaobject_reference')
+        self.assertEqual(
+            glossary_field.validations,
+            [{'name': 'metaobject_definition_id', 'value': gid}],
+        )
+
+
+class EnsureGlossaryTermDefinitionTests(TestCase):
+    @patch('shopify_content.sync.outbound._glossary_term_definition')
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient.get_definition')
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient.ensure_definition')
+    def test_two_pass_ensure_adds_self_reference_after_create(
+        self, mock_ensure, mock_get_definition, mock_spec_fn,
+    ):
+        from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec
+
+        mock_get_definition.return_value = None
+        created = MetaobjectDefinitionSpec(
+            type='glossary_term',
+            name='Glossary Term',
+            description='',
+            fields=[],
+            id='gid://shopify/MetaobjectDefinition/1',
+        )
+        mock_ensure.side_effect = [created, created]
+        mock_spec_fn.side_effect = (
+            lambda gid=None, include_self_reference=True: MetaobjectDefinitionSpec(
+                type='glossary_term',
+                name='Glossary Term',
+                description='',
+                fields=[],
+                id=gid,
+            )
+        )
+
+        client = MagicMock()
+        client.get_definition = mock_get_definition
+        client.ensure_definition = mock_ensure
+
+        result = ensure_glossary_term_definition(client)
+
+        self.assertEqual(result.id, 'gid://shopify/MetaobjectDefinition/1')
+        self.assertEqual(mock_ensure.call_count, 2)
+        mock_spec_fn.assert_any_call(None, include_self_reference=False)
+        mock_spec_fn.assert_any_call(
+            'gid://shopify/MetaobjectDefinition/1',
+            include_self_reference=True,
+        )
 
 
 class SyncGlossaryTermPageTests(TestCase):
@@ -204,6 +268,44 @@ class SyncGlossaryTermPageTests(TestCase):
         data = mock_client.sync.call_args.args[0]
         self.assertEqual(data['synonyms'], synonyms)
         self.assertEqual(data['same_as'], same_as)
+
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_includes_native_reference_fields_from_fk(self, mock_client_cls):
+        locale = Locale.get_default()
+        root = self.parent.get_parent()
+        target = ProductPage(
+            title='Linked',
+            slug='linked',
+            handle='linked',
+            shopify_id='gid://shopify/Product/99',
+            locale=locale,
+        )
+        root.add_child(instance=target)
+        target.save_revision().publish()
+
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='glossary_term',
+            handle='vibrator',
+            id='gid://shopify/Metaobject/1',
+        )
+        mock_client_cls.return_value = mock_client
+
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            slug='vibrator',
+            locale=locale,
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+        page.related_products.create(related_page=target, is_auto=False, sort_order=0)
+
+        success, _ = sync_glossary_term_page(page)
+
+        self.assertTrue(success)
+        data = mock_client.sync.call_args.args[0]
+        self.assertEqual(data['related_products'], ['gid://shopify/Product/99'])
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_skips_empty_json_fields(self, mock_client_cls):

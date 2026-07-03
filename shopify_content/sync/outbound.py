@@ -131,16 +131,24 @@ def _render_streamfield_html(streamfield_value):
 
 def _collect_inline_metafields(page, owner_gid):
     """Collect InlinePanel metafield rows and format for metafieldsSet."""
-    return [
-        {
+    from shopify_content.semantic_links.references import (
+        is_reference_metafield_type,
+        resolve_metafield_reference_value,
+    )
+
+    inputs = []
+    for mf in page.metafields.all():
+        value = str(mf.value)
+        if is_reference_metafield_type(mf.type):
+            value = resolve_metafield_reference_value(mf.type, mf.value)
+        inputs.append({
             'ownerId': owner_gid,
             'namespace': mf.namespace,
             'key': mf.key,
             'type': mf.type,
-            'value': str(mf.value),
-        }
-        for mf in page.metafields.all()
-    ]
+            'value': value,
+        })
+    return inputs
 
 
 def _collect_streamfield_metafields(body_value, owner_gid):
@@ -214,6 +222,37 @@ def _push_internal_links_metafield(shop, owner_gid, page):
         'type': 'json',
         'value': json.dumps(links, ensure_ascii=False),
     }])
+
+
+def _push_native_reference_metafields(shop, owner_gid, page):
+    """Push typed FK relations as native list.*_reference metafields (parallel to JSON)."""
+    from django.conf import settings
+
+    if not getattr(settings, 'SEMANTIC_LINKS_NATIVE_REFS_ENABLED', True):
+        return True
+
+    from shopify_content.semantic_links.constants import NATIVE_REFERENCE_CONFIG
+    from shopify_content.semantic_links.references import (
+        format_list_reference_value,
+        serialize_native_references,
+    )
+
+    refs = serialize_native_references(page)
+    if not refs:
+        return True
+
+    namespace = getattr(settings, 'SEMANTIC_LINKS_NATIVE_REFS_NAMESPACE', 'custom')
+    inputs = []
+    for relation_name, gids in refs.items():
+        config = NATIVE_REFERENCE_CONFIG[relation_name]
+        inputs.append({
+            'ownerId': owner_gid,
+            'namespace': namespace,
+            'key': config['metafield_key'],
+            'type': config['shopify_type'],
+            'value': format_list_reference_value(gids),
+        })
+    return _push_metafields(shop, inputs)
 
 
 def _push_seo_metafields(shop, owner_gid, seo_title, seo_description):
@@ -437,6 +476,7 @@ def sync_product_page(page):
     _push_metafields(shop, mf_inputs)
     _push_faq_metafield(shop, shopify_id, primary.faqs)
     _push_internal_links_metafield(shop, shopify_id, primary)
+    _push_native_reference_metafields(shop, shopify_id, primary)
     _push_hreflang_metafields(page, shop, shopify_id)
     _register_shopify_translations(
         page, shop, shopify_id,
@@ -493,6 +533,7 @@ def sync_collection_page(page):
     _push_metafields(shop, mf_inputs)
     _push_faq_metafield(shop, shopify_id, primary.faqs)
     _push_internal_links_metafield(shop, shopify_id, primary)
+    _push_native_reference_metafields(shop, shopify_id, primary)
     _push_hreflang_metafields(page, shop, shopify_id)
     _register_shopify_translations(
         page, shop, shopify_id,
@@ -664,6 +705,7 @@ def sync_article_page(page):
         _push_metafields(shop, mf_inputs)
         _push_faq_metafield(shop, page.shopify_id, primary.faqs)
         _push_internal_links_metafield(shop, page.shopify_id, primary)
+        _push_native_reference_metafields(shop, page.shopify_id, primary)
 
         _push_hreflang_metafields(page, shop, page.shopify_id)
         _register_shopify_translations(
@@ -859,12 +901,27 @@ def sync_location_page(page):
     return True, "Location synced to Shopify metaobject successfully."
 
 
-def _glossary_term_definition():
+def _glossary_term_definition(glossary_definition_gid=None, *, include_self_reference=True):
     """
     Build the MetaobjectDefinitionSpec for the merchant-owned glossary_term type.
     Called lazily so the import only happens at sync time.
     """
     from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
+    base_fields = [
+        MetaobjectFieldSpec(key='term', name='Term', type='single_line_text_field', required=True),
+        MetaobjectFieldSpec(key='definition', name='Definition', type='rich_text_field'),
+        MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='meta_title', name='Meta Title', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='meta_description', name='Meta Description', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='related_links', name='Related Links', type='json'),
+        MetaobjectFieldSpec(key='external_links', name='External Links', type='json'),
+        MetaobjectFieldSpec(key='synonyms', name='Synonyms', type='list.single_line_text_field'),
+        MetaobjectFieldSpec(key='same_as', name='Same As', type='list.url'),
+    ]
+    self_ref_gid = glossary_definition_gid if include_self_reference else None
+    native_fields = MetaobjectDefinitionSpec.glossary_native_reference_fields(
+        self_ref_gid,
+    )
     return MetaobjectDefinitionSpec(
         type='glossary_term',
         name='Glossary Term',
@@ -879,18 +936,32 @@ def _glossary_term_definition():
             }},
         },
         access={'storefront': 'PUBLIC_READ'},
-        fields=[
-            MetaobjectFieldSpec(key='term', name='Term', type='single_line_text_field', required=True),
-            MetaobjectFieldSpec(key='definition', name='Definition', type='rich_text_field'),
-            MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
-            MetaobjectFieldSpec(key='meta_title', name='Meta Title', type='single_line_text_field'),
-            MetaobjectFieldSpec(key='meta_description', name='Meta Description', type='single_line_text_field'),
-            MetaobjectFieldSpec(key='related_links', name='Related Links', type='json'),
-            MetaobjectFieldSpec(key='external_links', name='External Links', type='json'),
-            MetaobjectFieldSpec(key='synonyms', name='Synonyms', type='list.single_line_text_field'),
-            MetaobjectFieldSpec(key='same_as', name='Same As', type='list.url'),
-        ],
+        fields=base_fields + native_fields,
     )
+
+
+def ensure_glossary_term_definition(client):
+    """
+    Ensure glossary_term exists in Shopify, including self-referential
+    related_glossary_terms once the definition GID is known.
+
+    Shopify rejects list.metaobject_reference without metaobject_definition_id.
+    Pass 1 syncs product/collection refs only; pass 2 adds the self-referential field.
+    """
+    from metaobjects.shopify_metaobjects.definition import clear_glossary_definition_gid_cache
+
+    existing = client.get_definition('glossary_term')
+    gid = existing.id if existing else None
+    result = client.ensure_definition(
+        _glossary_term_definition(gid, include_self_reference=False),
+    )
+    definition_id = gid or result.id
+    if definition_id:
+        clear_glossary_definition_gid_cache()
+        result = client.ensure_definition(
+            _glossary_term_definition(definition_id, include_self_reference=True),
+        )
+    return result
 
 
 def sync_glossary_term_page(page):
@@ -948,9 +1019,14 @@ def sync_glossary_term_page(page):
 
     from metaobjects.shopify_metaobjects.client import MetaobjectClient
     from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
+    from shopify_content.semantic_links.references import native_metaobject_field_values
 
-    spec = _glossary_term_definition()
     client = MetaobjectClient(shop=shop)
+    definition = ensure_glossary_term_definition(client)
+    spec = _glossary_term_definition(definition.id)
+
+    for field_key, gids in native_metaobject_field_values(page).items():
+        data[field_key] = gids
 
     try:
         result = client.sync(data, definition=spec, ensure_definition=True, validate=False)

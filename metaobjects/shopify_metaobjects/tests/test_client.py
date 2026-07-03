@@ -326,6 +326,86 @@ class MetaobjectClientTests(TestCase):
         self.assertEqual(created_keys, ["synonyms", "same_as"])
 
     @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
+    def test_ensure_definition_adds_native_reference_fields(self, mock_execute):
+        mock_execute.side_effect = [
+            _ok_result(
+                {
+                    "metaobjectDefinitionByType": {
+                        "id": "gid://shopify/MetaobjectDefinition/578408816",
+                        "type": "glossary_term",
+                        "name": "Glossary Term",
+                        "description": "Existing",
+                        "fieldDefinitions": [
+                            {
+                                "key": "term",
+                                "name": "Term",
+                                "required": True,
+                                "type": {"name": "single_line_text_field"},
+                                "validations": [],
+                            },
+                            {
+                                "key": "related_links",
+                                "name": "Related Links",
+                                "required": False,
+                                "type": {"name": "json"},
+                                "validations": [],
+                            },
+                        ],
+                    }
+                }
+            ),
+            _ok_result(
+                {
+                    "metaobjectDefinitionUpdate": {
+                        "metaobjectDefinition": {
+                            "id": "gid://shopify/MetaobjectDefinition/578408816",
+                            "type": "glossary_term",
+                            "name": "Glossary Term",
+                            "description": "Existing",
+                            "fieldDefinitions": [],
+                        },
+                        "userErrors": [],
+                    }
+                }
+            ),
+        ]
+        client = MetaobjectClient("test-shop.myshopify.com")
+        spec = MetaobjectDefinitionSpec(
+            type="glossary_term",
+            name="Glossary Term",
+            description="Glossary term managed in Wagtail CMS",
+            fields=[
+                MetaobjectFieldSpec(key="term", name="Term", type="single_line_text_field", required=True),
+                MetaobjectFieldSpec(key="related_links", name="Related Links", type="json"),
+                *MetaobjectDefinitionSpec.glossary_native_reference_fields(
+                    "gid://shopify/MetaobjectDefinition/578408816",
+                ),
+            ],
+        )
+        client.ensure_definition(spec)
+        update_variables = mock_execute.call_args_list[1].kwargs["variables"]
+        created_keys = [
+            item["create"]["key"]
+            for item in update_variables["definition"]["fieldDefinitions"]
+        ]
+        self.assertEqual(
+            created_keys,
+            ["related_products", "related_collections", "related_glossary_terms"],
+        )
+        glossary_field = next(
+            item["create"]
+            for item in update_variables["definition"]["fieldDefinitions"]
+            if item["create"]["key"] == "related_glossary_terms"
+        )
+        self.assertEqual(
+            glossary_field["validations"],
+            [{
+                "name": "metaobject_definition_id",
+                "value": "gid://shopify/MetaobjectDefinition/578408816",
+            }],
+        )
+
+    @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
     def test_ensure_definition_creates_when_missing(self, mock_execute):
         mock_execute.side_effect = [
             _ok_result({"metaobjectDefinitionByType": None}),

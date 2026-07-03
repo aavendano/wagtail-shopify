@@ -394,3 +394,77 @@ class BackfillSemanticLinksTaskTests(TestCase):
 
         self.assertEqual(result['pages_processed'], 1)
         mock_refresh.assert_called_once()
+
+
+@override_settings(SEMANTIC_LINKS_NATIVE_REFS_ENABLED=True)
+class NativeReferencePushIntegrationTests(TestCase):
+    def setUp(self):
+        from core.models import ShopConfig
+
+        ShopConfig.objects.create(shop='test-shop.myshopify.com', access_token='tok')
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
+        self.root = ShopifyRootPage(title='Root', slug='root-native-push', locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+
+        self.product = ProductPage(
+            title='Semantic Product',
+            slug='semantic-product',
+            handle='semantic-product',
+            shopify_id='gid://shopify/Product/10',
+            locale=locale,
+            sync_enabled=True,
+        )
+        self.root.add_child(instance=self.product)
+        self.product.save_revision().publish()
+
+        self.linked = CollectionPage(
+            title='Linked Collection',
+            slug='linked-collection',
+            handle='linked-collection',
+            shopify_id='gid://shopify/Collection/20',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.linked)
+        self.linked.save_revision().publish()
+
+        self.product.related_collections.create(
+            related_page=self.linked,
+            is_auto=True,
+            sort_order=0,
+        )
+
+    @patch('shopify_content.sync.outbound._push_metafields', return_value=True)
+    @patch('shopify_content.sync.outbound.execute_admin_graphql')
+    def test_product_sync_pushes_internal_links_and_native_refs(
+        self, mock_graphql, mock_push_metafields,
+    ):
+        from shopify_requests.graphql_service import AdminGraphqlResult
+        from types import SimpleNamespace
+
+        mock_graphql.return_value = AdminGraphqlResult(
+            ok=True,
+            shop='test-shop.myshopify.com',
+            data={'productUpdate': {'userErrors': []}},
+            extensions=None,
+            error_code=None,
+            log_detail='ok',
+            reauthorization_required=False,
+            retryable=False,
+            raw=SimpleNamespace(),
+        )
+
+        from shopify_content.sync.outbound import sync_product_page
+
+        sync_product_page(self.product)
+
+        pushed_keys = []
+        for call in mock_push_metafields.call_args_list:
+            for item in call.args[1]:
+                pushed_keys.append((item.get('key'), item.get('type')))
+
+        self.assertIn(('internal_links', 'json'), pushed_keys)
+        self.assertIn(('related_collections', 'list.collection_reference'), pushed_keys)

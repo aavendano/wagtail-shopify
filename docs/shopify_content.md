@@ -213,7 +213,7 @@ ProductPage, CollectionPage, ArticlePage y GlossaryTermPage usan **cuatro relaci
 - **Manual:** cuatro paneles en Wagtail admin bajo *Internal Links* (`AIMultipleChooserPanel` por tipo cuando `WAGTAIL_AI_PGVECTOR=true`; suggest filtrado por tipo).
 - **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True` en cada relación).
 - **Backfill:** Celery Beat diario a las 04:00 (`backfill_semantic_links_task`) y encolado al terminar `index_pages_batch` (omitir con `--skip-semantic-backfill`). Por defecto `only_missing=true`.
-- **Shopify:** productos, colecciones y artículos reciben metafield `custom.internal_links` (JSON). Glosario usa el campo metaobject `related_links` derivado de las FK.
+- **Shopify:** productos, colecciones y artículos reciben metafield `custom.internal_links` (JSON) **y**, en paralelo, metafields nativos `custom.related_products`, `custom.related_collections` y `custom.related_glossary_terms` (`list.*_reference` con GIDs). Glosario usa el campo metaobject `related_links` (JSON) **más** los campos nativos homónimos en la definición `glossary_term`.
 - **Requisitos:** `CREATE EXTENSION vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, índice poblado con `index_pages_batch`.
 
 ```bash
@@ -225,9 +225,39 @@ python manage.py migrate_glossary_links_to_fk   # opcional: JSON legacy → FK m
 python manage.py sync_semantic_links_revisions  # si el batch ya corrió sin revisiones
 ```
 
-Variables opcionales: `SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED`, `SEMANTIC_LINKS_BACKFILL_ONLY_MISSING`.
+Variables opcionales: `SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED`, `SEMANTIC_LINKS_BACKFILL_ONLY_MISSING`, `SEMANTIC_LINKS_NATIVE_REFS_ENABLED`, `SEMANTIC_LINKS_NATIVE_REFS_NAMESPACE`.
 
-Definir en Shopify Admin → Custom data el metafield `custom.internal_links` (tipo JSON) para PRODUCT, COLLECTION y ARTICLE.
+Definir en Shopify Admin → Custom data:
+
+| Owner | Namespace | Key | Type |
+|-------|-----------|-----|------|
+| PRODUCT | custom | internal_links | json |
+| PRODUCT | custom | related_products | list.product_reference |
+| PRODUCT | custom | related_collections | list.collection_reference |
+| PRODUCT | custom | related_glossary_terms | list.metaobject_reference |
+| COLLECTION | custom | (igual) | (igual) |
+| ARTICLE | custom | (igual) | (igual) |
+
+Para `list.metaobject_reference`, configurar validación a la definición metaobject `glossary_term`.
+
+**Limitación del theme editor (Shopify Admin):** los campos `list.product_reference`, `list.collection_reference` y `list.metaobject_reference` en la definición `glossary_term` **no aparecen** como fuentes dinámicas al personalizar la plantilla del metaobject (*"No compatible fields"*). Es comportamiento esperado de Shopify: las referencias se consumen en Liquid, no en el selector visual de plantillas. Ejemplo en la plantilla del theme:
+
+```liquid
+{% for product in metaobject.related_products.value %}
+  <a href="{{ product.url }}">{{ product.title }}</a>
+{% endfor %}
+```
+
+Mientras el theme no migre, seguir usando `related_links` (JSON) o `custom.internal_links` en productos/colecciones/artículos.
+
+**Backfill de referencias nativas** (tras crear las definiciones en Admin):
+
+```bash
+python manage.py backfill_shopify_native_references --model all --dry-run
+python manage.py backfill_shopify_native_references --model all
+```
+
+Orden recomendado: `migrate_glossary_links_to_fk` → deploy → `ensure_metaobject_definitions` → metafield definitions en Admin → `backfill_shopify_native_references` → verificar GIDs en Admin API → theme migra a refs nativas → futuro: deprecar `internal_links` JSON.
 
 ### Actualizar definición `glossary_term` existente
 

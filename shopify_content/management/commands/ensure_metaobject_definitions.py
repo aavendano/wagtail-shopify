@@ -15,7 +15,10 @@ from django.core.management.base import BaseCommand, CommandError
 from core.models import ShopConfig
 from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.exceptions import DefinitionError
-from shopify_content.sync.outbound import _location_page_definition, _glossary_term_definition
+from shopify_content.sync.outbound import (
+    _location_page_definition,
+    ensure_glossary_term_definition,
+)
 
 
 class Command(BaseCommand):
@@ -31,7 +34,6 @@ class Command(BaseCommand):
 
         definitions = [
             ('local_page', _location_page_definition),
-            ('glossary_term', _glossary_term_definition),
         ]
 
         for type_name, spec_fn in definitions:
@@ -42,3 +44,11 @@ class Command(BaseCommand):
             except DefinitionError as exc:
                 self.stdout.write(self.style.ERROR(f'FAILED: {exc}'))
                 raise CommandError(f'Failed to ensure definition for {type_name}: {exc}') from exc
+
+        self.stdout.write('Ensuring definition: glossary_term ... ', ending='')
+        try:
+            result = ensure_glossary_term_definition(client)
+            self.stdout.write(self.style.SUCCESS(f'OK ({result.type})'))
+        except DefinitionError as exc:
+            self.stdout.write(self.style.ERROR(f'FAILED: {exc}'))
+            raise CommandError(f'Failed to ensure definition for glossary_term: {exc}') from exc

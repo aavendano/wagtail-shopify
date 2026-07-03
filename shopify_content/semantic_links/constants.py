@@ -60,3 +60,28 @@ LEGACY_SEMANTIC_LINK_MODEL_NAMES = (
     'CollectionSemanticLink',
     'GlossarySemanticLink',
 )
+
+NATIVE_REFERENCE_RELATION_NAMES = (
+    'related_products',
+    'related_collections',
+    'related_glossary_terms',
+)
+
+NATIVE_REFERENCE_CONFIG = {
+    'related_products': {
+        'shopify_type': 'list.product_reference',
+        'metafield_key': 'related_products',
+        'metaobject_field_key': 'related_products',
+    },
+    'related_collections': {
+        'shopify_type': 'list.collection_reference',
+        'metafield_key': 'related_collections',
+        'metaobject_field_key': 'related_collections',
+    },
+    'related_glossary_terms': {
+        'shopify_type': 'list.metaobject_reference',
+        'metafield_key': 'related_glossary_terms',
+        'metaobject_field_key': 'related_glossary_terms',
+        'metaobject_definition_type': 'glossary_term',
+    },
+}
