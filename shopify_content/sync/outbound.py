@@ -22,7 +22,10 @@ translation group (including the page that triggered sync).
 
 import json
 import logging
+import mimetypes
+import os
 import re
+import requests
 from django.utils import timezone
 from django.utils.functional import SimpleLazyObject
 
@@ -39,6 +42,47 @@ from .mutations import (
 )
 
 logger = logging.getLogger(__name__)
+
+STAGED_UPLOADS_CREATE = """
+mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+  stagedUploadsCreate(input: $input) {
+    stagedTargets {
+      url
+      resourceUrl
+      parameters {
+        name
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+"""
+
+FILE_CREATE = """
+mutation fileCreate($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+      fileStatus
+      alt
+      ... on MediaImage {
+        image {
+          width
+          height
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+"""
 
 
 def _wagtail_field_value(value):
@@ -82,6 +126,115 @@ def _graphql_error_detail(result):
                 err.get("message", str(err)) for err in errors if isinstance(err, dict)
             )
     return result.log_detail or ""
+
+
+def _user_error_messages(user_errors):
+    return "; ".join(
+        error.get("message", str(error))
+        for error in user_errors
+        if isinstance(error, dict)
+    )
+
+
+def _upload_wagtail_image_to_shopify_file(shop, page) -> tuple[bool, str | None, str]:
+    """Upload a selected Wagtail image to Shopify Files and return its MediaImage GID."""
+    image = getattr(page, 'image', None)
+    if image is None:
+        return True, None, ''
+
+    image_file = getattr(image, 'file', None)
+    if image_file is None:
+        return False, None, 'Wagtail image has no file.'
+
+    filename = os.path.basename(getattr(image_file, 'name', '') or '')
+    if not filename:
+        filename = f'glossary-term-{page.pk}.jpg'
+    mime_type = mimetypes.guess_type(filename)[0] or 'image/jpeg'
+
+    result = execute_admin_graphql(
+        STAGED_UPLOADS_CREATE,
+        shop=shop,
+        variables={
+            'input': [{
+                'filename': filename,
+                'mimeType': mime_type,
+                'httpMethod': 'POST',
+                'resource': 'IMAGE',
+            }],
+        },
+    )
+    if not result.ok:
+        return False, None, _graphql_error_detail(result) or 'stagedUploadsCreate failed.'
+
+    payload = (result.data or {}).get('stagedUploadsCreate') or {}
+    user_errors = payload.get('userErrors') or []
+    if user_errors:
+        return False, None, _user_error_messages(user_errors)
+
+    targets = payload.get('stagedTargets') or []
+    if not targets:
+        return False, None, 'stagedUploadsCreate returned no staged target.'
+
+    target = targets[0]
+    parameters = {
+        item.get('name'): item.get('value')
+        for item in target.get('parameters') or []
+        if item.get('name')
+    }
+    try:
+        image_file.open('rb')
+        try:
+            upload_response = requests.post(
+                target['url'],
+                data=parameters,
+                files={'file': (filename, image_file, mime_type)},
+                timeout=60,
+            )
+        finally:
+            image_file.close()
+    except Exception as exc:
+        return False, None, f'Staged upload request failed: {exc}'
+
+    if not upload_response.ok:
+        return (
+            False,
+            None,
+            f'Staged upload failed with status {upload_response.status_code}.',
+        )
+
+    resource_url = target.get('resourceUrl')
+    if not resource_url:
+        return False, None, 'stagedUploadsCreate returned no resourceUrl.'
+
+    alt_text = getattr(page, 'image_alt_text', '') or getattr(image, 'title', '') or page.term
+    result = execute_admin_graphql(
+        FILE_CREATE,
+        shop=shop,
+        variables={
+            'files': [{
+                'alt': alt_text,
+                'contentType': 'IMAGE',
+                'originalSource': resource_url,
+                'filename': filename,
+            }],
+        },
+    )
+    if not result.ok:
+        return False, None, _graphql_error_detail(result) or 'fileCreate failed.'
+
+    payload = (result.data or {}).get('fileCreate') or {}
+    user_errors = payload.get('userErrors') or []
+    if user_errors:
+        return False, None, _user_error_messages(user_errors)
+
+    files = payload.get('files') or []
+    shopify_image_id = files[0].get('id') if files and isinstance(files[0], dict) else None
+    if not shopify_image_id:
+        return False, None, 'fileCreate returned no file id.'
+
+    type(page).objects.filter(pk=page.pk).update(shopify_image_id=shopify_image_id)
+    page.shopify_image_id = shopify_image_id
+    return True, shopify_image_id, ''
 
 
 def _article_mutation_fields(page):
@@ -910,6 +1063,12 @@ def _glossary_term_definition(glossary_definition_gid=None, *, include_self_refe
     base_fields = [
         MetaobjectFieldSpec(key='term', name='Term', type='single_line_text_field', required=True),
         MetaobjectFieldSpec(key='definition', name='Definition', type='rich_text_field'),
+        MetaobjectFieldSpec(
+            key='image',
+            name='Image',
+            type='file_reference',
+            validations=[{'name': 'file_type_options', 'value': ['Image']}],
+        ),
         MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
         MetaobjectFieldSpec(key='meta_title', name='Meta Title', type='single_line_text_field'),
         MetaobjectFieldSpec(key='meta_description', name='Meta Description', type='single_line_text_field'),
@@ -995,6 +1154,21 @@ def sync_glossary_term_page(page):
     }
     if _has_meaningful_sync_value(page.definition):
         data['definition'] = _wagtail_field_value(page.definition)
+
+    if getattr(page, 'image_id', None) and not page.shopify_image_id:
+        ok, shopify_image_id, message = _upload_wagtail_image_to_shopify_file(shop, page)
+        if not ok:
+            logger.error(
+                'GlossaryTermPage image upload failed pk=%s: %s',
+                page.pk,
+                message,
+            )
+            return False, f"Shopify image upload error: {message}"
+        if shopify_image_id:
+            page.shopify_image_id = shopify_image_id
+
+    if page.shopify_image_id:
+        data['image'] = page.shopify_image_id
     if page.locale_code:
         data['locale'] = page.locale_code
     for key, value in [

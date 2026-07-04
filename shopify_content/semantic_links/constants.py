@@ -64,6 +64,7 @@ LEGACY_SEMANTIC_LINK_MODEL_NAMES = (
 NATIVE_REFERENCE_RELATION_NAMES = (
     'related_products',
     'related_collections',
+    'related_articles',
     'related_glossary_terms',
 )
 
@@ -77,6 +78,11 @@ NATIVE_REFERENCE_CONFIG = {
         'shopify_type': 'list.collection_reference',
         'metafield_key': 'related_collections',
         'metaobject_field_key': 'related_collections',
+    },
+    'related_articles': {
+        'shopify_type': 'list.article_reference',
+        'metafield_key': 'related_articles',
+        'metaobject_field_key': 'related_articles',
     },
     'related_glossary_terms': {
         'shopify_type': 'list.metaobject_reference',

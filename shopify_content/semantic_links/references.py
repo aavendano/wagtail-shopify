@@ -13,9 +13,11 @@ from shopify_content.semantic_links.constants import (
 
 logger = logging.getLogger(__name__)
 
+
 REFERENCE_TYPE_TO_MODEL = {
     'product_reference': 'shopify_content.ProductPage',
     'collection_reference': 'shopify_content.CollectionPage',
+    'article_reference': 'shopify_content.ArticlePage',
     'metaobject_reference': 'shopify_content.GlossaryTermPage',
 }
 

@@ -11,6 +11,7 @@ from shopify_content.models import (
     ProductPage,
     ShopifyRootPage,
 )
+from shopify_content.models.blog import ArticlePage, BlogPage
 from shopify_content.semantic_links.references import (
     format_list_reference_value,
     page_to_shopify_gid,
@@ -64,6 +65,26 @@ class NativeReferenceResolutionTests(TestCase):
         self.root.add_child(instance=self.no_gid)
         self.no_gid.save_revision().publish()
 
+        self.blog = BlogPage(
+            title='Native Blog',
+            slug='native-blog',
+            handle='native-blog',
+            shopify_id='gid://shopify/Blog/1',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+
+        self.article = ArticlePage(
+            title='Native Article',
+            slug='native-article',
+            handle='native-article',
+            shopify_id='gid://shopify/Article/10',
+            locale=locale,
+        )
+        self.blog.add_child(instance=self.article)
+        self.article.save_revision().publish()
+
     def test_page_to_shopify_gid_returns_gid(self):
         self.assertEqual(
             page_to_shopify_gid(self.product),
@@ -108,10 +129,18 @@ class NativeReferenceResolutionTests(TestCase):
             is_auto=True,
             sort_order=0,
         )
+        self.product.related_articles.create(
+            related_page=self.article,
+            is_auto=True,
+            sort_order=1,
+        )
         refs = serialize_native_references(self.product)
         self.assertEqual(
             refs,
-            {'related_collections': ['gid://shopify/Collection/10']},
+            {
+                'related_collections': ['gid://shopify/Collection/10'],
+                'related_articles': ['gid://shopify/Article/10'],
+            },
         )
 
     def test_format_list_reference_value_json_encodes_gids(self):
@@ -141,6 +170,16 @@ class NativeReferenceResolutionTests(TestCase):
         self.assertEqual(
             resolved,
             format_list_reference_value(['gid://shopify/Product/2']),
+        )
+
+    def test_resolve_article_reference_value_from_handle(self):
+        resolved = resolve_metafield_reference_value(
+            'list.article_reference',
+            '["native-article"]',
+        )
+        self.assertEqual(
+            resolved,
+            format_list_reference_value(['gid://shopify/Article/10']),
         )
 
 
@@ -182,9 +221,35 @@ class PushNativeReferenceMetafieldsTests(TestCase):
             sort_order=0,
         )
 
+        self.blog = BlogPage(
+            title='Push Blog',
+            slug='push-blog',
+            handle='push-blog',
+            shopify_id='gid://shopify/Blog/200',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.blog)
+        self.blog.save_revision().publish()
+
+        self.article = ArticlePage(
+            title='Linked Article',
+            slug='linked-article',
+            handle='linked-article',
+            shopify_id='gid://shopify/Article/300',
+            locale=locale,
+        )
+        self.blog.add_child(instance=self.article)
+        self.article.save_revision().publish()
+
+        self.product.related_articles.create(
+            related_page=self.article,
+            is_auto=False,
+            sort_order=1,
+        )
+
     @override_settings(SEMANTIC_LINKS_NATIVE_REFS_ENABLED=True)
     @patch('shopify_content.sync.outbound._push_metafields', return_value=True)
-    def test_push_native_reference_metafields_emits_list_product_reference(
+    def test_push_native_reference_metafields_emits_reference_inputs(
         self, mock_push,
     ):
         ok = _push_native_reference_metafields(
@@ -195,13 +260,19 @@ class PushNativeReferenceMetafieldsTests(TestCase):
         self.assertTrue(ok)
         mock_push.assert_called_once()
         inputs = mock_push.call_args.args[1]
-        self.assertEqual(len(inputs), 1)
-        self.assertEqual(inputs[0]['namespace'], 'custom')
-        self.assertEqual(inputs[0]['key'], 'related_products')
-        self.assertEqual(inputs[0]['type'], 'list.product_reference')
+        by_key = {item['key']: item for item in inputs}
+        self.assertEqual(set(by_key), {'related_products', 'related_articles'})
+        self.assertEqual(by_key['related_products']['namespace'], 'custom')
+        self.assertEqual(by_key['related_products']['type'], 'list.product_reference')
         self.assertEqual(
-            json.loads(inputs[0]['value']),
+            json.loads(by_key['related_products']['value']),
             ['gid://shopify/Product/200'],
+        )
+        self.assertEqual(by_key['related_articles']['namespace'], 'custom')
+        self.assertEqual(by_key['related_articles']['type'], 'list.article_reference')
+        self.assertEqual(
+            json.loads(by_key['related_articles']['value']),
+            ['gid://shopify/Article/300'],
         )
 
     @override_settings(SEMANTIC_LINKS_NATIVE_REFS_ENABLED=False)
@@ -245,6 +316,12 @@ class PushNativeReferenceMetafieldsTests(TestCase):
             and any(item.get('type') == 'list.product_reference' for item in call.args[1])
         ]
         self.assertEqual(len(native_calls), 1)
+        self.assertTrue(
+            any(
+                item.get('type') == 'list.article_reference'
+                for item in native_calls[0].args[1]
+            )
+        )
 
 
 class CollectInlineMetafieldsReferenceTests(TestCase):

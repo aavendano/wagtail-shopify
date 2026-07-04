@@ -47,6 +47,10 @@ def _apply_glossary_fields(page: GlossaryTermPage, data, *, is_create: bool = Fa
         page.locale_code = data.locale_code or 'en'
         page.seo_title = data.seo_title or ''
         page.search_description = data.search_description or ''
+        if data.image_id:
+            page.image_id = data.image_id
+        page.image_alt_text = data.image_alt_text or ''
+        page.shopify_image_id = data.shopify_image_id or ''
         page.external_links = _serialize_links(data.external_links)
         page.synonyms = data.synonyms or []
         page.same_as = data.same_as or []
@@ -74,6 +78,12 @@ def _apply_glossary_fields(page: GlossaryTermPage, data, *, is_create: bool = Fa
             page.same_as = data.same_as
         if data.definition is not None:
             page.definition = data.definition
+        if data.image_id is not None:
+            page.image_id = data.image_id
+        if data.image_alt_text is not None:
+            page.image_alt_text = data.image_alt_text
+        if data.shopify_image_id is not None:
+            page.shopify_image_id = data.shopify_image_id
         if data.seo_title is not None:
             page.seo_title = data.seo_title
         if data.search_description is not None:
@@ -97,7 +107,7 @@ def list_glossary_terms(
     offset: int = 0,
 ):
     """Discover Wagtail glossary terms before push."""
-    qs = GlossaryTermPage.objects.select_related('locale')
+    qs = GlossaryTermPage.objects.select_related('locale', 'image')
     if live_only:
         qs = qs.live()
     qs = filter_queryset_by_locale(qs, locale)
@@ -157,7 +167,7 @@ def create_glossary_term(request, data: GlossaryTermIn):
 def get_glossary_term(request, page_id: int):
     """Get single glossary term by Wagtail page ID."""
     try:
-        page = GlossaryTermPage.objects.select_related('locale').get(pk=page_id)
+        page = GlossaryTermPage.objects.select_related('locale', 'image').get(pk=page_id)
         return page
     except GlossaryTermPage.DoesNotExist:
         return 404, {"detail": f"Glossary term page {page_id} not found."}
@@ -174,7 +184,7 @@ def get_glossary_term(request, page_id: int):
 def update_glossary_term(request, page_id: int, data: GlossaryTermPatch):
     """Partially update glossary term; publish=true optional before push."""
     try:
-        page = GlossaryTermPage.objects.select_related('locale').get(pk=page_id)
+        page = GlossaryTermPage.objects.select_related('locale', 'image').get(pk=page_id)
     except GlossaryTermPage.DoesNotExist:
         return 404, {"detail": f"Glossary term page {page_id} not found."}
 

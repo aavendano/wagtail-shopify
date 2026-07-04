@@ -5,6 +5,7 @@ from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
 from shopify_content.models import GlossaryTermPage, ProductPage, ShopifyRootPage
+from shopify_content.models.blog import ArticlePage, BlogPage
 from shopify_content.sync.outbound import (
     _glossary_term_definition,
     ensure_glossary_term_definition,
@@ -21,10 +22,10 @@ class GlossaryTermDefinitionTests(TestCase):
         self.assertEqual(
             field_keys,
             {
-                'term', 'definition', 'locale', 'meta_title', 'meta_description',
+                'term', 'definition', 'image', 'locale', 'meta_title', 'meta_description',
                 'related_links', 'external_links',
                 'synonyms', 'same_as',
-                'related_products', 'related_collections',
+                'related_products', 'related_collections', 'related_articles',
             },
         )
 
@@ -54,6 +55,20 @@ class GlossaryTermDefinitionTests(TestCase):
         self.assertEqual(
             glossary_field.validations,
             [{'name': 'metaobject_definition_id', 'value': gid}],
+        )
+
+    def test_native_reference_fields_include_article_reference(self):
+        fields = _glossary_term_definition().fields
+        article_field = next(f for f in fields if f.key == 'related_articles')
+        self.assertEqual(article_field.type, 'list.article_reference')
+
+    def test_definition_includes_image_field_with_image_validation(self):
+        fields = _glossary_term_definition().fields
+        image_field = next(f for f in fields if f.key == 'image')
+        self.assertEqual(image_field.type, 'file_reference')
+        self.assertEqual(
+            image_field.validations,
+            [{'name': 'file_type_options', 'value': ['Image']}],
         )
 
 
@@ -125,6 +140,7 @@ class SyncGlossaryTermPageTests(TestCase):
             title='Vibrator',
             term='Vibrator',
             definition='<p>A device that vibrates.</p>',
+            shopify_image_id='gid://shopify/MediaImage/10',
             locale_code='en',
             slug='vibrator',
             locale=Locale.get_default(),
@@ -141,6 +157,7 @@ class SyncGlossaryTermPageTests(TestCase):
         self.assertEqual(data['term'], 'Vibrator')
         self.assertEqual(data['locale'], 'en')
         self.assertEqual(data['definition'], '<p>A device that vibrates.</p>')
+        self.assertEqual(data['image'], 'gid://shopify/MediaImage/10')
         self.assertEqual(data['meta_title'], 'Vibrator')
         self.assertEqual(data['meta_description'], 'A device that vibrates.')
 
@@ -283,6 +300,26 @@ class SyncGlossaryTermPageTests(TestCase):
         root.add_child(instance=target)
         target.save_revision().publish()
 
+        blog = BlogPage(
+            title='Linked Blog',
+            slug='linked-blog',
+            handle='linked-blog',
+            shopify_id='gid://shopify/Blog/99',
+            locale=locale,
+        )
+        root.add_child(instance=blog)
+        blog.save_revision().publish()
+
+        article = ArticlePage(
+            title='Linked Article',
+            slug='linked-article',
+            handle='linked-article',
+            shopify_id='gid://shopify/Article/99',
+            locale=locale,
+        )
+        blog.add_child(instance=article)
+        article.save_revision().publish()
+
         mock_client = MagicMock()
         mock_client.sync.return_value = Metaobject(
             type='glossary_term',
@@ -300,12 +337,14 @@ class SyncGlossaryTermPageTests(TestCase):
         self.parent.add_child(instance=page)
         page.save_revision().publish()
         page.related_products.create(related_page=target, is_auto=False, sort_order=0)
+        page.related_articles.create(related_page=article, is_auto=False, sort_order=1)
 
         success, _ = sync_glossary_term_page(page)
 
         self.assertTrue(success)
         data = mock_client.sync.call_args.args[0]
         self.assertEqual(data['related_products'], ['gid://shopify/Product/99'])
+        self.assertEqual(data['related_articles'], ['gid://shopify/Article/99'])
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_skips_empty_json_fields(self, mock_client_cls):

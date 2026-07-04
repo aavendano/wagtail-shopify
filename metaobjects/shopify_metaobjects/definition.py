@@ -114,6 +114,11 @@ class MetaobjectDefinitionSpec:
                 name='Related Collections',
                 type='list.collection_reference',
             ),
+            MetaobjectFieldSpec(
+                key='related_articles',
+                name='Related Articles',
+                type='list.article_reference',
+            ),
         ]
         if glossary_definition_gid:
             fields.append(

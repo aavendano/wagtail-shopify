@@ -55,6 +55,22 @@ class GlossaryTermIn(LocaleCreateFields):
         ),
     )
     definition: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
+    image_id: Optional[int] = Field(
+        None,
+        description="Wagtail Image ID for the glossary term image.",
+    )
+    image_alt_text: Optional[str] = Field(
+        None,
+        description="Alt text for the glossary term image.",
+        max_length=255,
+    )
+    shopify_image_id: Optional[str] = Field(
+        None,
+        description=(
+            "Shopify File/MediaImage GID used for the metaobject image file_reference field. "
+            "Required to push image to Shopify unless an upload flow has already populated it."
+        ),
+    )
     seo_title: Optional[str] = Field(
         None,
         description=SEO_TITLE_DESCRIPTION,
@@ -102,6 +118,16 @@ class GlossaryTermPatch(LocalePatchFields):
     shopify_id: Optional[str] = Field(None, description="Set or update Shopify metaobject GID.")
     handle: Optional[str] = Field(None, description="Update metaobject handle; slug updated to match.")
     definition: Optional[str] = Field(None, description=RICH_TEXT_DESCRIPTION)
+    image_id: Optional[int] = Field(None, description="Update Wagtail image ID.")
+    image_alt_text: Optional[str] = Field(
+        None,
+        description="Update image alt text.",
+        max_length=255,
+    )
+    shopify_image_id: Optional[str] = Field(
+        None,
+        description="Update Shopify File/MediaImage GID for the metaobject image field.",
+    )
     seo_title: Optional[str] = Field(
         None,
         description=SEO_TITLE_DESCRIPTION,
@@ -149,6 +175,13 @@ class GlossaryTermOut(LocaleOutFields):
     handle: str = Field(..., description="Shopify metaobject handle.")
     slug: str = Field(..., description="Wagtail page slug.")
     definition: str = Field(..., description="Definition HTML.")
+    image_id: Optional[int] = Field(None, description="Wagtail Image ID for the glossary term image.")
+    image_url: Optional[str] = Field(None, description="Wagtail image URL if an image is selected.")
+    image_alt_text: str = Field('', description="Alt text for the glossary term image.")
+    shopify_image_id: str = Field(
+        '',
+        description="Shopify File/MediaImage GID synced to the metaobject image field.",
+    )
     seo_title: str = Field(..., description=SEO_TITLE_DESCRIPTION)
     search_description: str = Field(..., description=SEO_DESCRIPTION_DESCRIPTION)
     locale_code: str = Field(..., description="Shopify locale pushed on sync (en/es/fr).")
@@ -196,6 +229,19 @@ class GlossaryTermOut(LocaleOutFields):
     @staticmethod
     def resolve_definition(obj):
         return GlossaryTermOut._expand_richtext(obj.definition)
+
+    @staticmethod
+    def resolve_image_id(obj):
+        return obj.image_id
+
+    @staticmethod
+    def resolve_image_url(obj):
+        if not obj.image:
+            return None
+        try:
+            return obj.image.file.url
+        except Exception:
+            return None
 
     @staticmethod
     def resolve_related_links(obj):

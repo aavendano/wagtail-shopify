@@ -390,7 +390,12 @@ class MetaobjectClientTests(TestCase):
         ]
         self.assertEqual(
             created_keys,
-            ["related_products", "related_collections", "related_glossary_terms"],
+            [
+                "related_products",
+                "related_collections",
+                "related_articles",
+                "related_glossary_terms",
+            ],
         )
         glossary_field = next(
             item["create"]

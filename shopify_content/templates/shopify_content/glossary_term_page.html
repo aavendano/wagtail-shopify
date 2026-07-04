@@ -1,8 +1,12 @@
 {% extends "wagtailcore/page.html" %}
-{% load semantic_links %}
+{% load semantic_links wagtailimages_tags %}
 
 {% block content %}
 <h1>{{ page.term }}</h1>
+{% if page.image %}
+{% image page.image original as glossary_image %}
+<img src="{{ glossary_image.url }}" alt="{{ page.image_alt_text|default:page.term }}" loading="lazy">
+{% endif %}
 {% if page.definition %}
 <div>{{ page.definition|richtext }}</div>
 {% endif %}

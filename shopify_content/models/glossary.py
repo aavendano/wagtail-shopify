@@ -4,7 +4,7 @@ from django.utils.html import strip_tags
 from wagtail.models import Page
 from wagtail.fields import RichTextField
 from wagtail.admin.panels import (
-    FieldPanel, ObjectList, TabbedInterface,
+    FieldPanel, MultiFieldPanel, ObjectList, TabbedInterface,
 )
 from wagtail.search import index
 from wagtail.rich_text import expand_db_html
@@ -45,6 +45,24 @@ class GlossaryTermPage(Page):
     definition = RichTextField(
         blank=True,
         features=['bold', 'italic', 'link', 'ol', 'ul', 'h2', 'h3'],
+    )
+    image = models.ForeignKey(
+        'wagtailimages.Image',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='+',
+        help_text='Manual Wagtail image for the glossary term.',
+    )
+    image_alt_text = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Alt text for the glossary image.',
+    )
+    shopify_image_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text='Shopify File/MediaImage GID used for the metaobject image field.',
     )
     locale_code = models.CharField(
         max_length=10,
@@ -88,6 +106,11 @@ class GlossaryTermPage(Page):
     content_panels = [
         FieldPanel('term'),
         FieldPanel('definition'),
+        FieldPanel('image'),
+        MultiFieldPanel([
+            FieldPanel('image_alt_text'),
+            FieldPanel('shopify_image_id'),
+        ], heading='Shopify Image'),
         FieldPanel('locale_code'),
         *semantic_links_panels().children,
         FieldPanel('external_links'),
