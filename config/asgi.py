@@ -14,4 +14,10 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-application = get_asgi_application()
+django_application = get_asgi_application()
+
+import api.main  # noqa: F401 — initialize MCP server before middleware handles requests
+
+from api.mcp_asgi import MCPStreamableHTTPMiddleware  # noqa: E402
+
+application = MCPStreamableHTTPMiddleware(django_application)
