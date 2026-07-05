@@ -1,0 +1,39 @@
+---
+description: Convención para planes y progreso versionados
+globs: ".cursor/plans/**"
+alwaysApply: false
+---
+
+# Convención de planes
+
+## Ubicación
+
+- Planes: `.cursor/plans/<nombre>.plan.md` (kebab-case)
+- Plan activo: `.cursor/plans/active.plan.md`
+- Ledger global: `PROGRESS.md` en raíz del repo
+
+## Formato de plan
+
+```markdown
+---
+name: Nombre corto
+overview: Una línea
+active: true
+created: YYYY-MM-DD
+---
+
+# Título
+
+## Fases
+- [ ] Fase 1 — Descripción
+- [x] Fase 2 — Completada
+```
+
+## Al completar una fase
+
+1. Marcar checkbox `- [x]` en el `.plan.md`
+2. Actualizar `PROGRESS.md`: última fase, siguiente paso, fila en historial
+
+## Flujo Plan Mode
+
+Save to workspace → commit plan + PROGRESS → retomar con `/continue-work`

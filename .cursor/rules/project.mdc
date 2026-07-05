@@ -1,0 +1,40 @@
+---
+description: Convenciones core del proyecto wagtail-shopify
+alwaysApply: true
+---
+
+# wagtail-shopify
+
+Shopify Embedded App (Django + Wagtail) — CMS headless single-tenant para una tienda Shopify.
+
+## Stack y apps
+
+| App | Rol |
+|-----|-----|
+| `core` | OAuth, ShopConfig, middleware |
+| `shopify_content` | Páginas Wagtail sincronizadas a Shopify |
+| `shopify_requests` | Cliente GraphQL centralizado |
+| `metaobjects` | Toolkit metaobjetos Shopify |
+| `api` | API django-ninja para agentes AI |
+| `webhooks` | Receptores webhooks Shopify |
+
+## Comandos habituales
+
+```bash
+make test                              # pytest
+.venv/bin/python manage.py migrate
+```
+
+## Convenciones de trabajo
+
+- Planes en `.cursor/plans/`; progreso en `PROGRESS.md`
+- Plan activo: `.cursor/plans/active.plan.md`
+- Respuestas en español
+- Diff mínimo; reutilizar patrones existentes; no over-engineer
+- Commits solo cuando el usuario lo pida explícitamente
+
+## Docs clave
+
+- `README.md` — arquitectura y setup
+- `docs/shopify_content.md` — modelos y sync
+- `docs/api-agents.md` — API y MCP para agentes

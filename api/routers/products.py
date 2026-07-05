@@ -40,9 +40,6 @@ def list_products(
     offset: int = 0,
 ):
     """Discover products before read/update."""
-    # #region agent log
-    import json, time
-    # #endregion
     qs = ProductPage.objects.select_related('locale').prefetch_related(
         'metafields', 'tagged_items__tag', 'shopify_images'
     )
@@ -52,10 +49,6 @@ def list_products(
     if status:
         qs = qs.filter(status=status)
     pages = list(qs[offset:offset + limit])
-    # #region agent log
-    with open('/home/alejandro/apps/wagtail-shopify/.cursor/debug-fdc58d.log', 'a', encoding='utf-8') as _f:
-        _f.write(json.dumps({'sessionId':'fdc58d','hypothesisId':'C','location':'products.py:list_products','message':'list_products returning pages','data':{'count':len(pages),'offset':offset,'limit':limit},'timestamp':int(time.time()*1000),'runId':'post-fix'})+'\n')
-    # #endregion
     return pages
 
 

@@ -99,6 +99,7 @@ Caddyfile
 .vscode/
 staticfiles/
 .cursor/settings.json
+.cursor/debug-*.log
 .claude/
 shopify.app.toml
 deploy/wagtail-shopify-celery-beat.service

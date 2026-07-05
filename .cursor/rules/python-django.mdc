@@ -1,0 +1,31 @@
+---
+description: Patrones Python/Django/Wagtail del proyecto
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python / Django / Wagtail
+
+## Tests
+
+- Framework: pytest (`bin/pytest`, `make test`)
+- Settings de test: `config/settings_test.py`
+- Colocar tests junto a la app: `shopify_content/tests/`, `api/tests/`
+
+## Sync
+
+- **Admin Wagtail:** publish encola sync outbound vía Celery (`shopify_content/sync/outbound.py`)
+- **API REST:** operaciones 100% síncronas; respuesta HTTP contiene resultado final
+- Single-tenant: `shop` desde `ShopConfig.objects.first().shop`
+
+## API para agentes
+
+- Fuente de verdad de capacidades: `api/agent_registry.py`
+- Routers en `api/routers/`; schemas en `api/schemas/`
+- MCP en `api/mcp_asgi.py` — requiere Daphne (ASGI)
+
+## Patrones al implementar
+
+- Heredar de `ShopifyPageMixin` para páginas con sync
+- Nuevos endpoints: registrar en `agent_registry.py` con `x-agent-*` metadata
+- Management commands en `shopify_content/management/commands/`
