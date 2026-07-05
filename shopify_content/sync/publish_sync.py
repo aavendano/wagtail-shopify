@@ -15,6 +15,7 @@ def get_syncable_page_types():
         GlossaryTermPage,
         LocationPage,
         ProductPage,
+        ShopifyRootPage,
     )
 
     return (
@@ -24,6 +25,7 @@ def get_syncable_page_types():
         ArticlePage,
         LocationPage,
         GlossaryTermPage,
+        ShopifyRootPage,
     )
 
 

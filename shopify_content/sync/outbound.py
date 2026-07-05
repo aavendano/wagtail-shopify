@@ -43,6 +43,19 @@ from .mutations import (
 
 logger = logging.getLogger(__name__)
 
+
+def _queue_index_sync_after_content_sync(page) -> None:
+    """Rebuild glossary/location index JSON after metaobject sync sets shopify_id."""
+    from django.db import transaction
+
+    from shopify_content.export_config.registry import queue_index_sync_for_content_page
+
+    def dispatch():
+        queue_index_sync_for_content_page(page)
+
+    transaction.on_commit(dispatch)
+
+
 STAGED_UPLOADS_CREATE = """
 mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
   stagedUploadsCreate(input: $input) {
@@ -330,7 +343,12 @@ def _push_metafields(shop, metafield_inputs):
         variables={'metafields': metafield_inputs},
     )
     if not result.ok:
-        logger.error('metafieldsSet failed shop=%s error=%s', shop, result.error_code)
+        logger.error(
+            'metafieldsSet failed shop=%s error=%s detail=%s',
+            shop,
+            result.error_code,
+            result.log_detail,
+        )
         return False
     user_errors = (result.data or {}).get('metafieldsSet', {}).get('userErrors', [])
     if user_errors:
@@ -631,6 +649,8 @@ def sync_product_page(page):
     _push_internal_links_metafield(shop, shopify_id, primary)
     _push_native_reference_metafields(shop, shopify_id, primary)
     _push_hreflang_metafields(page, shop, shopify_id)
+    from shopify_content.sync.theme_config import push_theme_config_metafields
+    push_theme_config_metafields(shop, primary, shopify_id)
     _register_shopify_translations(
         page, shop, shopify_id,
         {
@@ -688,6 +708,8 @@ def sync_collection_page(page):
     _push_internal_links_metafield(shop, shopify_id, primary)
     _push_native_reference_metafields(shop, shopify_id, primary)
     _push_hreflang_metafields(page, shop, shopify_id)
+    from shopify_content.sync.theme_config import push_theme_config_metafields
+    push_theme_config_metafields(shop, primary, shopify_id)
     _register_shopify_translations(
         page, shop, shopify_id,
         {
@@ -1051,7 +1073,100 @@ def sync_location_page(page):
         type(page).objects.filter(pk=page.pk).update(**updates)
 
     _mark_synced(type(page), page.pk)
+    _queue_index_sync_after_content_sync(page)
     return True, "Location synced to Shopify metaobject successfully."
+
+
+def _root_page_definition():
+    """Build MetaobjectDefinitionSpec for merchant-owned root_page type."""
+    from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
+
+    return MetaobjectDefinitionSpec(
+        type='root_page',
+        name='Root Page',
+        description='Wagtail ShopifyRootPage configuration exported to Shopify',
+        display_name_field='title',
+        capabilities={
+            'publishable': {'enabled': True},
+            'renderable': {'enabled': True, 'data': {
+                'metaTitleKey': 'meta_title',
+                'metaDescriptionKey': 'meta_description',
+            }},
+        },
+        access={'storefront': 'PUBLIC_READ'},
+        fields=[
+            MetaobjectFieldSpec(key='title', name='Title', type='single_line_text_field', required=True),
+            MetaobjectFieldSpec(key='slug', name='Slug', type='single_line_text_field', required=True),
+            MetaobjectFieldSpec(key='resource_type', name='Resource Type', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='config', name='Config', type='json'),
+            MetaobjectFieldSpec(key='meta_title', name='Meta Title', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='meta_description', name='Meta Description', type='single_line_text_field'),
+        ],
+    )
+
+
+def ensure_root_page_definition(client):
+    """Ensure root_page metaobject definition exists in Shopify."""
+    return client.ensure_definition(_root_page_definition())
+
+
+def sync_shopify_root_page(page):
+    """
+    Push ShopifyRootPage → Shopify merchant-owned metaobject (type: root_page).
+
+    Returns (success, message).
+    """
+    if not page.sync_enabled:
+        return False, "Sync disabled: enable sync_enabled on this Shopify root page."
+
+    try:
+        shop = _get_shop()
+    except RuntimeError as exc:
+        return False, str(exc)
+
+    handle = page.handle or page.slug
+    if not handle:
+        logger.error('ShopifyRootPage sync aborted pk=%s: slug is required', page.pk)
+        return False, "Sync aborted: slug is required."
+
+    if not _has_meaningful_sync_value(page.title):
+        logger.error('ShopifyRootPage sync aborted pk=%s: title is required', page.pk)
+        return False, "Sync aborted: title is required."
+
+    data: dict = {
+        'handle': handle,
+        'title': str(_wagtail_field_value(page.title)).strip(),
+        'slug': page.slug,
+        'resource_type': page.get_resource_type(),
+        'config': page.export_config or {},
+    }
+    for key, value in [
+        ('meta_title', page.get_seo_title()),
+        ('meta_description', page.get_seo_description()),
+    ]:
+        if _has_meaningful_sync_value(value):
+            data[key] = _wagtail_field_value(value)
+
+    from metaobjects.shopify_metaobjects.client import MetaobjectClient
+    from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
+
+    client = MetaobjectClient(shop=shop)
+    definition = ensure_root_page_definition(client)
+    spec = _root_page_definition()
+
+    try:
+        result = client.sync(data, definition=spec, ensure_definition=True, validate=False)
+    except (DefinitionError, UpsertError) as exc:
+        detail = str(exc)
+        logger.error('ShopifyRootPage sync failed pk=%s: %s', page.pk, detail)
+        return False, f"Shopify metaobject error: {detail}"
+
+    if result.id and not page.shopify_id:
+        type(page).objects.filter(pk=page.pk).update(shopify_id=result.id)
+        page.shopify_id = result.id
+
+    _mark_synced(type(page), page.pk)
+    return True, "Shopify root page synced to Shopify metaobject successfully."
 
 
 def _glossary_term_definition(glossary_definition_gid=None, *, include_self_reference=True):
@@ -1214,4 +1329,5 @@ def sync_glossary_term_page(page):
         page.shopify_id = result.id
 
     _mark_synced(type(page), page.pk)
+    _queue_index_sync_after_content_sync(page)
     return True, "Glossary term synced to Shopify metaobject successfully."

@@ -17,6 +17,7 @@ from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.exceptions import DefinitionError
 from shopify_content.sync.outbound import (
     _location_page_definition,
+    _root_page_definition,
     ensure_glossary_term_definition,
 )
 
@@ -34,6 +35,7 @@ class Command(BaseCommand):
 
         definitions = [
             ('local_page', _location_page_definition),
+            ('root_page', _root_page_definition),
         ]
 
         for type_name, spec_fn in definitions:

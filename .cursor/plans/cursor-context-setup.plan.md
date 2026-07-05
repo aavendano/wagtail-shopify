@@ -1,8 +1,9 @@
 ---
 name: cursor-context-setup
 overview: Bootstrap de contexto persistente — rules, skills y convención de planes
-active: true
+active: false
 created: 2026-07-05
+completed: 2026-07-05
 ---
 
 # Contexto persistente en el repo

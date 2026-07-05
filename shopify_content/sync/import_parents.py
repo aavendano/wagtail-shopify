@@ -36,6 +36,13 @@ IMPORT_ROOT_TITLE = {
     'glossary': 'Glossary',
 }
 
+SLUG_TO_RESOURCE_TYPE = {slug: resource for resource, slug in IMPORT_ROOT_SLUG.items()}
+
+
+def resource_type_for_root_slug(slug: str) -> str:
+    """Map Wagtail ShopifyRootPage slug to export resource_type (e.g. glossary → glossary)."""
+    return SLUG_TO_RESOURCE_TYPE.get(slug, slug)
+
 
 def _get_site_home_page() -> Page:
     """Return the default Wagtail site home page."""

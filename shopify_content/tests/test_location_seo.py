@@ -66,12 +66,12 @@ class SyncLocationPageSeoTests(TestCase):
 
         self.assertTrue(success)
         mock_client.sync.assert_called_once()
-        data = mock_client.sync.call_args.kwargs['data']
+        data = mock_client.sync.call_args.args[0]
         self.assertEqual(data['meta_titulo'], 'Austin SEO Title')
         self.assertEqual(data['meta_descripcion'], 'Austin meta description')
         self.assertEqual(data['handle'], 'en-us-austin-texas')
         self.assertEqual(data['slug'], 'en-us-austin-texas')
-        self.assertIsNone(mock_client.sync.call_args.kwargs['existing_id'])
+        self.assertIsNone(mock_client.sync.call_args.kwargs.get('existing_id'))
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_updates_existing_metaobject_when_handle_changes(self, mock_client_cls):
@@ -100,7 +100,7 @@ class SyncLocationPageSeoTests(TestCase):
         self.assertTrue(success)
         kwargs = mock_client.sync.call_args.kwargs
         self.assertEqual(kwargs['existing_id'], 'gid://shopify/Metaobject/1')
-        self.assertEqual(kwargs['data']['handle'], 'en-us-austin')
+        self.assertEqual(mock_client.sync.call_args.args[0]['handle'], 'en-us-austin')
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_resolves_legacy_handle_without_shopify_id(self, mock_client_cls):
@@ -127,6 +127,8 @@ class SyncLocationPageSeoTests(TestCase):
         )
         self.parent.add_child(instance=page)
         page.save_revision().publish()
+        LocationPage.objects.filter(pk=page.pk).update(handle='austin')
+        page.refresh_from_db()
 
         success, _ = sync_location_page(page)
 
@@ -179,6 +181,6 @@ class SyncLocationPageSeoTests(TestCase):
         success, _ = sync_location_page(page)
 
         self.assertTrue(success)
-        data = mock_client.sync.call_args.kwargs['data']
+        data = mock_client.sync.call_args.args[0]
         self.assertEqual(data['meta_titulo'], 'Denver')
         self.assertEqual(data['meta_descripcion'], 'Colorado location')

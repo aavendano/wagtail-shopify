@@ -16,7 +16,9 @@ class PublishSyncSignalTests(TestCase):
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
-        self.parent = ShopifyRootPage(title='Root', slug='root', locale=locale)
+        self.parent = ShopifyRootPage(
+            title='Root', slug='root', locale=locale, sync_enabled=False,
+        )
         home.add_child(instance=self.parent)
         self.parent.save_revision().publish()
 
@@ -31,7 +33,8 @@ class PublishSyncSignalTests(TestCase):
             sync_enabled=True,
         )
         self.parent.add_child(instance=page)
-        page.save_revision().publish()
+        with self.captureOnCommitCallbacks(execute=True):
+            page.save_revision().publish()
 
         sync_run = ShopifySyncRun.objects.filter(
             page=page,
@@ -41,7 +44,7 @@ class PublishSyncSignalTests(TestCase):
         self.assertEqual(sync_run.status, ShopifySyncRun.STATUS_SUCCESS)
         mock_sync.assert_called_once()
 
-    @patch('shopify_content.sync.task_dispatch.enqueue_page_outbound_sync')
+    @patch('shopify_content.sync.publish_sync.enqueue_page_outbound_sync')
     def test_bulk_publish_path_calls_enqueue_via_page_published(self, mock_enqueue):
         sync_run = ShopifySyncRun.objects.create(
             kind=ShopifySyncRun.KIND_OUTBOUND,
@@ -89,7 +92,9 @@ class BulkPublishTransactionTests(TransactionTestCase):
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
-        self.parent = ShopifyRootPage(title='Root', slug='root', locale=locale)
+        self.parent = ShopifyRootPage(
+            title='Root', slug='root', locale=locale, sync_enabled=False,
+        )
         home.add_child(instance=self.parent)
         self.parent.save_revision().publish()
 

@@ -80,6 +80,7 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         ArticlePage,
         LocationPage,
         GlossaryTermPage,
+        ShopifyRootPage,
     )
     from shopify_content.sync.outbound import (
         sync_product_page,
@@ -88,6 +89,7 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         sync_article_page,
         sync_location_page,
         sync_glossary_term_page,
+        sync_shopify_root_page,
     )
 
     sync_run = _get_sync_run(sync_run_id)
@@ -100,6 +102,7 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         ArticlePage: sync_article_page,
         LocationPage: sync_location_page,
         GlossaryTermPage: sync_glossary_term_page,
+        ShopifyRootPage: sync_shopify_root_page,
     }
 
     try:
@@ -168,6 +171,22 @@ def backfill_semantic_links_task(
         update_revision=True,
         skip_publish_signals=True,
     )
+
+
+@shared_task(bind=True, name='shopify_content.tasks.sync_glossary_index_task')
+def sync_glossary_index_task(self, locale_codes=None, dry_run=False):
+    """Rebuild and push glossary index metafields to configured Shopify Pages."""
+    from shopify_content.sync.glossary_index import sync_glossary_index_pages
+
+    return sync_glossary_index_pages(locale_codes=locale_codes, dry_run=dry_run)
+
+
+@shared_task(bind=True, name='shopify_content.tasks.sync_location_index_task')
+def sync_location_index_task(self, locale_codes=None, dry_run=False):
+    """Rebuild and push location index metafields to configured Shopify Pages."""
+    from shopify_content.sync.location_index import sync_location_index_pages
+
+    return sync_location_index_pages(locale_codes=locale_codes, dry_run=dry_run)
 
 
 @shared_task(name='shopify_content.tasks.scheduled_import_new_content')

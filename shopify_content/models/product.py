@@ -106,6 +106,16 @@ class ProductPage(Page):
     )
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
+    theme_config = models.JSONField(
+        default=dict,
+        blank=True,
+        db_default={},
+        help_text=(
+            'Theme storefront overrides pushed as Shopify metafields on sync. '
+            'Schema: {"metafields": [{"namespace": "custom", "key": "...", "type": "json", "value": "..."}]}'
+        ),
+    )
+
     # Product-specific fields
     vendor = models.CharField(max_length=255, blank=True)
     product_type = models.CharField(max_length=255, blank=True)
@@ -165,9 +175,14 @@ class ProductPage(Page):
     edit_handler = TabbedInterface([
         ObjectList(content_panels, heading='Content'),
         ObjectList(promote_panels, heading='SEO / Promote'),
-        ObjectList(SHOPIFY_SYNC_PANELS, heading='Shopify'),
+        ObjectList(SHOPIFY_SYNC_PANELS + [FieldPanel('theme_config')], heading='Shopify'),
         ObjectList(Page.settings_panels, heading='Settings'),
     ])
+
+    def save(self, **kwargs):
+        if self.theme_config is None:
+            self.theme_config = {}
+        super().save(**kwargs)
 
     class Meta:
         verbose_name = 'Product Page'

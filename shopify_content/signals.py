@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from wagtail.signals import copy_for_translation_done, page_published
+from wagtail.signals import copy_for_translation_done, page_published, page_unpublished
 
 from shopify_content.sync.publish_sync import get_syncable_page_types, queue_shopify_sync_on_publish
 
@@ -58,6 +58,24 @@ def _on_copy_for_translation_done(sender, source_obj, target_obj, **kwargs):
     specific.sync_enabled = True
 
 
+def _on_glossary_term_changed(sender, instance, **kwargs):
+    from shopify_content.export_config.registry import on_content_page_changed
+
+    on_content_page_changed(instance)
+
+
+def _on_location_page_changed(sender, instance, **kwargs):
+    from shopify_content.export_config.registry import on_content_page_changed
+
+    on_content_page_changed(instance)
+
+
+def _on_export_root_published(sender, instance, **kwargs):
+    from shopify_content.export_config.registry import on_root_published
+
+    on_root_published(instance)
+
+
 def register_publish_signals():
     handler = _on_page_published
     for model in get_syncable_page_types():
@@ -75,6 +93,24 @@ def register_publish_signals():
             sender=model,
             dispatch_uid=f'shopify_content_semantic_links_on_publish_{model._meta.label_lower}',
         )
+
+    from shopify_content.models import GlossaryTermPage, LocationPage, ShopifyRootPage
+
+    page_unpublished.connect(
+        _on_glossary_term_changed,
+        sender=GlossaryTermPage,
+        dispatch_uid='shopify_content_glossary_index_on_term_unpublish',
+    )
+    page_unpublished.connect(
+        _on_location_page_changed,
+        sender=LocationPage,
+        dispatch_uid='shopify_content_location_index_on_unpublish',
+    )
+    page_published.connect(
+        _on_export_root_published,
+        sender=ShopifyRootPage,
+        dispatch_uid='shopify_content_export_config_on_root_publish',
+    )
 
     copy_for_translation_done.connect(
         _on_copy_for_translation_done,

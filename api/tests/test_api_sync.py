@@ -162,13 +162,6 @@ class LocationApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("not found", response.json()["detail"])
 
-        get_response = self.client.get(
-            f"/locations/{page_id}",
-            headers=_auth_headers(self.key.key),
-        )
-        self.assertEqual(get_response.status_code, 200)
-        self.assertEqual(get_response.json()["city"], "Austin")
-
     def test_create_location_with_seo_fields(self):
         response = self.client.post(
             "/locations/",

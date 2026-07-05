@@ -1,30 +1,28 @@
 ---
-name: cursor-context-setup
-overview: Bootstrap de contexto persistente — rules, skills y convención de planes
+name: theme-index-pages
+overview: Implementar plantillas Liquid del theme Shopify para consumir índices precomputados (glossary_index, location_index) y páginas de detalle de metaobjects.
 active: true
 created: 2026-07-05
 ---
 
-# Contexto persistente en el repo
+# Theme — índices A–Z y páginas CMS (Liquid)
 
-Setup inicial de rules, skills y convención de planes versionados en Git.
-
-## Contexto
-
-Plan de referencia: contexto persistente para wagtail-shopify.
-Ledger de progreso: `PROGRESS.md` (solo repo, sin Notion).
+Plan completo: [`theme-index-pages.plan.md`](theme-index-pages.plan.md)
 
 ## Fases
 
-- [x] Fase 0 — Limpieza `.cursor/` (debug logs, instrumentación API, .gitignore)
-- [x] Fase 1 — Rules (`project.mdc`, `python-django.mdc`, `plans-convention.mdc`)
-- [x] Fase 2 — Skills (`continue-work`, `implement-feature`)
-- [x] Fase 3 — Documentar convención en `plans/README.md`
-- [x] Fase 4 — Verificar flujo en sesión nueva
+- [ ] Fase 1 — Snippet compartido parseo JSON de índice
+- [ ] Fase 2 — Plantilla índice glosario (`page.glossary-index.liquid`)
+- [ ] Fase 3 — Plantilla índice locations (`page.location-index.liquid`)
+- [ ] Fase 4 — Plantilla detalle `glossary_term`
+- [ ] Fase 5 — Plantilla detalle `local_page`
+- [ ] Fase 6 — Navegación, SEO e i18n
+- [ ] Fase 7 — QA y documentación theme
 
-## Criterios de aceptación
+## Estado
 
-- `.cursor/rules/`, `.cursor/skills/`, `.cursor/plans/` versionados en Git
-- `PROGRESS.md` actualizado con checkpoint actual
-- Sin writes a `.cursor/debug-*.log` en runtime normal
-- Skill `continue-work` puede retomar desde Fase 3
+Backend listo (`rebuild_glossary_index` y `rebuild_location_index` con `pushed` OK). Implementación pendiente en **repo del theme Shopify**.
+
+## Prompt rápido
+
+Copiar el bloque **"Prompt de implementación"** de [`theme-index-pages.plan.md`](theme-index-pages.plan.md) al agente o dev del theme.
