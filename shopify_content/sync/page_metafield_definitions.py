@@ -87,6 +87,23 @@ PAGE_INDEX_METAFIELD_DEFINITIONS: tuple[PageMetafieldDefinitionSpec, ...] = (
         type='json',
         description='Precomputed location index JSON grouped by state from Wagtail.',
     ),
+    PageMetafieldDefinitionSpec(
+        name='Index alternates',
+        namespace='custom',
+        key='index_alternates',
+        type='json',
+        description=(
+            'Reciprocal hreflang/locale-switcher contract for a CMS index Page '
+            '(shared by any PageIndexConsumer: glossary, location, or future types).'
+        ),
+    ),
+    PageMetafieldDefinitionSpec(
+        name='Index noindex',
+        namespace='custom',
+        key='index_noindex',
+        type='boolean',
+        description='Whether this CMS index Page should be marked noindex in robots meta.',
+    ),
 )
 
 

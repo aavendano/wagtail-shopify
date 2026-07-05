@@ -122,17 +122,26 @@ class SyncLocationIndexPagesTests(TestCase):
         self.assertTrue(config['enabled'])
         self.assertEqual(config['pages']['en-US'], 'gid://shopify/Page/10')
 
+    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
+        'gid://shopify/Page/10': 'locations-en-us',
+    })
     @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_pushes_metafields(self, mock_push):
+    def test_sync_pushes_metafields(self, mock_push, mock_resolve_handles):
         stats = sync_location_index_pages()
 
         self.assertEqual(stats['pushed'], 1)
         mock_push.assert_called_once()
         metafields = mock_push.call_args.args[1]
+        self.assertEqual(len(metafields), 4)
         self.assertEqual(metafields[0]['key'], 'location_locale')
         self.assertEqual(metafields[1]['key'], 'location_index')
+        self.assertEqual(metafields[2]['key'], 'index_alternates')
+        self.assertEqual(metafields[3]['key'], 'index_noindex')
         index_value = json.loads(metafields[1]['value'])
         self.assertEqual(index_value['count'], 1)
+        alternates_value = json.loads(metafields[2]['value'])
+        self.assertEqual(alternates_value['alternates'][0]['handle'], 'locations-en-us')
+        self.assertEqual(metafields[3]['value'], 'false')
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
