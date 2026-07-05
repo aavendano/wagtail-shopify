@@ -299,6 +299,15 @@ Wagtail configura *qué* y *dónde* exportar al storefront; el theme Liquid defi
 
 Los consumidores viven en `shopify_content/export_config/` (registry plug-in). Añadir un tipo nuevo = registrar un `PageIndexConsumer` en `registry.py` sin tocar signals monolíticos.
 
+#### Cómo agregar un nuevo root/index (sin tocar el theme)
+
+1. Crear un `ShopifyRootPage` con un `slug` nuevo (p. ej. `store-brands`).
+2. Implementar un builder de payload (`build_*_index_json(locale_code)`) siguiendo el contrato `version/locale/generated_at/count/sections`.
+3. Crear una subclase de `PageIndexConsumer` en `shopify_content/export_config/` (ver `location.py`/`glossary.py` como referencia) con `root_slug`, `config_key` e `index_metafields` propios, y registrarla en `registry.py`.
+4. Correr `ensure_page_metafield_definitions` (crea también `index_alternates`/`index_noindex`, compartidas por todos los consumers) y `bootstrap_index_pages` (o el equivalente manual) para crear las Shopify Pages por locale y poblar `export_config`.
+5. Publicar contenido → el `PageIndexConsumer.sync()` genérico (`export_config/base.py`) empuja automáticamente el índice **y** `custom.index_alternates`/`custom.index_noindex` a cada Page hermana — no hace falta lógica adicional por tipo.
+6. En el theme: asignar la sección `wagtail-root-index` (modo `custom`, ver README del theme) a cada Page nueva desde el Theme Editor. Cero cambios de Liquid.
+
 **Responsabilidades**
 
 - `ShopifyRootPage.export_config` → metaobject `root_page.config` (mirror CMS)
@@ -357,7 +366,32 @@ Además del JSON, cada Page índice recibe un metafield de locale en texto (`nam
 | `glossary-en`, `glossary-es`, `glossary-fr` | `glossary_locale` | `en`, `es`, `fr` | `glossary_index` (json) |
 | `locations-en-us`, `locations-es-us` | `location_locale` | `en-US`, `es-US` | `location_index` (json) |
 
-El locale va duplicado en el metafield de texto y en la clave `locale` del JSON; deben coincidir. **SEO de Pages índice:** no vienen en el JSON — usar `page.title`, `page.content` y SEO nativo de la Page.
+El locale va duplicado en el metafield de texto y en la clave `locale` del JSON; deben coincidir. **SEO de Pages índice:** hreflang y noindex vienen en metafields dedicados, genéricos para cualquier familia de índice (ver abajo); `page.title`/`page.content` siguen siendo el SEO nativo de la Page.
+
+#### `custom.index_alternates` / `custom.index_noindex` (SEO, todas las familias de índice)
+
+Empujados por `PageIndexConsumer.sync()` (clase base, `export_config/base.py`) para **cualquier** consumer registrado — glosario, locations, o un tipo futuro — sin código adicional por tipo.
+
+```json
+{
+  "version": 1,
+  "include_self": true,
+  "x_default_handle": "glossary-en",
+  "alternates": [
+    { "hreflang": "en", "label": "en", "handle": "glossary-en" },
+    { "hreflang": "es", "label": "es", "handle": "glossary-es" },
+    { "hreflang": "fr", "label": "fr", "handle": "glossary-fr" }
+  ]
+}
+```
+
+| Clave | Notas |
+|-------|-------|
+| `alternates[].handle` | Handle de la Shopify Page hermana, resuelto vía `nodes(ids:...)` a partir de `export_config.<key>.pages` — no requiere mapa estático por tipo |
+| `x_default_handle` | Primer locale configurado, o `export_config.<key>.x_default_locale` si se define explícitamente |
+| `custom.index_noindex` | boolean; `true` si `export_config.<key>.noindex` es `true` o el locale está en `export_config.<key>.noindex_locales` |
+
+El theme (`snippets/wagtail-root-index-head.liquid` en plt-frontend) lee estos dos metafields — y solo estos — para emitir `<link rel="alternate" hreflang>` y `<meta name="robots" content="noindex,...">`; no depende de `section.settings` (inaccesibles en `theme.liquid`) ni de campos `seo.*`/`locales[]` dentro del JSON de índice (que nunca se generan).
 
 #### `custom.glossary_index`
 

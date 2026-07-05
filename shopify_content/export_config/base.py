@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from shopify_content.sync.outbound import _get_shop, _push_metafields
+from shopify_requests.graphql_service import execute_admin_graphql
 
 if TYPE_CHECKING:
     pass
@@ -15,6 +16,38 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 METAFIELD_NAMESPACE = 'custom'
+ALTERNATES_KEY = 'index_alternates'
+NOINDEX_KEY = 'index_noindex'
+
+NODE_HANDLES_QUERY = """
+query IndexPageHandles($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    id
+    ... on Page {
+      handle
+    }
+  }
+}
+"""
+
+
+def _resolve_page_handles(shop: str, gids: list[str]) -> dict[str, str]:
+    """Return {gid: handle} for the given Shopify Page GIDs."""
+    if not gids:
+        return {}
+    result = execute_admin_graphql(NODE_HANDLES_QUERY, shop=shop, variables={'ids': gids})
+    if not result.ok:
+        logger.error(
+            'nodes query for index page handles failed shop=%s error=%s detail=%s',
+            shop, result.error_code, result.log_detail,
+        )
+        return {}
+    nodes = (result.data or {}).get('nodes') or []
+    return {
+        node['id']: node['handle']
+        for node in nodes
+        if node and node.get('handle')
+    }
 
 
 @dataclass(frozen=True)
@@ -70,6 +103,51 @@ class PageIndexConsumer:
         """Return locale keys to rebuild when a child page changes; None to skip."""
         return None
 
+    def hreflang_for_locale(self, locale_code: str) -> str:
+        """Map an internal locale code (e.g. 'en-US') to an hreflang value."""
+        return locale_code.replace('_', '-')
+
+    def is_noindex(self, config: dict, locale_code: str) -> bool:
+        """Whether the index Page for this locale should get a noindex robots meta."""
+        if config.get('noindex') is True:
+            return True
+        noindex_locales = config.get('noindex_locales') or []
+        return any(str(entry).lower() == locale_code.lower() for entry in noindex_locales)
+
+    def build_alternates_payload(
+        self,
+        config: dict,
+        all_locales: list[str],
+        handles_by_gid: dict[str, str],
+    ) -> dict:
+        """
+        Build the custom.index_alternates JSON shared by every sibling index Page:
+        the reciprocal hreflang/link-to-self-locales contract described in
+        wagtail-root-index-section.plan.md, generic across any PageIndexConsumer.
+        """
+        pages = config.get('pages') or {}
+        x_default_locale = config.get('x_default_locale') or (all_locales[0] if all_locales else None)
+
+        alternates = []
+        for locale_code in all_locales:
+            handle = handles_by_gid.get(pages.get(locale_code))
+            if not handle:
+                continue
+            alternates.append({
+                'hreflang': self.hreflang_for_locale(locale_code),
+                'label': locale_code,
+                'handle': handle,
+            })
+
+        x_default_handle = handles_by_gid.get(pages.get(x_default_locale)) if x_default_locale else None
+
+        return {
+            'version': 1,
+            'include_self': True,
+            'x_default_handle': x_default_handle,
+            'alternates': alternates,
+        }
+
     def sync(self, *, locale_codes: list[str] | None = None, dry_run: bool = False) -> dict:
         root = self.get_root_page()
         config = self.get_config(root)
@@ -102,6 +180,11 @@ class PageIndexConsumer:
         pages = config.get('pages') or {}
         spec = self.index_metafields
 
+        # Alternates must reflect every configured sibling locale, not just the
+        # (possibly partial) subset being rebuilt in this call.
+        all_locales = self.configured_locales(config, None)
+        handles_by_gid = {} if dry_run else _resolve_page_handles(shop, list(pages.values()))
+
         for locale_code in locales:
             page_gid = pages.get(locale_code)
             if not page_gid:
@@ -112,6 +195,9 @@ class PageIndexConsumer:
             if dry_run:
                 stats['pushed'] += 1
                 continue
+
+            alternates_payload = self.build_alternates_payload(config, all_locales, handles_by_gid)
+            noindex = self.is_noindex(config, locale_code)
 
             metafields = [
                 {
@@ -127,6 +213,20 @@ class PageIndexConsumer:
                     'key': spec.index_key,
                     'type': 'json',
                     'value': json.dumps(payload, ensure_ascii=False),
+                },
+                {
+                    'ownerId': page_gid,
+                    'namespace': METAFIELD_NAMESPACE,
+                    'key': ALTERNATES_KEY,
+                    'type': 'json',
+                    'value': json.dumps(alternates_payload, ensure_ascii=False),
+                },
+                {
+                    'ownerId': page_gid,
+                    'namespace': METAFIELD_NAMESPACE,
+                    'key': NOINDEX_KEY,
+                    'type': 'boolean',
+                    'value': 'true' if noindex else 'false',
                 },
             ]
             ok = _push_metafields(shop, metafields)

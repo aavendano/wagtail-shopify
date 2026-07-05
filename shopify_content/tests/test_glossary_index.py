@@ -138,18 +138,49 @@ class SyncGlossaryIndexPagesTests(TestCase):
         self.assertFalse(stats['enabled'])
         self.assertEqual(stats['pushed'], 0)
 
+    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
+        'gid://shopify/Page/1': 'glossary-en',
+        'gid://shopify/Page/2': 'glossary-es',
+    })
     @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_pushes_metafields_for_configured_locales(self, mock_push):
+    def test_sync_pushes_metafields_for_configured_locales(self, mock_push, mock_resolve_handles):
         stats = sync_glossary_index_pages()
 
         self.assertEqual(stats['pushed'], 2)
         self.assertEqual(mock_push.call_count, 2)
         first_call = mock_push.call_args_list[0].args[1]
-        self.assertEqual(len(first_call), 2)
+        self.assertEqual(len(first_call), 4)
         self.assertEqual(first_call[0]['key'], 'glossary_locale')
         self.assertEqual(first_call[1]['key'], 'glossary_index')
+        self.assertEqual(first_call[2]['key'], 'index_alternates')
+        self.assertEqual(first_call[3]['key'], 'index_noindex')
         index_value = json.loads(first_call[1]['value'])
         self.assertEqual(index_value['count'], 1)
+        alternates_value = json.loads(first_call[2]['value'])
+        self.assertEqual(alternates_value['version'], 1)
+        self.assertEqual(
+            {alt['handle'] for alt in alternates_value['alternates']},
+            {'glossary-en', 'glossary-es'},
+        )
+        self.assertEqual(first_call[3]['value'], 'false')
+
+    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
+        'gid://shopify/Page/1': 'glossary-en',
+        'gid://shopify/Page/2': 'glossary-es',
+    })
+    @patch('shopify_content.export_config.base._push_metafields', return_value=True)
+    def test_sync_marks_noindex_locales(self, mock_push, mock_resolve_handles):
+        self.glossary_root.export_config['glossary_index']['noindex_locales'] = ['es']
+        self.glossary_root.save()
+
+        sync_glossary_index_pages()
+
+        calls_by_locale = {
+            call.args[1][0]['value']: call.args[1]
+            for call in mock_push.call_args_list
+        }
+        self.assertEqual(calls_by_locale['en'][3]['value'], 'false')
+        self.assertEqual(calls_by_locale['es'][3]['value'], 'true')
 
     def test_dry_run_skips_shopify_push(self):
         with patch('shopify_content.export_config.base._push_metafields') as mock_push:
@@ -158,8 +189,9 @@ class SyncGlossaryIndexPagesTests(TestCase):
         self.assertEqual(stats['pushed'], 2)
         mock_push.assert_not_called()
 
+    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={})
     @patch('shopify_content.export_config.base._push_metafields', return_value=False)
-    def test_sync_records_errors(self, mock_push):
+    def test_sync_records_errors(self, mock_push, mock_resolve_handles):
         stats = sync_glossary_index_pages(locale_codes=['en'])
 
         self.assertEqual(stats['errors'], ['en'])
