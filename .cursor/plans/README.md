@@ -24,3 +24,18 @@ Invocar `/continue-work` o pedir "continúa el plan activo".
 ## Formato
 
 Ver rule `.cursor/rules/plans-convention.mdc`.
+
+## Planes agnósticos de tienda
+
+El proyecto es **single-instance** (una instalación = una tienda), pero **replicable** en cualquier shop. Los planes documentan contratos y handles estables, no datos de un merchant concreto.
+
+| Prohibido en planes | Permitido |
+|---------------------|-----------|
+| Dominios `*.myshopify.com` reales | Handles canónicos (`glossary-en`, `locations-en-us`) |
+| Subdominios de dev store concretos | Placeholders (`gid://shopify/Page/...`, `{shop}.myshopify.com`) |
+| GIDs numéricos de una instalación | Comandos que leen `ShopConfig` en runtime |
+
+**Configuración de tienda activa** (fuera de los planes):
+
+- Backend: `ShopConfig` tras OAuth; credenciales en `.env`
+- Theme dev: `shopify theme dev --store <dominio>` o `.shopify/project.json`

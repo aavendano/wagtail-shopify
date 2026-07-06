@@ -15,6 +15,7 @@ from shopify_content.models import ShopifyRootPage
 from shopify_content.sync.index_pages_bootstrap import (
     GLOSSARY_INDEX_PAGES,
     LOCATION_INDEX_PAGES,
+    LOCATION_LEGACY_ALIAS_PAGES,
     build_glossary_export_config,
     build_location_export_config,
     ensure_index_pages,
@@ -53,8 +54,13 @@ class Command(BaseCommand):
 
         glossary_pages = ensure_index_pages(shop, GLOSSARY_INDEX_PAGES)
         location_pages = ensure_index_pages(shop, LOCATION_INDEX_PAGES)
+        legacy_location_pages = ensure_index_pages(shop, LOCATION_LEGACY_ALIAS_PAGES)
 
-        for handle, node in {**glossary_pages, **location_pages}.items():
+        for handle, node in {
+            **glossary_pages,
+            **location_pages,
+            **legacy_location_pages,
+        }.items():
             flag = 'created' if node.get('created') else 'exists'
             self.stdout.write(f'  [{flag}] {handle} → {node["id"]}')
 

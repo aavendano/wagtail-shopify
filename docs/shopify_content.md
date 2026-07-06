@@ -16,6 +16,54 @@ App principal del CMS. Gestiona los modelos de página Wagtail que se sincroniza
 
 El proyecto es **single-tenant**: una instalación Wagtail = una tienda Shopify. El `shop` se resuelve desde `ShopConfig.objects.first().shop`; no se almacena en cada página.
 
+La app es **instalable en cualquier merchant**: cada instalación ejecuta su propio bootstrap; los GIDs en `export_config` son exclusivos de esa tienda. Nunca reutilizar `export_config` exportado de otra instalación.
+
+---
+
+## Onboarding tienda nueva
+
+Checklist al instalar la app en una tienda Shopify nueva (`{shop}.myshopify.com`):
+
+1. Completar OAuth → `ShopConfig` con token válido.
+2. `python manage.py ensure_metaobject_definitions`
+3. `python manage.py ensure_page_metafield_definitions`
+4. En Wagtail: crear `ShopifyRootPage` con slug `glossary` y `local-us` bajo el root del sitio (si no existen).
+5. `python manage.py bootstrap_index_pages --apply-export-config` — crea Pages índice + alias legacy + escribe GIDs en `export_config`.
+6. `python manage.py rebuild_glossary_index` + `python manage.py rebuild_location_index`
+7. En Theme Editor: asignar template `page.glossary` / `page.locations` a las Pages por handle convención.
+8. Smoke test storefront: `/pages/glossary-en` y `/pages/locations-en-us` → 200.
+
+### Troubleshooting 404 en índices
+
+| Síntoma | Causa probable | Acción |
+|---------|----------------|--------|
+| 404 en `/pages/glossary-en` o `/pages/locations-en-us` | Pages no existen en Shopify Admin | `python manage.py bootstrap_index_pages` |
+| 404 con Pages existentes pero listado vacío | `export_config` con GIDs de **otra tienda** | `bootstrap_index_pages --apply-export-config` en la tienda activa |
+| 404 en `/pages/locations-en` (sin `-us`) | URL legacy; alias no creado | Bootstrap crea alias `locations-en` → redirect a `locations-en-us` |
+| Page existe pero sin UI de índice | Template no asignado | Theme Editor → `page.glossary` / `page.locations` |
+| Navbar enlaza URL incorrecta | Mercado activo ≠ handles US | `snippets/cms-locations-url.liquid` resuelve `locations-{lang}-us` |
+
+**Verificación con GID de la tienda conectada** (no copiar GIDs de documentación):
+
+```python
+from core.models import ShopConfig
+from shopify_content.models import ShopifyRootPage
+from shopify_requests.graphql_service import execute_admin_graphql
+
+shop = ShopConfig.objects.first().shop
+root = ShopifyRootPage.objects.get(slug='glossary')
+page_gid = root.export_config['glossary_index']['pages']['en']
+q = '''query($id: ID!) {
+  node(id: $id) {
+    ... on Page {
+      handle
+      metafield(namespace: "custom", key: "glossary_index") { value }
+    }
+  }
+}'''
+execute_admin_graphql(q, shop=shop, variables={'id': page_gid})
+```
+
 ---
 
 ## Modelos de página
@@ -392,6 +440,23 @@ Empujados por `PageIndexConsumer.sync()` (clase base, `export_config/base.py`) p
 | `custom.index_noindex` | boolean; `true` si `export_config.<key>.noindex` es `true` o el locale está en `export_config.<key>.noindex_locales` |
 
 El theme (`snippets/wagtail-root-index-head.liquid` en plt-frontend) lee estos dos metafields — y solo estos — para emitir `<link rel="alternate" hreflang>` y `<meta name="robots" content="noindex,...">`; no depende de `section.settings` (inaccesibles en `theme.liquid`) ni de campos `seo.*`/`locales[]` dentro del JSON de índice (que nunca se generan).
+
+#### Anti-patrones SEO (índices)
+
+**Restricción OS 2.0:** `layout/theme.liquid` renderiza `<head>` antes que las sections. Los `settings` y `blocks` de una section no existen en ese momento; cualquier hreflang configurado solo en el Theme Editor **no llegará al `<head>`**.
+
+| Enfoque | Estado | Motivo |
+|---------|--------|--------|
+| Section settings / blocks (`alternate_locale`, `hreflang` en schema) | **Descartado** | Inaccesible en `theme.liquid`; eliminado del schema del theme |
+| Links hardcoded en Liquid (`/pages/glossary-en`, etc.) | **Descartado** | Drift con handles; duplica `index_alternates` |
+| `root_page.config` (GIDs) para hreflang | **Descartado** | Liquid no resuelve GID → URL |
+| Campos `seo` / `locales[]` en JSON de índice | **Descartado** | El builder no los genera |
+| `custom.index_alternates` + `custom.index_noindex` | **Canónico** | Empujados por `PageIndexConsumer.sync()`; consumidos por head y switcher |
+| Mapa estático de handles en `wagtail-root-index-head.liquid` | **Solo fallback `<head>`** | Red de seguridad si `index_alternates` vacío; no alimenta el switcher |
+
+**Páginas de detalle** (productos, artículos, metaobjects): el patrón `seo.hreflang_*` descrito más abajo en [Traducciones y hreflang](#traducciones-y-hreflang) **sigue vigente** — es independiente de los índices A–Z.
+
+**Operación requerida:** antes de esperar hreflang en el storefront, ejecutar `ensure_page_metafield_definitions` y `rebuild_glossary_index` / `rebuild_location_index` (o publicar contenido para disparar sync automático). Si faltan alternates, corregir en Wagtail o Shopify Admin → Custom data — **no** en Theme Editor.
 
 #### `custom.glossary_index`
 

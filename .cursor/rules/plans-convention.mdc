@@ -37,3 +37,11 @@ created: YYYY-MM-DD
 ## Flujo Plan Mode
 
 Save to workspace → commit plan + PROGRESS → retomar con `/continue-work`
+
+## Planes agnósticos de tienda
+
+Una instalación = una tienda Shopify (no multi-tenant); el proyecto es replicable en cualquier shop.
+
+- **Prohibido:** dominios `*.myshopify.com` reales, dev stores concretos, GIDs numéricos de una instalación.
+- **Permitido:** handles canónicos (`glossary-en`), placeholders (`gid://shopify/Page/...`, `mi-tienda.myshopify.com`), snippets que usan `ShopConfig.objects.first().shop`.
+- **Config de tienda activa:** `.env` (app), `ShopConfig` (OAuth), `.shopify/project.json` o CLI (theme) — no en planes.

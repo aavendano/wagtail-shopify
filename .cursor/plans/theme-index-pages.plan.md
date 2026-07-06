@@ -7,15 +7,17 @@ created: 2026-07-05
 
 # Theme — índices A–Z y páginas CMS (Liquid)
 
+> **Nota (2026-07):** Las fases 1–3 de listado índice están **completadas** vía section unificada [`wagtail-root-index`](wagtail-root-index-section.plan.md) (`templates/page.glossary.json`, `page.locations.json`). Las fases 2–3 originales (plantillas `.liquid` separadas) quedan **superseded**. **SEO hreflang/noindex:** prohibido vía section settings/blocks — ver [`wagtail-root-index-section.plan.md`](wagtail-root-index-section.plan.md) y `docs/shopify_content.md` → Anti-patrones SEO.
+
 ## Prompt de implementación
 
 > Implementa en el **theme Shopify** (repo del theme, fuera de wagtail-shopify) las plantillas Liquid que consumen los datos que el backend Wagtail ya empuja a Shopify. El backend **no renderiza HTML**; solo precomputa JSON en metafields de Pages y sincroniza metaobjects merchant-owned. Tu trabajo es leer esos datos en Liquid, renderizar UI accesible y SEO-friendly, y conectar navegación entre locales.
 >
-> **Prerrequisitos operativos ya resueltos en backend:**
+> **Prerrequisitos operativos (por tienda — ejecutar en cada instalación):**
 > - `python manage.py ensure_page_metafield_definitions`
 > - `python manage.py bootstrap_index_pages --apply-export-config`
-> - `python manage.py rebuild_glossary_index` → `pushed=3` (en, es, fr)
-> - `python manage.py rebuild_location_index` → `pushed=2` (en-US, es-US)
+> - `python manage.py rebuild_glossary_index` → `pushed` = número de locales en `export_config.glossary_index.pages`
+> - `python manage.py rebuild_location_index` → `pushed` = número de locales en `export_config.location_index.pages`
 >
 > **Referencias de contrato:** [`docs/shopify_content.md`](../../docs/shopify_content.md), builders en [`shopify_content/glossary/index.py`](../../shopify_content/glossary/index.py) y [`shopify_content/locations/index.py`](../../shopify_content/locations/index.py).
 
@@ -37,8 +39,8 @@ flowchart TB
         PageL[locations-en-us / es-us Pages]
         MOTerm[metaobject glossary_term]
         MOLoc[metaobject local_page]
-        LiquidG[page.glossary-index.liquid]
-        LiquidL[page.location-index.liquid]
+        LiquidG[page.glossary.json + wagtail-root-index]
+        LiquidL[page.locations.json + wagtail-root-index]
         LiquidTerm[metaobject/glossary_term.liquid]
         LiquidLoc[metaobject/local_page.liquid]
     end
@@ -54,7 +56,7 @@ flowchart TB
 | Recurso Shopify | Origen Wagtail | Rol en theme |
 |-----------------|----------------|--------------|
 | Page `glossary-{locale}` | `export_config.glossary_index.pages` | Listado A–Z por idioma |
-| Page `locations-{locale}` | `export_config.location_index.pages` | Listado por estado |
+| Page `locations-{lang}-us` | `export_config.location_index.pages` | Listado por estado |
 | Metaobject `glossary_term` | `GlossaryTermPage` | Detalle de término |
 | Metaobject `local_page` | `LocationPage` | Detalle de ubicación |
 | Metaobject `root_page` | `ShopifyRootPage` | Config mirror (opcional v1) |
@@ -70,15 +72,36 @@ flowchart TB
 | `location_locale` | `single_line_text_field` | Código locale: `en-US`, `es-US` |
 | `location_index` | `json` | Payload precomputado del listado locations |
 
-**Handles de Pages creadas por bootstrap** (tienda `asgiti-0w`):
+### Convención de handles (todas las tiendas)
 
-| Handle | Locale metafield | GID (ejemplo) |
-|--------|------------------|---------------|
-| `glossary-en` | `en` | `gid://shopify/Page/290003157067` |
-| `glossary-es` | `es` | `gid://shopify/Page/290003189835` |
-| `glossary-fr` | `fr` | `gid://shopify/Page/290003222603` |
-| `locations-en-us` | `en-US` | `gid://shopify/Page/290003255371` |
-| `locations-es-us` | `es-US` | `gid://shopify/Page/290003288139` |
+Los handles son **convención de bootstrap**, no datos de un merchant concreto. Los GIDs se crean en runtime al ejecutar `bootstrap_index_pages` en la tienda conectada (`ShopConfig.shop`).
+
+| Handle | Metafield locale | Valores locale |
+|--------|------------------|----------------|
+| `glossary-en` | `glossary_locale` | `en` |
+| `glossary-es` | `glossary_locale` | `es` |
+| `glossary-fr` | `glossary_locale` | `fr` |
+| `locations-en-us` | `location_locale` | `en-US` |
+| `locations-es-us` | `location_locale` | `es-US` |
+
+Alias legacy (redirect): `locations-en` → `locations-en-us`, `locations-es` → `locations-es-us` (creados por bootstrap).
+
+**Nunca copiar GIDs** de `export_config` entre instalaciones. Cada merchant ejecuta su propio bootstrap.
+
+### Onboarding nueva tienda
+
+Checklist al instalar la app en `{shop}.myshopify.com`:
+
+1. Completar OAuth → `ShopConfig` con token válido.
+2. `python manage.py ensure_metaobject_definitions`
+3. `python manage.py ensure_page_metafield_definitions`
+4. Crear roots Wagtail `glossary` y `local-us` (si no existen).
+5. `python manage.py bootstrap_index_pages --apply-export-config` — crea Pages + escribe GIDs en `export_config`.
+6. `python manage.py rebuild_glossary_index` + `python manage.py rebuild_location_index`
+7. En Theme Editor: asignar template `page.glossary` / `page.locations` a las Pages por handle.
+8. Smoke test: `/pages/glossary-en` y `/pages/locations-en-us` → 200 con listado.
+
+Ver también [`docs/shopify_content.md`](../../docs/shopify_content.md) → Onboarding tienda nueva.
 
 ### JSON `custom.glossary_index`
 
@@ -182,32 +205,18 @@ Capability `onlineStore` con `urlHandle: local-page` → URLs `/pages/location/{
 
 ### Fase 1 — Snippet compartido: parseo JSON de índice
 
-- [ ] Crear `snippets/wagtail-index-parse.liquid` (o equivalente) que:
-  - Lea `page.metafields.custom.glossary_index.value` o `location_index.value`.
-  - Parsee JSON con `| parse_json` (Shopify 2.x) o fallback seguro si vacío.
-  - Exponga variables: `index.version`, `index.locale`, `index.count`, `index.sections`.
-  - Maneje gracefully: metafield ausente → mensaje “índice no disponible” + log en theme check.
-- [ ] Validar `index.version === 1`; ignorar versiones futuras con aviso en comentario Liquid.
+- [x] `snippets/wagtail-root-index-parse.liquid` — lee `glossary_index` / `location_index`, expone `index`, `locale`, `has_index`, valida `version`.
 
-### Fase 2 — Plantilla índice glosario
+### Fase 2 — Índice glosario (superseded → section unificada)
 
-- [ ] Asignar `templateSuffix: glossary-index` a Pages `glossary-en`, `glossary-es`, `glossary-fr` (Admin o `pageUpdate`).
-- [ ] Crear `templates/page.glossary-index.liquid`:
-  - **SEO:** `page.title`, `page.content` mínimo; canonical a la URL actual.
-  - **Nav A–Z:** anclas `#section-A` … `#section-Z`, `0-9`, `#` (solo letras con items).
-  - **Listado:** loop `sections` → `items` → `<a href="{{ item.path }}">{{ item.term }}</a>`.
-  - **Switcher idioma:** links hardcoded o desde metaobject `root_page` slug=glossary config (v2); v1: links a `/pages/glossary-en`, `/pages/glossary-es`, `/pages/glossary-fr`.
-  - **Accesibilidad:** `<nav aria-label="Glossary index">`, listas semánticas `<ul>/<li>`.
-- [ ] Estilos coherentes con design system del theme (CSS existente, BEM o utilidades del theme).
+- [x] `templates/page.glossary.json` con section `wagtail-root-index` (`index_mode: glossary`).
+- [x] Nav A–Z, listado, búsqueda y accesibilidad en `sections/wagtail-root-index.liquid`.
+- [x] **Switcher + hreflang:** `custom.index_alternates` (Wagtail push) — **no** links hardcoded ni section blocks. Ver [`wagtail-root-index-section.plan.md`](wagtail-root-index-section.plan.md).
 
-### Fase 3 — Plantilla índice locations
+### Fase 3 — Índice locations (superseded → section unificada)
 
-- [ ] Asignar `templateSuffix: location-index` a Pages `locations-en-us`, `locations-es-us`.
-- [ ] Crear `templates/page.location-index.liquid`:
-  - Agrupar por `section.key` (estado).
-  - Mostrar `titulo`, `city`, `state`; enlace vía `item.path`.
-  - Switcher `en-US` / `es-US`.
-  - Nav jump por estado (opcional si muchos estados).
+- [x] `templates/page.locations.json` con section `wagtail-root-index` (`index_mode: location`).
+- [x] Agrupación por estado, grid/list, switcher vía `index_alternates`.
 
 ### Fase 4 — Plantilla detalle `glossary_term`
 
@@ -240,7 +249,8 @@ Capability `onlineStore` con `urlHandle: local-page` → URLs `/pages/location/{
 - [ ] Mapeo locale Shopify Markets ↔ `glossary_locale` / `location_locale`:
   - Glosario: `en` / `es` / `fr` (no incluye sufijo país).
   - Locations: `en-US` / `es-US`.
-- [ ] `hreflang` entre Pages índice hermanas (manual v1).
+- [x] **hreflang / x-default / noindex (índices):** solo vía Page metafields `custom.index_alternates` y `custom.index_noindex`, emitidos en `<head>` por `snippets/wagtail-root-index-head.liquid` (hook en `layout/theme.liquid`). Wagtail los empuja en cada `rebuild_*_index` / `PageIndexConsumer.sync()`. **Prohibido:** section settings, blocks `alternate_locale`, links hardcoded, `root_page.config` GIDs.
+- [ ] Verificar view-source: `<link rel="alternate" hreflang=...>` presentes tras `rebuild_glossary_index`.
 - [ ] Verificar que `path` del JSON coincide con rutas reales del metaobject (smoke test 3 términos + 3 locations).
 
 ### Fase 7 — QA y documentación theme
@@ -285,11 +295,11 @@ Capability `onlineStore` con `urlHandle: local-page` → URLs `/pages/location/{
 
 ## Criterios de aceptación
 
-- [ ] `/pages/glossary-en` (y es/fr) renderizan listado A–Z desde `custom.glossary_index` sin llamadas AJAX al backend Wagtail.
-- [ ] `/pages/locations-en-us` (y es-us) renderizan listado por estado desde `custom.location_index`.
+- [x] `/pages/glossary-en` (y es/fr) renderizan listado A–Z desde `custom.glossary_index` sin llamadas AJAX al backend Wagtail.
+- [x] `/pages/locations-en-us` (y es-us) renderizan listado por estado desde `custom.location_index`.
 - [ ] Detalle de término metaobject muestra `term`, `definition`, SEO y al menos un bloque de enlaces relacionados.
 - [ ] Detalle `local_page` renderiza hero, secciones rich text y FAQs.
-- [ ] Enlaces del índice resuelven a URLs 200 (no 404).
+- [ ] Enlaces del índice resuelven a URLs 200 **en la tienda donde se ejecutó bootstrap** (no 404).
 - [ ] Tras `rebuild_glossary_index` en Wagtail, un refresh del storefront refleja cambios (sin redeploy theme).
 - [ ] Mobile-first, contraste WCAG AA en nav A–Z.
 
@@ -319,21 +329,76 @@ python manage.py rebuild_glossary_index --dry-run   # inspeccionar JSON
 python manage.py rebuild_glossary_index
 python manage.py rebuild_location_index
 
-# Shopify Admin API — confirmar metafield poblado (desde wagtail-shopify)
+# Shopify Admin API — confirmar metafield poblado (GID de ESTA tienda)
 python manage.py shell -c "
 from core.models import ShopConfig
+from shopify_content.models import ShopifyRootPage
 from shopify_requests.graphql_service import execute_admin_graphql
+
 shop = ShopConfig.objects.first().shop
-q = '''query(\$id: ID!) { node(id: \$id) { ... on Page { handle metafield(namespace:\"custom\", key:\"glossary_index\") { value } } } }'''
-print(execute_admin_graphql(q, shop=shop, variables={'id': 'gid://shopify/Page/290003157067'}).data)
+root = ShopifyRootPage.objects.get(slug='glossary')
+page_gid = root.export_config['glossary_index']['pages']['en']
+q = '''query(\$id: ID!) {
+  node(id: \$id) {
+    ... on Page {
+      handle
+      metafield(namespace: \"custom\", key: \"glossary_index\") { value }
+    }
+  }
+}'''
+print(execute_admin_graphql(q, shop=shop, variables={'id': page_gid}).data)
 "
 ```
 
+Alternativa por handle (sin depender de `export_config` en Wagtail):
+
+```bash
+python manage.py shell -c "
+from core.models import ShopConfig
+from shopify_requests.graphql_service import execute_admin_graphql
+
+shop = ShopConfig.objects.first().shop
+q = '''query { pages(first: 1, query: \"handle:glossary-en\") {
+  edges { node { id handle } }
+}}'''
+print(execute_admin_graphql(q, shop=shop).data)
+"
+```
+
+### Troubleshooting 404 en índices
+
+Síntoma: `/pages/glossary-en` (u otro handle canónico) devuelve 404 o página vacía en el storefront.
+
+1. Confirmar que `ShopConfig.shop` coincide con la tienda del `shopify theme dev` (misma instalación OAuth).
+2. Si no coincide: reinstalar la app vía OAuth o corregir el token en `ShopConfig`.
+3. Si `export_config` tiene GIDs de otra tienda (copiados manualmente o bootstrap en otro entorno):
+   ```bash
+   python manage.py ensure_page_metafield_definitions
+   python manage.py bootstrap_index_pages --apply-export-config
+   python manage.py rebuild_glossary_index
+   python manage.py rebuild_location_index
+   ```
+4. En Shopify Admin: verificar que existen Pages con handles canónicos y metafields `glossary_index` / `location_index` poblados.
+5. En Theme Editor: confirmar `templateSuffix` / template asignado (`page.glossary`, `page.locations`).
+
+**Causa habitual:** GIDs en `export_config` de una tienda distinta a la conectada. Los handles son estables; los GIDs no. Nunca copiar GIDs entre instalaciones.
+
+## Modelo de despliegue
+
+**No es multi-tenant.** Cada despliegue (Django + Wagtail + app Shopify Partners) sirve **exactamente una tienda**:
+
+- `shop` en runtime: `ShopConfig` tras OAuth (no hardcodear en planes).
+- Credenciales app: `.env` (`SHOPIFY_API_KEY`, `SHOPIFY_APP_URL`, etc.).
+- Theme preview: `shopify theme dev --store <dominio>` o `.shopify/project.json` (`dev_store_url`) — configuración local, fuera de los planes.
+
+El proyecto es **replicable**: otra instancia + otra tienda = otro `ShopConfig` + otro bootstrap. Handles y contratos JSON son estables entre instalaciones; los GIDs no.
+
 ## Estado
 
-**Backend completado.** Theme Liquid pendiente — este plan es el prompt de implementación para el repo del theme.
+**Backend completado.** **Índices (fases 1–3) completados** en theme vía `wagtail-root-index`. Pendiente: detalle metaobject (fases 4–5), nav global y QA (fases 6–7).
 
 ## Planes relacionados
 
+- [`wagtail-root-index-section.plan.md`](wagtail-root-index-section.plan.md) — section unificada + política SEO (hreflang solo metafields; **no** section blocks)
 - [`glossary-index-sync.plan.md`](glossary-index-sync.plan.md) — backend índice glosario (completado)
 - [`root-export-config-admin.plan.md`](root-export-config-admin.plan.md) — UI Wagtail para `export_config` (futuro)

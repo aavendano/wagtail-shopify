@@ -5,7 +5,7 @@ alwaysApply: true
 
 # wagtail-shopify
 
-Shopify Embedded App (Django + Wagtail) — CMS headless single-tenant para una tienda Shopify.
+Shopify Embedded App (Django + Wagtail) — CMS headless: una instalación = una tienda Shopify; desplegable en cualquier shop (no multi-tenant).
 
 ## Stack y apps
 

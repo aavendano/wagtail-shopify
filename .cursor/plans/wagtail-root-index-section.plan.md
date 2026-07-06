@@ -20,8 +20,8 @@ supersedes: theme-index-pages (fases 2–3 como templates separados)
 |-----------|-----------|------|------------------|---------------|
 | `glossary_locale` / `location_locale` | `custom` | text | Wagtail (`rebuild_*_index`) | head (gate) + section |
 | `glossary_index` / `location_index` | `custom` | json | Wagtail | section (listado) |
-| **`index_alternates`** | `custom` | json | Wagtail bootstrap/sync (v1.1) o Admin manual | **head + section** (switcher) |
-| **`index_noindex`** | `custom` | boolean | Admin manual o Wagtail (v1.1) | **head** |
+| **`index_alternates`** | `custom` | json | Wagtail bootstrap/sync (`PageIndexConsumer.sync`) o Admin manual | **head + section** (switcher) |
+| **`index_noindex`** | `custom` | boolean | Admin manual o Wagtail (`export_config`) | **head** |
 
 ### Gate en `theme.liquid`
 
@@ -86,11 +86,11 @@ Configurable por Page en **Shopify Admin → Custom data** sin tocar código.
 | búsqueda, layout, nav A–Z | section settings | Sí |
 | listado items | `glossary_index` / `location_index` | No |
 
-La section **relee** `index_alternates` para pintar tabs/links — una sola fuente, sin duplicar blocks `alternate_locales` en schema.
+La section **relee** `index_alternates` para pintar tabs/links — una sola fuente. Los blocks `alternate_locale` / `noindex_locale` del schema **fueron eliminados** (no usar Theme Editor para hreflang).
 
 ## Fallback v1 (sin `index_alternates` poblado)
 
-Si el metafield está vacío, `wagtail-root-index-head.liquid` usa mapa estático por `page.handle` (handles bootstrap en [`index_pages_bootstrap.py`](../../shopify_content/sync/index_pages_bootstrap.py)):
+Si el metafield está vacío, `wagtail-root-index-head.liquid` usa mapa estático por `page.handle`. Los handles son **convención de bootstrap** ([`index_pages_bootstrap.py`](../../shopify_content/sync/index_pages_bootstrap.py)), válidos en cualquier tienda que haya ejecutado bootstrap — no están atados a un merchant concreto.
 
 | `page.handle` | Hermanas |
 |---------------|----------|
@@ -102,20 +102,22 @@ Si el metafield está vacío, `wagtail-root-index-head.liquid` usa mapa estátic
 
 Hreflang derivado de `glossary_locale` / `location_locale` de cada hermana. **No configurable** desde Theme Editor; suficiente para rollout inicial.
 
-## Qué NO usar en v1 para head
+## Qué NO usar para head ni switcher
 
 | Fuente | Motivo |
 |--------|--------|
-| Section settings/blocks | Inaccesibles en `theme.liquid` |
+| Section settings/blocks (`alternate_locale`, `hreflang` en schema) | Inaccesibles en `theme.liquid`; eliminados del schema |
+| Links hardcoded (`/pages/glossary-en`, etc.) | Drift con handles; duplica `index_alternates` |
 | `shop.metaobjects.root_page.config` | Tiene GIDs, no URLs; Liquid no resuelve GID → URL |
-| `seo.hreflang_*` por recurso | Patrón válido para detalle CMS, pero índices no lo reciben hoy; duplicaría contrato |
+| `seo.hreflang_*` por recurso | Patrón válido para **detalle** CMS, no índices A–Z |
 | Duplicar config en section + metafield | Dos fuentes, drift seguro |
+| Campos `seo` / `locales[]` en JSON de índice | Nunca se generan en backend |
 
-## Extensión backend recomendada (v1.1, wagtail-shopify)
+## Backend — `index_alternates` / `index_noindex` (implementado)
 
-Al crear/actualizar Pages índice (`bootstrap_index_pages`, `rebuild_*_index`), empujar `custom.index_alternates` derivado de `export_config.*.pages` + mapa handle↔locale. Opcional: `index_noindex` desde flag en `export_config`.
+`PageIndexConsumer.sync()` en [`export_config/base.py`](../../shopify_content/export_config/base.py) empuja `custom.index_alternates` derivado de `export_config.*.pages` + resolución de handles vía GraphQL. Opcional: `index_noindex` desde `export_config.<key>.noindex` / `noindex_locales`.
 
-Nuevas defs en [`page_metafield_definitions.py`](../../shopify_content/sync/page_metafield_definitions.py).
+Definiciones en [`page_metafield_definitions.py`](../../shopify_content/sync/page_metafield_definitions.py) (`ensure_page_metafield_definitions`).
 
 ## Prompt de implementación (resumen)
 
@@ -127,7 +129,9 @@ Ver plan completo en conversación / iteraciones. Puntos clave SEO:
 
 ## Criterios de aceptación SEO
 
-- [ ] hreflang en `<head>` sin depender de section settings.
-- [ ] Cambiar alternates en Admin metafield → head y switcher actualizan sin redeploy theme.
-- [ ] `index_noindex: true` en una Page índice → meta robots en head.
-- [ ] Fallback handle map funciona si `index_alternates` vacío.
+- [x] hreflang en `<head>` sin depender de section settings.
+- [x] Cambiar alternates en Admin metafield → head y switcher actualizan sin redeploy theme.
+- [x] `index_noindex: true` en una Page índice → meta robots en head.
+- [x] Fallback handle map funciona si `index_alternates` vacío (solo `<head>`, no switcher).
+- [x] Tras bootstrap en tienda B, `index_alternates` se empuja con handles de B; el fallback solo aplica si el metafield está vacío.
+- [x] Blocks `alternate_locale` / `noindex_locale` eliminados del schema de section.

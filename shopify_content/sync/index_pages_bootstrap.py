@@ -46,6 +46,7 @@ class IndexPageSpec:
     handle: str
     title: str
     body: str
+    template_suffix: str | None = None
 
 
 GLOSSARY_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
@@ -71,11 +72,29 @@ LOCATION_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
         handle='locations-en-us',
         title='Locations (English)',
         body='<p>Location index by state. Content is rendered from Wagtail via metafields.</p>',
+        template_suffix='locations',
     ),
     IndexPageSpec(
         handle='locations-es-us',
         title='Ubicaciones (Español)',
         body='<p>Índice de ubicaciones por estado. El contenido se renderiza desde Wagtail vía metafields.</p>',
+        template_suffix='locations',
+    ),
+)
+
+# Lang-only handles used by legacy theme links; redirect to canonical index pages.
+LOCATION_LEGACY_ALIAS_PAGES: tuple[IndexPageSpec, ...] = (
+    IndexPageSpec(
+        handle='locations-en',
+        title='Locations (English)',
+        body='<p>Redirecting to the locations index…</p>',
+        template_suffix='locations-redirect',
+    ),
+    IndexPageSpec(
+        handle='locations-es',
+        title='Ubicaciones (Español)',
+        body='<p>Redirigiendo al índice de ubicaciones…</p>',
+        template_suffix='locations-redirect',
     ),
 )
 
@@ -106,17 +125,18 @@ def _find_page_by_handle(shop: str, handle: str) -> dict | None:
 
 
 def _create_page(shop: str, spec: IndexPageSpec) -> dict:
+    page_input: dict = {
+        'title': spec.title,
+        'handle': spec.handle,
+        'body': spec.body,
+        'isPublished': True,
+    }
+    if spec.template_suffix:
+        page_input['templateSuffix'] = spec.template_suffix
     result = execute_admin_graphql(
         PAGE_CREATE,
         shop=shop,
-        variables={
-            'page': {
-                'title': spec.title,
-                'handle': spec.handle,
-                'body': spec.body,
-                'isPublished': True,
-            },
-        },
+        variables={'page': page_input},
     )
     if not result.ok:
         raise RuntimeError(

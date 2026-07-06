@@ -15,6 +15,7 @@ completed: 2026-07-05
 - El índice de glosario es el primer consumidor de `export_config`; el patrón extiende después a Location, Collection y Product.
 - Tres páginas índice en Shopify Admin reciben `custom.glossary_index` + `custom.glossary_locale` (theme Liquid fuera del repo).
 - Ledger: [`PROGRESS.md`](../../PROGRESS.md)
+- **Multi-tienda:** los GIDs en `export_config` son por instalación. Ver checklist de onboarding en [`theme-index-pages.plan.md`](theme-index-pages.plan.md).
 
 ## Arquitectura
 

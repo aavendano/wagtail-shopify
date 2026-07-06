@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 from typing import Any, Self
 
@@ -25,7 +26,17 @@ class MetaobjectFieldSpec:
         if self.description:
             payload["description"] = self.description
         if self.validations:
-            payload["validations"] = self.validations
+            payload["validations"] = [
+                {
+                    "name": validation["name"],
+                    "value": (
+                        validation["value"]
+                        if isinstance(validation.get("value"), str)
+                        else json.dumps(validation["value"])
+                    ),
+                }
+                for validation in self.validations
+            ]
         return payload
 
 

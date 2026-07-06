@@ -175,6 +175,19 @@ class MetaobjectDefinitionSpecTests(TestCase):
         self.assertEqual(renderable_data["metaTitleKey"], "titulo")
         self.assertEqual(renderable_data["metaDescriptionKey"], "subtitulo")
 
+    def test_to_shopify_input_serializes_validation_values_as_strings(self):
+        field_spec = MetaobjectFieldSpec(
+            key="image",
+            name="Image",
+            type="file_reference",
+            validations=[{"name": "file_type_options", "value": ["Image"]}],
+        )
+        payload = field_spec.to_shopify_input()
+        self.assertEqual(
+            payload["validations"],
+            [{"name": "file_type_options", "value": '["Image"]'}],
+        )
+
     def test_from_dataclass_excludes_handle(self):
         definition = MetaobjectDefinitionSpec.from_dataclass(
             FabricSpec,

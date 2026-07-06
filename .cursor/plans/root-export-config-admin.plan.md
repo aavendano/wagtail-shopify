@@ -55,6 +55,7 @@ Convertir `export_config` de JSON técnico en **configuración de storefront gob
 - Progressive disclosure — GIDs y flags avanzados en sección “Advanced”.
 - Fail fast en admin, no en Celery.
 - Shopify como catálogo; Wagtail como decisión.
+- **Pickers** deben listar Pages **de la tienda conectada** (`ShopConfig.shop` vía Admin API), no GIDs de ejemplo de documentación.
 - Bootstrap automático (crear Pages/metafields) es iniciativa **hermana**, no prerrequisito.
 
 ## Arquitectura objetivo

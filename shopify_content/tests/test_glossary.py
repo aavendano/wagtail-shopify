@@ -70,6 +70,11 @@ class GlossaryTermDefinitionTests(TestCase):
             image_field.validations,
             [{'name': 'file_type_options', 'value': ['Image']}],
         )
+        payload = image_field.to_shopify_input()
+        self.assertEqual(
+            payload['validations'],
+            [{'name': 'file_type_options', 'value': '["Image"]'}],
+        )
 
 
 class EnsureGlossaryTermDefinitionTests(TestCase):
