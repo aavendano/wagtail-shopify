@@ -1,4 +1,4 @@
-"""Push precomputed glossary index JSON to Shopify Pages via metafieldsSet."""
+"""Push precomputed glossary index JSON to root_page metaobject entries (one per locale)."""
 
 from __future__ import annotations
 
@@ -6,10 +6,6 @@ from shopify_content.export_config.glossary import (
     GLOSSARY_ROOT_SLUG,
     glossary_index_consumer,
 )
-
-METAFIELD_NAMESPACE = 'custom'
-METAFIELD_LOCALE_KEY = 'glossary_locale'
-METAFIELD_INDEX_KEY = 'glossary_index'
 
 
 def get_glossary_root_page():
@@ -25,7 +21,11 @@ def sync_glossary_index_pages(
     locale_codes: list[str] | None = None,
     dry_run: bool = False,
 ) -> dict:
-    return glossary_index_consumer.sync(locale_codes=locale_codes, dry_run=dry_run)
+    from shopify_content.sync.outbound import sync_root_index_locales
+
+    return sync_root_index_locales(
+        get_glossary_root_page(), locale_codes=locale_codes, dry_run=dry_run,
+    )
 
 
 def queue_glossary_index_sync(*, locale_codes: list[str] | None = None) -> None:

@@ -1,11 +1,12 @@
-import json
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
+from metaobjects.shopify_metaobjects.exceptions import UpsertError
+from metaobjects.shopify_metaobjects.metaobject import Metaobject
 from shopify_content.glossary.index import build_glossary_index_json
 from shopify_content.models import GlossaryTermPage, ShopifyRootPage
 from shopify_content.sync.glossary_index import (
@@ -102,10 +103,7 @@ class SyncGlossaryIndexPagesTests(TestCase):
             export_config={
                 'glossary_index': {
                     'enabled': True,
-                    'pages': {
-                        'en': 'gid://shopify/Page/1',
-                        'es': 'gid://shopify/Page/2',
-                    },
+                    'locales': ['en', 'es'],
                 },
             },
             locale=locale,
@@ -127,7 +125,7 @@ class SyncGlossaryIndexPagesTests(TestCase):
     def test_get_glossary_index_config_reads_export_config(self):
         config = get_glossary_index_config(self.glossary_root)
         self.assertTrue(config['enabled'])
-        self.assertEqual(config['pages']['en'], 'gid://shopify/Page/1')
+        self.assertEqual(config['locales'], ['en', 'es'])
 
     def test_sync_disabled_when_not_configured(self):
         self.glossary_root.export_config = {}
@@ -138,64 +136,67 @@ class SyncGlossaryIndexPagesTests(TestCase):
         self.assertFalse(stats['enabled'])
         self.assertEqual(stats['pushed'], 0)
 
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
-        'gid://shopify/Page/1': 'glossary-en',
-        'gid://shopify/Page/2': 'glossary-es',
-    })
-    @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_pushes_metafields_for_configured_locales(self, mock_push, mock_resolve_handles):
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_upserts_metaobject_entries_for_configured_locales(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(type='root_page', handle='glossary-en', id='gid://1')
+        mock_client_cls.return_value = mock_client
+
         stats = sync_glossary_index_pages()
 
         self.assertEqual(stats['pushed'], 2)
-        self.assertEqual(mock_push.call_count, 2)
-        first_call = mock_push.call_args_list[0].args[1]
-        self.assertEqual(len(first_call), 4)
-        self.assertEqual(first_call[0]['key'], 'glossary_locale')
-        self.assertEqual(first_call[1]['key'], 'glossary_index')
-        self.assertEqual(first_call[2]['key'], 'index_alternates')
-        self.assertEqual(first_call[3]['key'], 'index_noindex')
-        index_value = json.loads(first_call[1]['value'])
-        self.assertEqual(index_value['count'], 1)
-        alternates_value = json.loads(first_call[2]['value'])
-        self.assertEqual(alternates_value['version'], 1)
+        self.assertEqual(mock_client.sync.call_count, 2)
+
+        calls_by_locale = {
+            call.args[0]['locale']: call.args[0]
+            for call in mock_client.sync.call_args_list
+        }
+        en_data = calls_by_locale['en']
+        self.assertEqual(en_data['handle'], 'glossary-en')
+        self.assertEqual(en_data['index']['count'], 1)
+        self.assertEqual(en_data['index_alternates']['version'], 1)
         self.assertEqual(
-            {alt['handle'] for alt in alternates_value['alternates']},
+            {alt['handle'] for alt in en_data['index_alternates']['alternates']},
             {'glossary-en', 'glossary-es'},
         )
-        self.assertEqual(first_call[3]['value'], 'false')
+        self.assertFalse(en_data['index_noindex'])
+        self.assertEqual(calls_by_locale['es']['handle'], 'glossary-es')
 
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
-        'gid://shopify/Page/1': 'glossary-en',
-        'gid://shopify/Page/2': 'glossary-es',
-    })
-    @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_marks_noindex_locales(self, mock_push, mock_resolve_handles):
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_marks_noindex_locales(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(type='root_page', handle='glossary-en', id='gid://1')
+        mock_client_cls.return_value = mock_client
+
         self.glossary_root.export_config['glossary_index']['noindex_locales'] = ['es']
         self.glossary_root.save()
 
         sync_glossary_index_pages()
 
         calls_by_locale = {
-            call.args[1][0]['value']: call.args[1]
-            for call in mock_push.call_args_list
+            call.args[0]['locale']: call.args[0]
+            for call in mock_client.sync.call_args_list
         }
-        self.assertEqual(calls_by_locale['en'][3]['value'], 'false')
-        self.assertEqual(calls_by_locale['es'][3]['value'], 'true')
+        self.assertFalse(calls_by_locale['en']['index_noindex'])
+        self.assertTrue(calls_by_locale['es']['index_noindex'])
 
-    def test_dry_run_skips_shopify_push(self):
-        with patch('shopify_content.export_config.base._push_metafields') as mock_push:
-            stats = sync_glossary_index_pages(dry_run=True)
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_dry_run_skips_shopify_push(self, mock_client_cls):
+        stats = sync_glossary_index_pages(dry_run=True)
 
         self.assertEqual(stats['pushed'], 2)
-        mock_push.assert_not_called()
+        mock_client_cls.assert_not_called()
 
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={})
-    @patch('shopify_content.export_config.base._push_metafields', return_value=False)
-    def test_sync_records_errors(self, mock_push, mock_resolve_handles):
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_records_errors(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.sync.side_effect = UpsertError('boom')
+        mock_client_cls.return_value = mock_client
+
         stats = sync_glossary_index_pages(locale_codes=['en'])
 
         self.assertEqual(stats['errors'], ['en'])
-        mock_push.assert_called_once()
+        mock_client.sync.assert_called_once()
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
@@ -215,7 +216,7 @@ class GlossaryIndexSignalTests(TestCase):
             export_config={
                 'glossary_index': {
                     'enabled': True,
-                    'pages': {'en': 'gid://shopify/Page/1'},
+                    'locales': ['en'],
                 },
             },
             locale=locale,

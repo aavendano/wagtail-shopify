@@ -2,19 +2,16 @@
 
 from django.db import transaction
 
-from shopify_content.export_config.base import IndexMetafieldSpec, PageIndexConsumer
+from shopify_content.export_config.base import RootIndexConsumer
 from shopify_content.locations.index import build_location_index_json
 
 LOCATION_ROOT_SLUG = 'local-us'
 
 
-class LocationIndexConsumer(PageIndexConsumer):
+class LocationIndexConsumer(RootIndexConsumer):
     root_slug = LOCATION_ROOT_SLUG
+    handle_prefix = 'locations'
     config_key = 'location_index'
-    index_metafields = IndexMetafieldSpec(
-        locale_key='location_locale',
-        index_key='location_index',
-    )
 
     def build_payload(self, locale_code: str) -> dict:
         return build_location_index_json(locale_code)

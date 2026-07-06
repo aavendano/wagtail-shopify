@@ -1078,16 +1078,23 @@ def sync_location_page(page):
 
 
 def _root_page_definition():
-    """Build MetaobjectDefinitionSpec for merchant-owned root_page type."""
+    """Build MetaobjectDefinitionSpec for merchant-owned root_page type.
+
+    One entry per configured locale per ShopifyRootPage family (glossary, locations,
+    or any future RootIndexConsumer): the entry itself is the visitable index page
+    (onlineStore capability), replacing the previous split between a config-mirror
+    metaobject and separate native Shopify Pages carrying the precomputed index.
+    """
     from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
 
     return MetaobjectDefinitionSpec(
         type='root_page',
         name='Root Page',
-        description='Wagtail ShopifyRootPage configuration exported to Shopify',
+        description='Wagtail ShopifyRootPage index, synced one entry per locale',
         display_name_field='title',
         capabilities={
             'publishable': {'enabled': True},
+            'onlineStore': {'enabled': True, 'data': {'urlHandle': 'index'}},
             'renderable': {'enabled': True, 'data': {
                 'metaTitleKey': 'meta_title',
                 'metaDescriptionKey': 'meta_description',
@@ -1101,6 +1108,10 @@ def _root_page_definition():
             MetaobjectFieldSpec(key='config', name='Config', type='json'),
             MetaobjectFieldSpec(key='meta_title', name='Meta Title', type='single_line_text_field'),
             MetaobjectFieldSpec(key='meta_description', name='Meta Description', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
+            MetaobjectFieldSpec(key='index', name='Index', type='json'),
+            MetaobjectFieldSpec(key='index_alternates', name='Index Alternates', type='json'),
+            MetaobjectFieldSpec(key='index_noindex', name='Index Noindex', type='boolean'),
         ],
     )
 
@@ -1110,63 +1121,145 @@ def ensure_root_page_definition(client):
     return client.ensure_definition(_root_page_definition())
 
 
-def sync_shopify_root_page(page):
+def sync_root_index_locales(root, *, locale_codes: list[str] | None = None, dry_run: bool = False) -> dict:
     """
-    Push ShopifyRootPage → Shopify merchant-owned metaobject (type: root_page).
+    Upsert one root_page metaobject entry per configured locale for this
+    ShopifyRootPage. Merges what used to be two separate writers (the config-mirror
+    metaobject and the precomputed-index Page metafields) into a single resource.
 
-    Returns (success, message).
+    Returns stats: consumer, root_found, enabled, locales, pushed, skipped, errors, dry_run.
     """
-    if not page.sync_enabled:
-        return False, "Sync disabled: enable sync_enabled on this Shopify root page."
-
-    try:
-        shop = _get_shop()
-    except RuntimeError as exc:
-        return False, str(exc)
-
-    handle = page.handle or page.slug
-    if not handle:
-        logger.error('ShopifyRootPage sync aborted pk=%s: slug is required', page.pk)
-        return False, "Sync aborted: slug is required."
-
-    if not _has_meaningful_sync_value(page.title):
-        logger.error('ShopifyRootPage sync aborted pk=%s: title is required', page.pk)
-        return False, "Sync aborted: title is required."
-
-    data: dict = {
-        'handle': handle,
-        'title': str(_wagtail_field_value(page.title)).strip(),
-        'slug': page.slug,
-        'resource_type': page.get_resource_type(),
-        'config': page.export_config or {},
-    }
-    for key, value in [
-        ('meta_title', page.get_seo_title()),
-        ('meta_description', page.get_seo_description()),
-    ]:
-        if _has_meaningful_sync_value(value):
-            data[key] = _wagtail_field_value(value)
-
     from metaobjects.shopify_metaobjects.client import MetaobjectClient
     from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
+    from shopify_content.export_config.registry import get_consumer_for_root
 
-    client = MetaobjectClient(shop=shop)
-    definition = ensure_root_page_definition(client)
+    stats = {
+        'consumer': None,
+        'root_found': root is not None,
+        'enabled': False,
+        'locales': [],
+        'pushed': 0,
+        'skipped': 0,
+        'errors': [],
+        'dry_run': dry_run,
+    }
+    if root is None:
+        stats['failure_reason'] = 'root_not_found'
+        return stats
+
+    consumer = get_consumer_for_root(root)
+    if consumer is None:
+        stats['failure_reason'] = 'consumer_not_registered'
+        return stats
+    stats['consumer'] = consumer.config_key
+
+    if not root.sync_enabled:
+        stats['failure_reason'] = 'disabled'
+        return stats
+
+    if not _has_meaningful_sync_value(root.title):
+        stats['failure_reason'] = 'title_required'
+        return stats
+
+    config = consumer.get_config(root)
+    if config is None:
+        export_config = root.export_config or {}
+        section = export_config.get(consumer.config_key) or {}
+        stats['failure_reason'] = (
+            'section_missing' if not section
+            else 'disabled' if not section.get('enabled')
+            else 'locales_empty'
+        )
+        return stats
+    stats['enabled'] = True
+
+    locales = consumer.configured_locales(config, locale_codes)
+    stats['locales'] = locales
+    if not locales:
+        return stats
+
+    # Alternates must reflect every configured sibling locale, not just the
+    # (possibly partial) subset being rebuilt in this call.
+    all_locales = consumer.configured_locales(config, None)
+
+    base_title = str(_wagtail_field_value(root.title)).strip()
+    resource_type = root.get_resource_type()
+    export_config_json = root.export_config or {}
+    seo_title = root.get_seo_title()
+    seo_description = root.get_seo_description()
+
     spec = _root_page_definition()
+    client = None
+    if not dry_run:
+        try:
+            shop = _get_shop()
+        except RuntimeError as exc:
+            stats['failure_reason'] = str(exc)
+            stats['errors'] = list(locales)
+            return stats
+        client = MetaobjectClient(shop=shop)
+        client.ensure_definition(spec)
 
-    try:
-        result = client.sync(data, definition=spec, ensure_definition=True, validate=False)
-    except (DefinitionError, UpsertError) as exc:
-        detail = str(exc)
-        logger.error('ShopifyRootPage sync failed pk=%s: %s', page.pk, detail)
-        return False, f"Shopify metaobject error: {detail}"
+    for locale_code in locales:
+        payload = consumer.build_payload(locale_code)
+        if dry_run:
+            stats['pushed'] += 1
+            continue
 
-    if result.id and not page.shopify_id:
-        type(page).objects.filter(pk=page.pk).update(shopify_id=result.id)
-        page.shopify_id = result.id
+        alternates_payload = consumer.build_alternates_payload(config, all_locales)
+        noindex = consumer.is_noindex(config, locale_code)
+
+        data: dict = {
+            'handle': consumer.entry_handle(locale_code),
+            'title': base_title,
+            'slug': root.slug,
+            'resource_type': resource_type,
+            'config': export_config_json,
+            'locale': locale_code,
+            'index': payload,
+            'index_alternates': alternates_payload,
+            'index_noindex': noindex,
+        }
+        for key, value in [
+            ('meta_title', seo_title),
+            ('meta_description', seo_description),
+        ]:
+            if _has_meaningful_sync_value(value):
+                data[key] = _wagtail_field_value(value)
+
+        try:
+            result = client.sync(data, definition=spec, ensure_definition=False, validate=False)
+            stats['pushed'] += 1
+            if result.id and not root.shopify_id:
+                type(root).objects.filter(pk=root.pk).update(shopify_id=result.id)
+                root.shopify_id = result.id
+        except (DefinitionError, UpsertError) as exc:
+            logger.error(
+                'root_page index sync failed slug=%s locale=%s: %s',
+                root.slug, locale_code, exc,
+            )
+            stats['errors'].append(locale_code)
+
+    return stats
+
+
+def sync_shopify_root_page(page):
+    """
+    Push ShopifyRootPage → Shopify root_page metaobject entries (one per configured
+    locale). Returns (success, message) for the generic per-page-type sync dispatcher.
+    """
+    stats = sync_root_index_locales(page)
+
+    if not stats['enabled']:
+        reason = stats.get('failure_reason', 'unknown')
+        logger.error('ShopifyRootPage sync skipped pk=%s: %s', getattr(page, 'pk', None), reason)
+        return False, f"Sync skipped: {reason}."
+
+    if stats['errors']:
+        return False, f"Shopify metaobject error for locale(s): {stats['errors']}."
 
     _mark_synced(type(page), page.pk)
-    return True, "Shopify root page synced to Shopify metaobject successfully."
+    return True, f"Shopify root page synced to Shopify metaobject successfully ({stats['pushed']} locale(s))."
 
 
 def _glossary_term_definition(glossary_definition_gid=None, *, include_self_reference=True):

@@ -53,6 +53,7 @@ def build_location_index_json(locale_code: str, *, generated_at: datetime | None
             continue
         key = _state_key(page)
         buckets.setdefault(key, []).append({
+            'label': titulo,
             'titulo': titulo,
             'handle': handle,
             'path': location_page_path(handle),

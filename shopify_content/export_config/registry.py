@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from shopify_content.export_config.base import PageIndexConsumer
+from shopify_content.export_config.base import RootIndexConsumer
 from shopify_content.export_config.glossary import glossary_index_consumer
 from shopify_content.export_config.location import location_index_consumer
 
 if TYPE_CHECKING:
     from shopify_content.models import ShopifyRootPage
 
-_CONSUMERS_BY_SLUG: dict[str, PageIndexConsumer] = {
+_CONSUMERS_BY_SLUG: dict[str, RootIndexConsumer] = {
     glossary_index_consumer.root_slug: glossary_index_consumer,
     location_index_consumer.root_slug: location_index_consumer,
 }
@@ -21,30 +21,17 @@ def registered_root_slugs() -> list[str]:
     return list(_CONSUMERS_BY_SLUG.keys())
 
 
-def get_consumer_for_slug(slug: str) -> PageIndexConsumer | None:
+def get_consumer_for_slug(slug: str) -> RootIndexConsumer | None:
     return _CONSUMERS_BY_SLUG.get(slug)
 
 
-def get_consumer_for_root(root: ShopifyRootPage) -> PageIndexConsumer | None:
+def get_consumer_for_root(root: ShopifyRootPage) -> RootIndexConsumer | None:
     return get_consumer_for_slug(root.slug)
-
-
-def queue_index_sync(*, root_slug: str, locale_codes: list[str] | None = None) -> None:
-    consumer = get_consumer_for_slug(root_slug)
-    if consumer is not None:
-        consumer.queue_sync(locale_codes=locale_codes)
 
 
 def queue_index_sync_for_content_page(page) -> None:
     """Rebuild index locale(s) after a child page was synced to Shopify."""
     on_content_page_changed(page)
-
-
-def on_root_published(root) -> None:
-    specific = root.specific if hasattr(root, 'specific') else root
-    consumer = get_consumer_for_slug(specific.slug)
-    if consumer is not None:
-        consumer.queue_sync()
 
 
 def on_content_page_changed(page) -> None:

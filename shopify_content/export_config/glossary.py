@@ -2,19 +2,16 @@
 
 from django.db import transaction
 
-from shopify_content.export_config.base import IndexMetafieldSpec, PageIndexConsumer
+from shopify_content.export_config.base import RootIndexConsumer
 from shopify_content.glossary.index import build_glossary_index_json
 
 GLOSSARY_ROOT_SLUG = 'glossary'
 
 
-class GlossaryIndexConsumer(PageIndexConsumer):
+class GlossaryIndexConsumer(RootIndexConsumer):
     root_slug = GLOSSARY_ROOT_SLUG
+    handle_prefix = 'glossary'
     config_key = 'glossary_index'
-    index_metafields = IndexMetafieldSpec(
-        locale_key='glossary_locale',
-        index_key='glossary_index',
-    )
 
     def build_payload(self, locale_code: str) -> dict:
         return build_glossary_index_json(locale_code)

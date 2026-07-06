@@ -37,20 +37,26 @@ class Command(BaseCommand):
                 'section_missing': (
                     'export_config no tiene la clave "location_index". '
                     'Edita el root Wagtail "Local US" (slug=local-us) y pega el JSON de setup '
-                    '(ver docs/shopify_content.md).'
+                    '(ver docs/shopify_content.md), p. ej. '
+                    '{"location_index": {"enabled": true, "locales": ["en-US", "es-US"]}}.'
                 ),
                 'disabled': (
                     'export_config.location_index.enabled es false. '
                     'Actívalo en el root Wagtail "Local US" (slug=local-us).'
                 ),
-                'pages_empty': (
-                    'export_config.location_index.pages está vacío. '
-                    'Añade los GIDs de las Shopify Pages por locale (p. ej. en-US, es-US) '
+                'locales_empty': (
+                    'export_config.location_index.locales está vacío. '
+                    'Añade los códigos de locale a publicar (p. ej. ["en-US", "es-US"]) '
                     'en el root Wagtail "Local US".'
                 ),
+                'consumer_not_registered': (
+                    'No hay un RootIndexConsumer registrado para slug=local-us '
+                    '(ver shopify_content/export_config/registry.py).'
+                ),
+                'title_required': 'El root Wagtail "Local US" necesita un título antes de sincronizar.',
             }
             self.stdout.write(self.style.WARNING(messages.get(reason, (
-                'Location index sync is disabled or export_config.location_index.pages is empty.'
+                f'Location index sync is disabled or misconfigured ({reason}).'
             ))))
             return
 

@@ -22,9 +22,15 @@ class RootPageDefinitionTests(TestCase):
         self.assertEqual(spec.display_name_field, 'title')
         self.assertEqual(
             field_keys,
-            {'title', 'slug', 'resource_type', 'config', 'meta_title', 'meta_description'},
+            {
+                'title', 'slug', 'resource_type', 'config', 'meta_title', 'meta_description',
+                'locale', 'index', 'index_alternates', 'index_noindex',
+            },
         )
-        self.assertNotIn('onlineStore', spec.capabilities or {})
+        online_store = (spec.capabilities or {}).get('onlineStore')
+        self.assertIsNotNone(online_store)
+        self.assertTrue(online_store['enabled'])
+        self.assertEqual(online_store['data']['urlHandle'], 'index')
 
     def test_resource_type_mapping(self):
         self.assertEqual(resource_type_for_root_slug('glossary'), 'glossary')
@@ -53,11 +59,11 @@ class SyncShopifyRootPageTests(TestCase):
         self.parent.save_revision().publish()
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
-    def test_sync_includes_config_and_resource_type(self, mock_client_cls):
+    def test_sync_upserts_one_entry_per_configured_locale(self, mock_client_cls):
         mock_client = MagicMock()
         mock_client.sync.return_value = Metaobject(
             type='root_page',
-            handle='glossary',
+            handle='glossary-en',
             id='gid://shopify/Metaobject/10',
         )
         mock_client_cls.return_value = mock_client
@@ -65,13 +71,12 @@ class SyncShopifyRootPageTests(TestCase):
         export_config = {
             'glossary_index': {
                 'enabled': True,
-                'pages': {'en': 'gid://shopify/Page/1'},
+                'locales': ['en', 'es'],
             },
         }
         page = ShopifyRootPage(
             title='Glossary',
             slug='glossary',
-            handle='glossary',
             export_config=export_config,
             locale=Locale.get_default(),
         )
@@ -82,12 +87,31 @@ class SyncShopifyRootPageTests(TestCase):
 
         self.assertTrue(success)
         self.assertIn('successfully', message)
-        data = mock_client.sync.call_args.args[0]
-        self.assertEqual(data['title'], 'Glossary')
-        self.assertEqual(data['slug'], 'glossary')
-        self.assertEqual(data['resource_type'], 'glossary')
-        self.assertEqual(data['config'], export_config)
-        self.assertEqual(data['meta_title'], 'Glossary')
+        self.assertEqual(mock_client.sync.call_count, 2)
+
+        calls_by_locale = {
+            call.args[0]['locale']: call.args[0]
+            for call in mock_client.sync.call_args_list
+        }
+        en_data = calls_by_locale['en']
+        self.assertEqual(en_data['handle'], 'glossary-en')
+        self.assertEqual(en_data['title'], 'Glossary')
+        self.assertEqual(en_data['slug'], 'glossary')
+        self.assertEqual(en_data['resource_type'], 'glossary')
+        self.assertEqual(en_data['config'], export_config)
+        self.assertEqual(en_data['meta_title'], 'Glossary')
+        self.assertEqual(en_data['index']['locale'], 'en')
+        self.assertEqual(
+            {alt['handle'] for alt in en_data['index_alternates']['alternates']},
+            {'glossary-en', 'glossary-es'},
+        )
+        self.assertFalse(en_data['index_noindex'])
+
+        es_data = calls_by_locale['es']
+        self.assertEqual(es_data['handle'], 'glossary-es')
+
+        page.refresh_from_db()
+        self.assertEqual(page.shopify_id, 'gid://shopify/Metaobject/10')
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_skipped_when_disabled(self, mock_client_cls):
@@ -95,6 +119,7 @@ class SyncShopifyRootPageTests(TestCase):
             title='Glossary',
             slug='glossary',
             sync_enabled=False,
+            export_config={'glossary_index': {'enabled': True, 'locales': ['en']}},
             locale=Locale.get_default(),
         )
         self.parent.add_child(instance=page)
@@ -104,4 +129,20 @@ class SyncShopifyRootPageTests(TestCase):
 
         self.assertFalse(success)
         self.assertIn('disabled', message)
+        mock_client_cls.assert_not_called()
+
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_skipped_when_no_consumer_registered(self, mock_client_cls):
+        page = ShopifyRootPage(
+            title='Unrelated Root',
+            slug='some-unregistered-slug',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        success, message = sync_shopify_root_page(page)
+
+        self.assertFalse(success)
+        self.assertIn('consumer_not_registered', message)
         mock_client_cls.assert_not_called()

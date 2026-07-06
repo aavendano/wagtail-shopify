@@ -411,6 +411,118 @@ class MetaobjectClientTests(TestCase):
         )
 
     @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
+    def test_ensure_definition_adds_missing_onlinestore_capability(self, mock_execute):
+        mock_execute.side_effect = [
+            _ok_result(
+                {
+                    "metaobjectDefinitionByType": {
+                        "id": "gid://shopify/MetaobjectDefinition/1",
+                        "type": "root_page",
+                        "name": "Root Page",
+                        "description": "Existing",
+                        "fieldDefinitions": [
+                            {
+                                "key": "title",
+                                "name": "Title",
+                                "required": True,
+                                "type": {"name": "single_line_text_field"},
+                                "validations": [],
+                            },
+                        ],
+                        "capabilities": {
+                            "publishable": {"enabled": True},
+                            "onlineStore": {"enabled": False, "data": None},
+                            "renderable": {"enabled": False, "data": None},
+                        },
+                    }
+                }
+            ),
+            _ok_result(
+                {
+                    "metaobjectDefinitionUpdate": {
+                        "metaobjectDefinition": {
+                            "id": "gid://shopify/MetaobjectDefinition/1",
+                            "type": "root_page",
+                            "name": "Root Page",
+                            "description": "Existing",
+                            "fieldDefinitions": [],
+                            "capabilities": {
+                                "publishable": {"enabled": True},
+                                "onlineStore": {"enabled": True, "data": {"urlHandle": "index"}},
+                                "renderable": {"enabled": False, "data": None},
+                            },
+                        },
+                        "userErrors": [],
+                    }
+                }
+            ),
+        ]
+        client = MetaobjectClient("test-shop.myshopify.com")
+        spec = MetaobjectDefinitionSpec(
+            type="root_page",
+            name="Root Page",
+            description="Wagtail ShopifyRootPage configuration exported to Shopify",
+            capabilities={
+                "publishable": {"enabled": True},
+                "onlineStore": {"enabled": True, "data": {"urlHandle": "index"}},
+            },
+            fields=[
+                MetaobjectFieldSpec(key="title", name="Title", type="single_line_text_field", required=True),
+            ],
+        )
+        result = client.ensure_definition(spec)
+        self.assertTrue(result.capabilities["onlineStore"]["enabled"])
+        self.assertEqual(result.capabilities["onlineStore"]["data"]["urlHandle"], "index")
+        self.assertEqual(mock_execute.call_count, 2)
+        update_variables = mock_execute.call_args_list[1].kwargs["variables"]
+        self.assertNotIn("fieldDefinitions", update_variables["definition"])
+        self.assertEqual(
+            update_variables["definition"]["capabilities"]["onlineStore"],
+            {"enabled": True, "data": {"urlHandle": "index"}},
+        )
+        self.assertNotIn("publishable", update_variables["definition"]["capabilities"])
+
+    @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
+    def test_ensure_definition_skips_update_when_capabilities_already_match(self, mock_execute):
+        mock_execute.return_value = _ok_result(
+            {
+                "metaobjectDefinitionByType": {
+                    "id": "gid://shopify/MetaobjectDefinition/1",
+                    "type": "root_page",
+                    "name": "Root Page",
+                    "description": "Existing",
+                    "fieldDefinitions": [
+                        {
+                            "key": "title",
+                            "name": "Title",
+                            "required": True,
+                            "type": {"name": "single_line_text_field"},
+                            "validations": [],
+                        },
+                    ],
+                    "capabilities": {
+                        "onlineStore": {"enabled": True, "data": {"urlHandle": "index"}},
+                    },
+                }
+            }
+        )
+        client = MetaobjectClient("test-shop.myshopify.com")
+        spec = MetaobjectDefinitionSpec(
+            type="root_page",
+            name="Root Page",
+            description="Existing",
+            capabilities={
+                "onlineStore": {"enabled": True, "data": {"urlHandle": "index"}},
+            },
+            fields=[
+                MetaobjectFieldSpec(key="title", name="Title", type="single_line_text_field", required=True),
+            ],
+        )
+        result = client.ensure_definition(spec)
+        self.assertEqual(result.id, "gid://shopify/MetaobjectDefinition/1")
+        mock_execute.assert_called_once()
+
+    @patch("metaobjects.shopify_metaobjects.client.execute_admin_graphql")
     def test_ensure_definition_creates_when_missing(self, mock_execute):
         mock_execute.side_effect = [
             _ok_result({"metaobjectDefinitionByType": None}),

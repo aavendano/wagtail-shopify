@@ -56,6 +56,7 @@ def build_glossary_index_json(locale_code: str, *, generated_at: datetime | None
             continue
         key = _section_key(term)
         buckets.setdefault(key, []).append({
+            'label': term,
             'term': term,
             'handle': handle,
             'path': glossary_term_path(handle),

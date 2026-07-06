@@ -37,19 +37,26 @@ class Command(BaseCommand):
                 'section_missing': (
                     'export_config no tiene la clave "glossary_index". '
                     'Edita el root Wagtail "Glossary" (slug=glossary) y pega el JSON de setup '
-                    '(ver docs/shopify_content.md o .cursor/plans/glossary-index-sync.plan.md).'
+                    '(ver docs/shopify_content.md), p. ej. '
+                    '{"glossary_index": {"enabled": true, "locales": ["en", "es", "fr"]}}.'
                 ),
                 'disabled': (
                     'export_config.glossary_index.enabled es false. '
                     'Actívalo en el root Wagtail "Glossary" (slug=glossary).'
                 ),
-                'pages_empty': (
-                    'export_config.glossary_index.pages está vacío. '
-                    'Añade los GIDs de las 3 Shopify Pages (en/es/fr) en el root Wagtail "Glossary".'
+                'locales_empty': (
+                    'export_config.glossary_index.locales está vacío. '
+                    'Añade los códigos de locale a publicar (p. ej. ["en", "es", "fr"]) '
+                    'en el root Wagtail "Glossary".'
                 ),
+                'consumer_not_registered': (
+                    'No hay un RootIndexConsumer registrado para slug=glossary '
+                    '(ver shopify_content/export_config/registry.py).'
+                ),
+                'title_required': 'El root Wagtail "Glossary" necesita un título antes de sincronizar.',
             }
             self.stdout.write(self.style.WARNING(messages.get(reason, (
-                'Glossary index sync is disabled or export_config.glossary_index.pages is empty.'
+                f'Glossary index sync is disabled or misconfigured ({reason}).'
             ))))
             return
 
