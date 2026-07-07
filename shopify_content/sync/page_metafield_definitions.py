@@ -58,7 +58,19 @@ class PageMetafieldDefinitionSpec:
     description: str
 
 
-PAGE_INDEX_METAFIELD_DEFINITIONS: tuple[PageMetafieldDefinitionSpec, ...] = (
+PAGE_INDEX_LISTINGS_DEFINITION = PageMetafieldDefinitionSpec(
+    name='Index listings',
+    namespace='custom',
+    key='index_listings',
+    type='json',
+    description=(
+        'Precomputed multi-locale index listings JSON from Wagtail '
+        '(blog, glossary, locations).'
+    ),
+)
+
+# Deprecated: multi-page index architecture. Not created by default.
+LEGACY_PAGE_INDEX_METAFIELD_DEFINITIONS: tuple[PageMetafieldDefinitionSpec, ...] = (
     PageMetafieldDefinitionSpec(
         name='Glossary locale',
         namespace='custom',
@@ -104,6 +116,11 @@ PAGE_INDEX_METAFIELD_DEFINITIONS: tuple[PageMetafieldDefinitionSpec, ...] = (
         type='boolean',
         description='Whether this CMS index Page should be marked noindex in robots meta.',
     ),
+)
+
+
+PAGE_INDEX_METAFIELD_DEFINITIONS: tuple[PageMetafieldDefinitionSpec, ...] = (
+    PAGE_INDEX_LISTINGS_DEFINITION,
 )
 
 

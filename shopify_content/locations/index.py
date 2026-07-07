@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
+from shopify_content.index_builders import build_multi_locale_index
 from shopify_content.location_slug import location_page_slug
-from shopify_content.models.location_page import LocationPage
+from shopify_content.models import LocationPage, ShopifyRootPage
 
 LOCATION_INDEX_VERSION = 1
+LOCATION_ROOT_SLUG = 'local-us'
 UNKNOWN_STATE_KEY = '#'
 
 
@@ -26,16 +29,18 @@ def _state_key(page: LocationPage) -> str:
     return state if state else UNKNOWN_STATE_KEY
 
 
-def build_location_index_json(locale_code: str, *, generated_at: datetime | None = None) -> dict:
-    """
-    Build grouped location index payload for a Wagtail/Shopify locale code.
+def _build_location_locale_listing(locale_code: str) -> dict:
+    root = (
+        ShopifyRootPage.objects.live()
+        .filter(slug=LOCATION_ROOT_SLUG)
+        .first()
+    )
+    if root is None:
+        return {'count': 0, 'sections': []}
 
-    Only includes live locations with a non-empty shopify_id.
-    Groups by state (or #), cities sorted alphabetically within each state.
-    """
-    when = generated_at or datetime.now(timezone.utc)
     pages = (
         LocationPage.objects.live()
+        .descendant_of(root)
         .select_related('locale')
         .exclude(shopify_id='')
         .order_by('state', 'city', 'titulo')
@@ -74,10 +79,30 @@ def build_location_index_json(locale_code: str, *, generated_at: datetime | None
             sections.append({'key': key, 'items': items})
 
     count = sum(len(section['items']) for section in sections)
+    return {'count': count, 'sections': sections}
+
+
+def build_location_index_listings(*, generated_at: datetime | None = None) -> dict:
+    """Build multi-locale location index payload for custom.index_listings."""
+    return build_multi_locale_index(
+        locale_codes=ALLOWED_LOCALE_CODE_LIST,
+        build_locale_listing=_build_location_locale_listing,
+        generated_at=generated_at,
+    )
+
+
+def build_location_index_json(locale_code: str, *, generated_at: datetime | None = None) -> dict:
+    """
+    Build grouped location index payload for one Wagtail locale code.
+
+    Deprecated: prefer build_location_index_listings() for the single-page architecture.
+    """
+    when = generated_at or datetime.now(timezone.utc)
+    listing = _build_location_locale_listing(locale_code)
     return {
         'version': LOCATION_INDEX_VERSION,
         'locale': locale_code,
         'generated_at': when.isoformat(),
-        'count': count,
-        'sections': sections,
+        'count': listing['count'],
+        'sections': listing['sections'],
     }

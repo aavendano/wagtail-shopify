@@ -10,6 +10,7 @@ from wagtail.search import index
 from wagtail.rich_text import expand_db_html
 
 from shopify_content.admin_panels import semantic_links_panels
+from shopify_content.glossary_locale_utils import glossary_locale_code_for_wagtail
 from .mixins import SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 
 LOCALE_CODE_CHOICES = [
@@ -137,6 +138,10 @@ class GlossaryTermPage(Page):
     def save(self, **kwargs):
         if self.term:
             self.title = self.term
+        if getattr(self, 'locale_id', None):
+            derived = glossary_locale_code_for_wagtail(self.locale.language_code)
+            if not self.locale_code or self.locale_code != derived:
+                self.locale_code = derived
         for field_name in ('related_links', 'external_links', 'synonyms', 'same_as'):
             if getattr(self, field_name) is None:
                 setattr(self, field_name, [])

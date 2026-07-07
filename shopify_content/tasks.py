@@ -189,6 +189,14 @@ def sync_location_index_task(self, locale_codes=None, dry_run=False):
     return sync_location_index_pages(locale_codes=locale_codes, dry_run=dry_run)
 
 
+@shared_task(bind=True, name='shopify_content.tasks.sync_blog_index_task')
+def sync_blog_index_task(self, dry_run=False):
+    """Rebuild and push blog index listings metafield to the Shopify Page handle blogs."""
+    from shopify_content.sync.blog_index import sync_blog_index_listings
+
+    return sync_blog_index_listings(dry_run=dry_run)
+
+
 @shared_task(name='shopify_content.tasks.scheduled_import_new_content')
 def scheduled_import_new_content():
     """Periodic beat entrypoint: import all new Shopify content into Wagtail."""

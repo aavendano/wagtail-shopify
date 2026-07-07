@@ -1,13 +1,12 @@
 """
-Create Shopify Page metafield definitions for glossary/location index sync.
+Create Shopify Page metafield definition for custom.index_listings.
 
 Run once per store (safe to re-run):
 
     python manage.py ensure_page_metafield_definitions
+    python manage.py ensure_index_metafield_definitions   # preferred (includes blog/article)
 
-Creates in owner PAGE (namespace custom):
-  - glossary_locale, glossary_index
-  - location_locale, location_index
+For legacy per-locale index metafields, use ensure_index_metafield_definitions --legacy.
 """
 
 from django.core.management.base import BaseCommand, CommandError

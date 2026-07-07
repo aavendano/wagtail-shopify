@@ -451,6 +451,27 @@ def _push_seo_metafields(shop, owner_gid, seo_title, seo_description):
     return _push_metafields(shop, inputs)
 
 
+def _push_available_locales_metafield(shop, owner_gid, locales) -> bool:
+    """
+    Push custom.available_locales as list.single_line_text_field.
+
+    Values are Wagtail locale codes (en-US, es-US, en-CA, fr-CA).
+    Hreflang/noindex is handled by the theme; backend only signals target locales.
+    """
+    from shopify_content.available_locales import normalize_available_locales
+
+    normalized = normalize_available_locales(locales)
+    if not normalized:
+        return True
+    return _push_metafields(shop, [{
+        'ownerId': owner_gid,
+        'namespace': 'custom',
+        'key': 'available_locales',
+        'type': 'list.single_line_text_field',
+        'value': json.dumps(normalized, ensure_ascii=False),
+    }])
+
+
 def _resolve_primary_page(page):
     """
     Return the en-US variant for primary Shopify resource content.
@@ -785,9 +806,9 @@ def sync_blog_page(page):
         if primary.description:
             blog_metafields.append({
                 'ownerId': page.shopify_id,
-                'namespace': 'descriptors',
+                'namespace': 'custom',
                 'key': 'description',
-                'type': 'rich_text_field',
+                'type': 'multi_line_text_field',
                 'value': primary.description,
             })
         _push_metafields(shop, blog_metafields)
@@ -796,6 +817,18 @@ def sync_blog_page(page):
             shop, page.shopify_id,
             primary.get_seo_title(),
             primary.get_seo_description(),
+        )
+        from shopify_content.available_locales import default_available_locales_for_page
+        locales = primary.available_locales or default_available_locales_for_page(primary)
+        _push_available_locales_metafield(shop, page.shopify_id, locales)
+        _register_shopify_translations(
+            page, shop, page.shopify_id,
+            {
+                'title': 'title',
+                'metafields.custom.description': 'description',
+                'metafields.global.title_tag': lambda t: t.get_seo_title(),
+                'metafields.global.description_tag': lambda t: t.get_seo_description(),
+            },
         )
 
     _mark_synced(type(page), page.pk)
@@ -882,7 +915,9 @@ def sync_article_page(page):
         _push_internal_links_metafield(shop, page.shopify_id, primary)
         _push_native_reference_metafields(shop, page.shopify_id, primary)
 
-        _push_hreflang_metafields(page, shop, page.shopify_id)
+        from shopify_content.available_locales import default_available_locales_for_page
+        locales = primary.available_locales or default_available_locales_for_page(primary)
+        _push_available_locales_metafield(shop, page.shopify_id, locales)
         _register_shopify_translations(
             page, shop, page.shopify_id,
             {
@@ -893,6 +928,7 @@ def sync_article_page(page):
         )
 
     _mark_synced(type(page), page.pk)
+    _queue_index_sync_after_content_sync(page)
     return True
 
 

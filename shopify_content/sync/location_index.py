@@ -7,10 +7,6 @@ from shopify_content.export_config.location import (
     location_index_consumer,
 )
 
-METAFIELD_NAMESPACE = 'custom'
-METAFIELD_LOCALE_KEY = 'location_locale'
-METAFIELD_INDEX_KEY = 'location_index'
-
 
 def get_location_root_page():
     return location_index_consumer.get_root_page()
@@ -25,7 +21,7 @@ def sync_location_index_pages(
     locale_codes: list[str] | None = None,
     dry_run: bool = False,
 ) -> dict:
-    return location_index_consumer.sync(locale_codes=locale_codes, dry_run=dry_run)
+    return location_index_consumer.sync(dry_run=dry_run)
 
 
 def queue_location_index_sync(*, locale_codes: list[str] | None = None) -> None:

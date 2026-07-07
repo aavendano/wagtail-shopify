@@ -110,6 +110,15 @@ def inherit_shopify_id_from_source(page: Page, source: Optional[Page]) -> None:
         page.shopify_id = source.shopify_id
 
 
+def apply_available_locales(page: Page, locales: Optional[list[str]]) -> None:
+    """Set available_locales from API input with normalization."""
+    if locales is None:
+        return
+    from shopify_content.available_locales import normalize_available_locales
+
+    page.available_locales = normalize_available_locales(locales)
+
+
 def resolve_translation_page_ids(obj: Page) -> list[int]:
     """Return all page IDs in the same translation group, including this page."""
     try:

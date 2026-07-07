@@ -16,6 +16,7 @@ from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
     inherit_shopify_id_from_source,
+    apply_available_locales,
     filter_queryset_by_locale,
 )
 
@@ -79,6 +80,7 @@ def create_article(request, data: ArticleIn):
         seo_title=data.seo_title or '',
         search_description=data.search_description or '',
     )
+    apply_available_locales(page, data.available_locales)
 
     if data.featured_image_id:
         page.featured_image_id = data.featured_image_id
@@ -205,6 +207,8 @@ def update_article(request, page_id: int, data: ArticlePatch):
                 type=mf.type,
                 value=mf.value,
             )
+    if data.available_locales is not None:
+        apply_available_locales(page, data.available_locales)
 
     if data.publish:
         revision = page.save_revision()

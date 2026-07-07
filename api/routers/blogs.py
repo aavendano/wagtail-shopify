@@ -15,6 +15,7 @@ from ..locale_utils import (
     resolve_locale,
     apply_translation_link,
     inherit_shopify_id_from_source,
+    apply_available_locales,
     filter_queryset_by_locale,
 )
 
@@ -70,6 +71,7 @@ def create_blog(request, data: BlogIn):
         comment_policy=data.comment_policy or 'CLOSED',
         sync_enabled=data.sync_enabled if data.sync_enabled is not None else True,
     )
+    apply_available_locales(page, data.available_locales)
 
     source = apply_translation_link(page, data.translation_of, BlogPage)
     inherit_shopify_id_from_source(page, source)
@@ -140,6 +142,8 @@ def update_blog(request, page_id: int, data: BlogPatch):
     if data.translation_of is not None:
         source = apply_translation_link(page, data.translation_of, BlogPage)
         inherit_shopify_id_from_source(page, source)
+    if data.available_locales is not None:
+        apply_available_locales(page, data.available_locales)
 
     if data.publish:
         revision = page.save_revision()

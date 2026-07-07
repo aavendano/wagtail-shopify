@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from modelcluster.fields import ParentalKey
@@ -12,15 +13,60 @@ from wagtail.admin.panels import (
 from wagtail.search import index
 
 from shopify_content.admin_panels import semantic_links_panels
+from shopify_content.available_locales import (
+    default_available_locales_for_page,
+    validate_available_locales,
+)
+from shopify_content.forms import ArticlePageForm, BlogPageForm
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
+
+
+class AvailableLocalesMixin(models.Model):
+    """
+    Locales where this blog/article is intentionally available in the storefront.
+
+    Synced to Shopify as custom.available_locales (list.single_line_text_field).
+    Hreflang/noindex is handled by the theme; backend only signals target locales.
+    """
+
+    available_locales = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            'Wagtail locale codes (en-US, es-US, en-CA, fr-CA) where this content '
+            'is published for the storefront.'
+        ),
+    )
+
+    class Meta:
+        abstract = True
+
+    def clean(self):
+        super().clean()
+        locales = self.available_locales or default_available_locales_for_page(self)
+        page_locale = self.locale.language_code if self.locale_id else None
+        sync_on = getattr(self, 'sync_enabled', True)
+        try:
+            self.available_locales = validate_available_locales(
+                locales,
+                page_locale_code=page_locale,
+                sync_enabled=sync_on,
+            )
+        except ValidationError as exc:
+            raise ValidationError({'available_locales': exc.messages}) from exc
+
+    def save(self, *args, **kwargs):
+        if not self.available_locales and self.locale_id:
+            self.available_locales = default_available_locales_for_page(self)
+        super().save(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------
 # Blog (index / container page)
 # ---------------------------------------------------------------------------
 
-class BlogPage(Page):
+class BlogPage(AvailableLocalesMixin, Page):
     """
     Mirrors a Shopify Blog (the container object).
 
@@ -67,6 +113,7 @@ class BlogPage(Page):
     # (Blog has no native seo field in Shopify Admin GraphQL API.)
 
     template = 'shopify_content/blog_page.html'
+    base_form_class = BlogPageForm
     parent_page_types = ['wagtailcore.Page', 'shopify_content.ShopifyRootPage']
     subpage_types = ['shopify_content.ArticlePage']
 
@@ -78,6 +125,7 @@ class BlogPage(Page):
     content_panels = Page.content_panels + [
         FieldPanel('comment_policy'),
         FieldPanel('description'),
+        FieldPanel('available_locales'),
         InlinePanel('faqs', label='FAQs'),
     ]
 
@@ -141,7 +189,7 @@ class ArticlePageMetafield(ShopifyMetafield):
     )
 
 
-class ArticlePage(Page):
+class ArticlePage(AvailableLocalesMixin, Page):
     """
     Mirrors a Shopify Article inside a Blog.
 
@@ -214,6 +262,7 @@ class ArticlePage(Page):
     # (Article has no native seo field in the Shopify Admin GraphQL API.)
 
     template = 'shopify_content/article_page.html'
+    base_form_class = ArticlePageForm
     parent_page_types = ['shopify_content.BlogPage']
     subpage_types = []
 
@@ -237,6 +286,7 @@ class ArticlePage(Page):
         ], heading='Shopify Featured Image (URL)'),
         FieldPanel('summary'),
         FieldPanel('body'),
+        FieldPanel('available_locales'),
         *semantic_links_panels().children,
         InlinePanel('faqs', label='FAQs'),
         InlinePanel('metafields', label='Metafields'),

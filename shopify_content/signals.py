@@ -70,6 +70,12 @@ def _on_location_page_changed(sender, instance, **kwargs):
     on_content_page_changed(instance)
 
 
+def _on_article_page_changed(sender, instance, **kwargs):
+    from shopify_content.export_config.registry import on_content_page_changed
+
+    on_content_page_changed(instance)
+
+
 def _on_export_root_published(sender, instance, **kwargs):
     from shopify_content.export_config.registry import on_root_published
 
@@ -94,7 +100,7 @@ def register_publish_signals():
             dispatch_uid=f'shopify_content_semantic_links_on_publish_{model._meta.label_lower}',
         )
 
-    from shopify_content.models import GlossaryTermPage, LocationPage, ShopifyRootPage
+    from shopify_content.models import ArticlePage, GlossaryTermPage, LocationPage, ShopifyRootPage
 
     page_unpublished.connect(
         _on_glossary_term_changed,
@@ -105,6 +111,11 @@ def register_publish_signals():
         _on_location_page_changed,
         sender=LocationPage,
         dispatch_uid='shopify_content_location_index_on_unpublish',
+    )
+    page_unpublished.connect(
+        _on_article_page_changed,
+        sender=ArticlePage,
+        dispatch_uid='shopify_content_blog_index_on_article_unpublish',
     )
     page_published.connect(
         _on_export_root_published,

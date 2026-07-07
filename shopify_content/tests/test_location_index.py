@@ -6,7 +6,10 @@ from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
-from shopify_content.locations.index import build_location_index_json
+from shopify_content.locations.index import (
+    build_location_index_json,
+    build_location_index_listings,
+)
 from shopify_content.models import LocationPage, ShopifyRootPage
 from shopify_content.sync.location_index import (
     get_location_index_config,
@@ -14,9 +17,14 @@ from shopify_content.sync.location_index import (
 )
 
 
+def _locale(code: str) -> Locale:
+    locale, _ = Locale.objects.get_or_create(language_code=code)
+    return locale
+
+
 class BuildLocationIndexJsonTests(TestCase):
     def setUp(self):
-        locale = Locale.get_default()
+        locale = _locale('en-US')
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
@@ -33,7 +41,7 @@ class BuildLocationIndexJsonTests(TestCase):
             state=state,
             shopify_id=shopify_id,
             shopify_locale=shopify_locale,
-            locale=Locale.get_default(),
+            locale=_locale('en-US'),
         )
         self.parent.add_child(instance=page)
         if live:
@@ -72,8 +80,9 @@ class BuildLocationIndexJsonTests(TestCase):
             shopify_id='gid://2',
         )
 
-        en_ca = build_location_index_json('en-CA')
-        en_us = build_location_index_json('en-US')
+        listings = build_location_index_listings()
+        en_ca = listings['locales']['en-CA']
+        en_us = listings['locales']['en-US']
 
         self.assertEqual(en_ca['count'], 1)
         self.assertEqual(en_us['count'], 1)
@@ -82,7 +91,7 @@ class BuildLocationIndexJsonTests(TestCase):
 class SyncLocationIndexPagesTests(TestCase):
     def setUp(self):
         ShopConfig.objects.create(shop='test-shop.myshopify.com', access_token='tok')
-        locale = Locale.get_default()
+        locale = _locale('en-US')
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
@@ -96,9 +105,7 @@ class SyncLocationIndexPagesTests(TestCase):
             export_config={
                 'location_index': {
                     'enabled': True,
-                    'pages': {
-                        'en-US': 'gid://shopify/Page/10',
-                    },
+                    'page_gid': 'gid://shopify/Page/10',
                 },
             },
             locale=locale,
@@ -120,34 +127,25 @@ class SyncLocationIndexPagesTests(TestCase):
     def test_get_location_index_config_reads_export_config(self):
         config = get_location_index_config(self.location_root)
         self.assertTrue(config['enabled'])
-        self.assertEqual(config['pages']['en-US'], 'gid://shopify/Page/10')
+        self.assertEqual(config['page_gid'], 'gid://shopify/Page/10')
 
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
-        'gid://shopify/Page/10': 'locations-en-us',
-    })
-    @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_pushes_metafields(self, mock_push, mock_resolve_handles):
+    @patch('shopify_content.export_config.single_page._push_metafields', return_value=True)
+    def test_sync_pushes_index_listings(self, mock_push):
         stats = sync_location_index_pages()
 
         self.assertEqual(stats['pushed'], 1)
         mock_push.assert_called_once()
         metafields = mock_push.call_args.args[1]
-        self.assertEqual(len(metafields), 4)
-        self.assertEqual(metafields[0]['key'], 'location_locale')
-        self.assertEqual(metafields[1]['key'], 'location_index')
-        self.assertEqual(metafields[2]['key'], 'index_alternates')
-        self.assertEqual(metafields[3]['key'], 'index_noindex')
-        index_value = json.loads(metafields[1]['value'])
-        self.assertEqual(index_value['count'], 1)
-        alternates_value = json.loads(metafields[2]['value'])
-        self.assertEqual(alternates_value['alternates'][0]['handle'], 'locations-en-us')
-        self.assertEqual(metafields[3]['value'], 'false')
+        self.assertEqual(len(metafields), 1)
+        self.assertEqual(metafields[0]['key'], 'index_listings')
+        index_value = json.loads(metafields[0]['value'])
+        self.assertEqual(index_value['locales']['en-US']['count'], 1)
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class LocationIndexSignalTests(TestCase):
     def setUp(self):
-        locale = Locale.get_default()
+        locale = _locale('en-US')
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
@@ -161,7 +159,7 @@ class LocationIndexSignalTests(TestCase):
             export_config={
                 'location_index': {
                     'enabled': True,
-                    'pages': {'en-US': 'gid://shopify/Page/10'},
+                    'page_gid': 'gid://shopify/Page/10',
                 },
             },
             locale=locale,
@@ -188,7 +186,7 @@ class LocationIndexSignalTests(TestCase):
             titulo='Chicago Store',
             city='Chicago',
             state='Illinois',
-            locale=Locale.get_default(),
+            locale=_locale('en-US'),
             sync_enabled=True,
         )
         self.location_root.add_child(instance=loc)
@@ -197,4 +195,4 @@ class LocationIndexSignalTests(TestCase):
             loc.save_revision().publish()
 
         mock_loc_sync.assert_called_once()
-        mock_index_sync.assert_called_once_with(locale_codes=['en-US'], dry_run=False)
+        mock_index_sync.assert_called_once_with(locale_codes=None, dry_run=False)

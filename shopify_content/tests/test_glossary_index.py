@@ -6,7 +6,10 @@ from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
-from shopify_content.glossary.index import build_glossary_index_json
+from shopify_content.glossary.index import (
+    build_glossary_index_json,
+    build_glossary_index_listings,
+)
 from shopify_content.models import GlossaryTermPage, ShopifyRootPage
 from shopify_content.sync.glossary_index import (
     get_glossary_index_config,
@@ -14,9 +17,14 @@ from shopify_content.sync.glossary_index import (
 )
 
 
+def _locale(code: str) -> Locale:
+    locale, _ = Locale.objects.get_or_create(language_code=code)
+    return locale
+
+
 class BuildGlossaryIndexJsonTests(TestCase):
     def setUp(self):
-        locale = Locale.get_default()
+        locale = _locale('en-US')
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
@@ -24,16 +32,16 @@ class BuildGlossaryIndexJsonTests(TestCase):
         home.add_child(instance=self.parent)
         self.parent.save_revision().publish()
 
-    def _add_term(self, *, term, locale_code='en', shopify_id='gid://shopify/Metaobject/1',
+    def _add_term(self, *, term, locale_code='en-US', shopify_id='gid://shopify/Metaobject/1',
                   handle='', slug='', live=True):
         page = GlossaryTermPage(
             title=term,
             term=term,
-            locale_code=locale_code,
+            locale_code='en',
             shopify_id=shopify_id,
             handle=handle,
             slug=slug or term.lower().replace(' ', '-'),
-            locale=Locale.get_default(),
+            locale=_locale(locale_code),
         )
         self.parent.add_child(instance=page)
         if live:
@@ -49,10 +57,10 @@ class BuildGlossaryIndexJsonTests(TestCase):
         self._add_term(term='9 Lives', shopify_id='gid://3')
         self._add_term(term='#hashtag', shopify_id='gid://4', slug='hashtag')
 
-        payload = build_glossary_index_json('en', generated_at=fixed)
+        payload = build_glossary_index_json('en-US', generated_at=fixed)
 
         self.assertEqual(payload['version'], 1)
-        self.assertEqual(payload['locale'], 'en')
+        self.assertEqual(payload['locale'], 'en-US')
         self.assertEqual(payload['generated_at'], fixed.isoformat())
         self.assertEqual(payload['count'], 4)
         keys = [section['key'] for section in payload['sections']]
@@ -67,17 +75,18 @@ class BuildGlossaryIndexJsonTests(TestCase):
         draft.unpublish()
         self._add_term(term='No Shopify', shopify_id='')
 
-        payload = build_glossary_index_json('en')
+        payload = build_glossary_index_json('en-US')
 
         self.assertEqual(payload['count'], 1)
         self.assertEqual(payload['sections'][0]['items'][0]['term'], 'Live Term')
 
-    def test_filters_by_locale_code(self):
-        self._add_term(term='English', locale_code='en', shopify_id='gid://1')
-        self._add_term(term='Español', locale_code='es', shopify_id='gid://2')
+    def test_filters_by_wagtail_locale(self):
+        self._add_term(term='English', locale_code='en-US', shopify_id='gid://1')
+        self._add_term(term='Español', locale_code='es-US', shopify_id='gid://2')
 
-        en_payload = build_glossary_index_json('en')
-        es_payload = build_glossary_index_json('es')
+        listings = build_glossary_index_listings()
+        en_payload = listings['locales']['en-US']
+        es_payload = listings['locales']['es-US']
 
         self.assertEqual(en_payload['count'], 1)
         self.assertEqual(es_payload['count'], 1)
@@ -88,7 +97,7 @@ class BuildGlossaryIndexJsonTests(TestCase):
 class SyncGlossaryIndexPagesTests(TestCase):
     def setUp(self):
         ShopConfig.objects.create(shop='test-shop.myshopify.com', access_token='tok')
-        locale = Locale.get_default()
+        locale = _locale('en-US')
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
@@ -102,10 +111,7 @@ class SyncGlossaryIndexPagesTests(TestCase):
             export_config={
                 'glossary_index': {
                     'enabled': True,
-                    'pages': {
-                        'en': 'gid://shopify/Page/1',
-                        'es': 'gid://shopify/Page/2',
-                    },
+                    'page_gid': 'gid://shopify/Page/1',
                 },
             },
             locale=locale,
@@ -127,7 +133,7 @@ class SyncGlossaryIndexPagesTests(TestCase):
     def test_get_glossary_index_config_reads_export_config(self):
         config = get_glossary_index_config(self.glossary_root)
         self.assertTrue(config['enabled'])
-        self.assertEqual(config['pages']['en'], 'gid://shopify/Page/1')
+        self.assertEqual(config['page_gid'], 'gid://shopify/Page/1')
 
     def test_sync_disabled_when_not_configured(self):
         self.glossary_root.export_config = {}
@@ -138,70 +144,37 @@ class SyncGlossaryIndexPagesTests(TestCase):
         self.assertFalse(stats['enabled'])
         self.assertEqual(stats['pushed'], 0)
 
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
-        'gid://shopify/Page/1': 'glossary-en',
-        'gid://shopify/Page/2': 'glossary-es',
-    })
-    @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_pushes_metafields_for_configured_locales(self, mock_push, mock_resolve_handles):
+    @patch('shopify_content.export_config.single_page._push_metafields', return_value=True)
+    def test_sync_pushes_index_listings(self, mock_push):
         stats = sync_glossary_index_pages()
 
-        self.assertEqual(stats['pushed'], 2)
-        self.assertEqual(mock_push.call_count, 2)
-        first_call = mock_push.call_args_list[0].args[1]
-        self.assertEqual(len(first_call), 4)
-        self.assertEqual(first_call[0]['key'], 'glossary_locale')
-        self.assertEqual(first_call[1]['key'], 'glossary_index')
-        self.assertEqual(first_call[2]['key'], 'index_alternates')
-        self.assertEqual(first_call[3]['key'], 'index_noindex')
-        index_value = json.loads(first_call[1]['value'])
-        self.assertEqual(index_value['count'], 1)
-        alternates_value = json.loads(first_call[2]['value'])
-        self.assertEqual(alternates_value['version'], 1)
-        self.assertEqual(
-            {alt['handle'] for alt in alternates_value['alternates']},
-            {'glossary-en', 'glossary-es'},
-        )
-        self.assertEqual(first_call[3]['value'], 'false')
-
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={
-        'gid://shopify/Page/1': 'glossary-en',
-        'gid://shopify/Page/2': 'glossary-es',
-    })
-    @patch('shopify_content.export_config.base._push_metafields', return_value=True)
-    def test_sync_marks_noindex_locales(self, mock_push, mock_resolve_handles):
-        self.glossary_root.export_config['glossary_index']['noindex_locales'] = ['es']
-        self.glossary_root.save()
-
-        sync_glossary_index_pages()
-
-        calls_by_locale = {
-            call.args[1][0]['value']: call.args[1]
-            for call in mock_push.call_args_list
-        }
-        self.assertEqual(calls_by_locale['en'][3]['value'], 'false')
-        self.assertEqual(calls_by_locale['es'][3]['value'], 'true')
+        self.assertEqual(stats['pushed'], 1)
+        mock_push.assert_called_once()
+        metafields = mock_push.call_args.args[1]
+        self.assertEqual(len(metafields), 1)
+        self.assertEqual(metafields[0]['key'], 'index_listings')
+        index_value = json.loads(metafields[0]['value'])
+        self.assertEqual(index_value['locales']['en-US']['count'], 1)
 
     def test_dry_run_skips_shopify_push(self):
-        with patch('shopify_content.export_config.base._push_metafields') as mock_push:
+        with patch('shopify_content.export_config.single_page._push_metafields') as mock_push:
             stats = sync_glossary_index_pages(dry_run=True)
 
-        self.assertEqual(stats['pushed'], 2)
+        self.assertEqual(stats['pushed'], 1)
         mock_push.assert_not_called()
 
-    @patch('shopify_content.export_config.base._resolve_page_handles', return_value={})
-    @patch('shopify_content.export_config.base._push_metafields', return_value=False)
-    def test_sync_records_errors(self, mock_push, mock_resolve_handles):
-        stats = sync_glossary_index_pages(locale_codes=['en'])
+    @patch('shopify_content.export_config.single_page._push_metafields', return_value=False)
+    def test_sync_records_errors(self, mock_push):
+        stats = sync_glossary_index_pages()
 
-        self.assertEqual(stats['errors'], ['en'])
+        self.assertEqual(stats['errors'], ['push_failed'])
         mock_push.assert_called_once()
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class GlossaryIndexSignalTests(TestCase):
     def setUp(self):
-        locale = Locale.get_default()
+        locale = _locale('en-US')
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
@@ -215,7 +188,7 @@ class GlossaryIndexSignalTests(TestCase):
             export_config={
                 'glossary_index': {
                     'enabled': True,
-                    'pages': {'en': 'gid://shopify/Page/1'},
+                    'page_gid': 'gid://shopify/Page/1',
                 },
             },
             locale=locale,
@@ -242,7 +215,7 @@ class GlossaryIndexSignalTests(TestCase):
             term='Term',
             locale_code='en',
             slug='term',
-            locale=Locale.get_default(),
+            locale=_locale('en-US'),
             sync_enabled=True,
         )
         self.glossary_root.add_child(instance=term)
@@ -251,4 +224,4 @@ class GlossaryIndexSignalTests(TestCase):
             term.save_revision().publish()
 
         mock_term_sync.assert_called_once()
-        mock_index_sync.assert_called_once_with(locale_codes=['en'], dry_run=False)
+        mock_index_sync.assert_called_once_with(locale_codes=None, dry_run=False)

@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from shopify_content.export_config.base import PageIndexConsumer
-from shopify_content.export_config.glossary import glossary_index_consumer
-from shopify_content.export_config.location import location_index_consumer
+from shopify_content.export_config.blog import BlogListingsConsumer, blog_listings_consumer
+from shopify_content.export_config.glossary import glossary_listings_consumer
+from shopify_content.export_config.location import location_listings_consumer
+from shopify_content.export_config.single_page import SinglePageListingsConsumer
 
 if TYPE_CHECKING:
     from shopify_content.models import ShopifyRootPage
 
-_CONSUMERS_BY_SLUG: dict[str, PageIndexConsumer] = {
-    glossary_index_consumer.root_slug: glossary_index_consumer,
-    location_index_consumer.root_slug: location_index_consumer,
+ExportConsumer = SinglePageListingsConsumer | BlogListingsConsumer
+
+_CONSUMERS_BY_SLUG: dict[str, ExportConsumer] = {
+    glossary_listings_consumer.root_slug: glossary_listings_consumer,
+    location_listings_consumer.root_slug: location_listings_consumer,
+    blog_listings_consumer.root_slug: blog_listings_consumer,
 }
 
 
@@ -21,12 +25,25 @@ def registered_root_slugs() -> list[str]:
     return list(_CONSUMERS_BY_SLUG.keys())
 
 
-def get_consumer_for_slug(slug: str) -> PageIndexConsumer | None:
+def get_consumer_for_slug(slug: str) -> ExportConsumer | None:
     return _CONSUMERS_BY_SLUG.get(slug)
 
 
-def get_consumer_for_root(root: ShopifyRootPage) -> PageIndexConsumer | None:
+def get_consumer_for_root(root: ShopifyRootPage) -> ExportConsumer | None:
     return get_consumer_for_slug(root.slug)
+
+
+def _find_shopify_root_ancestor(page):
+    """Walk up the tree until a ShopifyRootPage ancestor is found."""
+    from shopify_content.models import ShopifyRootPage
+
+    ancestor = page.get_parent()
+    while ancestor is not None:
+        specific = ancestor.specific
+        if isinstance(specific, ShopifyRootPage):
+            return specific
+        ancestor = ancestor.get_parent()
+    return None
 
 
 def queue_index_sync(*, root_slug: str, locale_codes: list[str] | None = None) -> None:
@@ -48,13 +65,12 @@ def on_root_published(root) -> None:
 
 
 def on_content_page_changed(page) -> None:
-    """Rebuild index locale(s) when a child page affecting an index changes."""
+    """Rebuild index when a child page affecting an index changes."""
     specific = page.specific if hasattr(page, 'specific') else page
-    parent = specific.get_parent()
-    if parent is None:
+    root = _find_shopify_root_ancestor(specific)
+    if root is None:
         return
-    parent_specific = parent.specific
-    consumer = get_consumer_for_slug(parent_specific.slug)
+    consumer = get_consumer_for_slug(root.slug)
     if consumer is None:
         return
     locale_codes = consumer.locale_codes_for_page(specific)

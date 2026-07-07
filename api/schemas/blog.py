@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 from ninja import Schema
 from pydantic import Field
@@ -11,6 +11,11 @@ COMMENT_POLICY_DESCRIPTION = (
     "'AUTO_PUBLISHED' — comments appear immediately without moderation; "
     "'CLOSED' — comments disabled entirely (default); "
     "'MODERATED' — comments require staff approval before appearing."
+)
+
+AVAILABLE_LOCALES_DESCRIPTION = (
+    "Wagtail locale codes where this blog is available in the storefront "
+    "(en-US, es-US, en-CA, fr-CA). Synced to Shopify as custom.available_locales."
 )
 
 
@@ -51,6 +56,10 @@ class BlogIn(LocaleCreateFields):
             "Set to false to make Wagtail-only edits without pushing to Shopify."
         ),
     )
+    available_locales: Optional[List[str]] = Field(
+        None,
+        description=AVAILABLE_LOCALES_DESCRIPTION,
+    )
 
 
 class BlogPatch(LocalePatchFields):
@@ -86,6 +95,10 @@ class BlogPatch(LocalePatchFields):
             "A Blog without a shopify_id will be created in Shopify on first publish. "
             "When false (default), changes are saved as a draft only."
         ),
+    )
+    available_locales: Optional[List[str]] = Field(
+        None,
+        description=AVAILABLE_LOCALES_DESCRIPTION + " Omit to leave unchanged.",
     )
 
 
@@ -123,6 +136,14 @@ class BlogOut(LocaleOutFields):
         ...,
         description="Number of published ArticlePage children nested under this blog.",
     )
+    available_locales: List[str] = Field(
+        default_factory=list,
+        description=AVAILABLE_LOCALES_DESCRIPTION,
+    )
+
+    @staticmethod
+    def resolve_available_locales(obj):
+        return list(obj.available_locales or [])
 
     @staticmethod
     def resolve_translation_page_ids(obj):

@@ -1,4 +1,4 @@
-"""Bootstrap Shopify Pages used as glossary/location index targets."""
+"""Bootstrap Shopify Pages used as glossary/location/blog index targets."""
 
 from __future__ import annotations
 
@@ -49,7 +49,29 @@ class IndexPageSpec:
     template_suffix: str | None = None
 
 
-GLOSSARY_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
+GLOSSARY_INDEX_PAGE = IndexPageSpec(
+    handle='glossary',
+    title='Glossary',
+    body='<p>A–Z glossary index. Content is rendered from Wagtail via metafields.</p>',
+    template_suffix='glossary',
+)
+
+LOCATION_INDEX_PAGE = IndexPageSpec(
+    handle='locations',
+    title='Locations',
+    body='<p>Location index by state. Content is rendered from Wagtail via metafields.</p>',
+    template_suffix='locations',
+)
+
+BLOG_INDEX_PAGE = IndexPageSpec(
+    handle='blogs',
+    title='Blog',
+    body='<p>Editorial blog index. Listings are rendered from Wagtail via metafields.</p>',
+    template_suffix='blogs',
+)
+
+# Legacy multi-page specs (deprecated; use --legacy-pages to recreate).
+LEGACY_GLOSSARY_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
     IndexPageSpec(
         handle='glossary-en',
         title='Glossary (English)',
@@ -67,7 +89,7 @@ GLOSSARY_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
     ),
 )
 
-LOCATION_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
+LEGACY_LOCATION_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
     IndexPageSpec(
         handle='locations-en-us',
         title='Locations (English)',
@@ -82,7 +104,6 @@ LOCATION_INDEX_PAGES: tuple[IndexPageSpec, ...] = (
     ),
 )
 
-# Lang-only handles used by legacy theme links; redirect to canonical index pages.
 LOCATION_LEGACY_ALIAS_PAGES: tuple[IndexPageSpec, ...] = (
     IndexPageSpec(
         handle='locations-en',
@@ -98,16 +119,46 @@ LOCATION_LEGACY_ALIAS_PAGES: tuple[IndexPageSpec, ...] = (
     ),
 )
 
-GLOSSARY_LOCALE_BY_HANDLE = {
-    'glossary-en': 'en',
-    'glossary-es': 'es',
-    'glossary-fr': 'fr',
-}
 
-LOCATION_LOCALE_BY_HANDLE = {
-    'locations-en-us': 'en-US',
-    'locations-es-us': 'es-US',
-}
+def build_single_page_export_config(
+    pages_by_handle: dict[str, dict],
+    *,
+    handle: str,
+    config_key: str,
+) -> dict:
+    node = pages_by_handle.get(handle)
+    if not node:
+        return {config_key: {'enabled': False, 'page_gid': None}}
+    return {
+        config_key: {
+            'enabled': True,
+            'page_gid': node['id'],
+        },
+    }
+
+
+def build_blog_export_config(pages_by_handle: dict[str, dict]) -> dict:
+    return build_single_page_export_config(
+        pages_by_handle,
+        handle='blogs',
+        config_key='blog_index',
+    )
+
+
+def build_glossary_export_config(pages_by_handle: dict[str, dict]) -> dict:
+    return build_single_page_export_config(
+        pages_by_handle,
+        handle='glossary',
+        config_key='glossary_index',
+    )
+
+
+def build_location_export_config(pages_by_handle: dict[str, dict]) -> dict:
+    return build_single_page_export_config(
+        pages_by_handle,
+        handle='locations',
+        config_key='location_index',
+    )
 
 
 def _find_page_by_handle(shop: str, handle: str) -> dict | None:
@@ -166,21 +217,3 @@ def ensure_index_pages(
         page = _create_page(shop, spec)
         results[spec.handle] = {**page, 'created': True}
     return results
-
-
-def build_glossary_export_config(pages_by_handle: dict[str, dict]) -> dict:
-    pages = {}
-    for handle, locale in GLOSSARY_LOCALE_BY_HANDLE.items():
-        node = pages_by_handle.get(handle)
-        if node:
-            pages[locale] = node['id']
-    return {'glossary_index': {'enabled': True, 'pages': pages}}
-
-
-def build_location_export_config(pages_by_handle: dict[str, dict]) -> dict:
-    pages = {}
-    for handle, locale in LOCATION_LOCALE_BY_HANDLE.items():
-        node = pages_by_handle.get(handle)
-        if node:
-            pages[locale] = node['id']
-    return {'location_index': {'enabled': True, 'pages': pages}}

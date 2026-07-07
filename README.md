@@ -86,8 +86,12 @@ python manage.py import_shopify_collections
 | `refresh_semantic_links_batch` | Genera internal links semánticos para páginas live (backfill manual) |
 | `sync_semantic_links_revisions` | Sincroniza revisiones Wagtail para links ya existentes en BD (fix admin UI) |
 | `migrate_glossary_links_to_fk` | Importa `related_links` JSON del glosario a FK manuales |
-| `rebuild_glossary_index` | Regenera `custom.glossary_index` en Shopify Pages configuradas |
-| `rebuild_location_index` | Regenera `custom.location_index` en Shopify Pages configuradas |
+| `rebuild_glossary_index` | Regenera `custom.index_listings` en Page handle `glossary` |
+| `rebuild_location_index` | Regenera `custom.index_listings` en Page handle `locations` |
+| `ensure_index_metafield_definitions` | Crea `custom.index_listings` + BLOG/ARTICLE `available_locales` |
+| `migrate_glossary_locales` | Asigna Wagtail Locale a términos del glosario |
+| `migrate_index_export_config` | Migra export_config multi-page → `page_gid` |
+| `rebuild_blog_index` | Regenera `custom.index_listings` en Page handle `blogs` |
 
 ### Semantic internal links (pgvector + Gemini)
 

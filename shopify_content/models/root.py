@@ -32,7 +32,7 @@ class ShopifyRootPage(Page):
         db_default={},
         help_text=(
             'Type-specific export payload pushed to Shopify metaobject field config. '
-            'Example for slug=glossary: glossary_index.pages with Shopify Page GIDs.'
+            'Example for slug=glossary: glossary_index.page_gid pointing to Shopify Page handle glossary.'
         ),
     )
 

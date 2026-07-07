@@ -5,6 +5,11 @@ from pydantic import Field
 
 from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema
 
+AVAILABLE_LOCALES_DESCRIPTION = (
+    "Wagtail locale codes where this article is available in the storefront "
+    "(en-US, es-US, en-CA, fr-CA). Synced to Shopify as custom.available_locales."
+)
+
 
 class ArticleIn(LocaleCreateFields):
     title: str = Field(
@@ -122,6 +127,10 @@ class ArticleIn(LocaleCreateFields):
             "Set to false to make Wagtail-only edits without pushing to Shopify."
         ),
     )
+    available_locales: Optional[List[str]] = Field(
+        None,
+        description=AVAILABLE_LOCALES_DESCRIPTION,
+    )
 
 
 class ArticlePatch(LocalePatchFields):
@@ -202,6 +211,10 @@ class ArticlePatch(LocalePatchFields):
             "When false (default), changes are saved as a draft only."
         ),
     )
+    available_locales: Optional[List[str]] = Field(
+        None,
+        description=AVAILABLE_LOCALES_DESCRIPTION + " Omit to leave unchanged.",
+    )
 
 
 class ArticleOut(LocaleOutFields):
@@ -277,6 +290,14 @@ class ArticleOut(LocaleOutFields):
         None,
         description="Title of the parent BlogPage.",
     )
+    available_locales: List[str] = Field(
+        default_factory=list,
+        description=AVAILABLE_LOCALES_DESCRIPTION,
+    )
+
+    @staticmethod
+    def resolve_available_locales(obj):
+        return list(obj.available_locales or [])
 
     @staticmethod
     def resolve_translation_page_ids(obj):

@@ -7,10 +7,6 @@ from shopify_content.export_config.glossary import (
     glossary_index_consumer,
 )
 
-METAFIELD_NAMESPACE = 'custom'
-METAFIELD_LOCALE_KEY = 'glossary_locale'
-METAFIELD_INDEX_KEY = 'glossary_index'
-
 
 def get_glossary_root_page():
     return glossary_index_consumer.get_root_page()
@@ -25,7 +21,7 @@ def sync_glossary_index_pages(
     locale_codes: list[str] | None = None,
     dry_run: bool = False,
 ) -> dict:
-    return glossary_index_consumer.sync(locale_codes=locale_codes, dry_run=dry_run)
+    return glossary_index_consumer.sync(dry_run=dry_run)
 
 
 def queue_glossary_index_sync(*, locale_codes: list[str] | None = None) -> None:
