@@ -10,6 +10,7 @@ from .location_page import LocationPage, LocationPageFAQ
 from .glossary import GlossaryTermPage
 from .root import ShopifyRootPage
 from .sync_run import ShopifySyncRun
+from .command_run import EmbeddedCommandRun
 
 __all__ = [
     'FAQItem',
@@ -33,5 +34,6 @@ __all__ = [
     'GlossaryTermPage',
     'ShopifyRootPage',
     'ShopifySyncRun',
+    'EmbeddedCommandRun',
     *[model.__name__ for model in ALL_TYPED_SEMANTIC_LINK_MODELS],
 ]

@@ -93,6 +93,7 @@ class ImportNewOnlyTests(TestCase):
 
 
 class RunShopifyImportTests(TestCase):
+    @patch('shopify_content.sync.service._import_glossary')
     @patch('shopify_content.sync.service._import_blogs')
     @patch('shopify_content.sync.service._import_collections')
     @patch('shopify_content.sync.service._import_products')
@@ -103,6 +104,7 @@ class RunShopifyImportTests(TestCase):
         mock_import_products,
         mock_import_collections,
         mock_import_blogs,
+        mock_import_glossary,
     ):
         mock_get_shop.return_value = 'test-shop.myshopify.com'
         mock_import_products.return_value = {
@@ -115,16 +117,21 @@ class RunShopifyImportTests(TestCase):
             'blogs': {'created': 1, 'updated': 0, 'skipped': 0, 'errors': 0},
             'articles': {'created': 3, 'updated': 0, 'skipped': 2, 'errors': 1},
         }
+        mock_import_glossary.return_value = {
+            'created': 0, 'updated': 2, 'skipped': 0, 'errors': 0,
+        }
 
         result = run_shopify_import('all', new_only=True)
 
         self.assertEqual(result['resource'], 'all')
         self.assertEqual(result['stats']['created'], 7)
+        self.assertEqual(result['stats']['updated'], 2)
         self.assertEqual(result['stats']['skipped'], 3)
         self.assertEqual(result['stats']['errors'], 1)
         mock_import_products.assert_called_once_with('test-shop.myshopify.com', new_only=True)
         mock_import_collections.assert_called_once_with('test-shop.myshopify.com', new_only=True)
         mock_import_blogs.assert_called_once_with('test-shop.myshopify.com', new_only=True)
+        mock_import_glossary.assert_called_once_with('test-shop.myshopify.com', new_only=True)
 
 
 class ShopifySyncViewTests(TestCase):

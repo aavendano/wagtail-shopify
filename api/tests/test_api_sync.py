@@ -60,6 +60,26 @@ class PullSyncTests(TestCase):
         self.assertEqual(data["errors"], 0)
         mock_import.assert_called_once_with("products", new_only=False)
 
+    @patch("api.sync.run_shopify_import_for_api")
+    def test_pull_glossary_returns_200_with_import_stats(self, mock_import):
+        mock_import.return_value = {
+            "created": 1,
+            "updated": 3,
+            "skipped": 0,
+            "errors": 0,
+            "message": "Glosario — Creados: 1, Actualizados: 3, Errores: 0",
+        }
+        response = self.client.post(
+            "/glossary/pull",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["created"], 1)
+        self.assertEqual(data["updated"], 3)
+        self.assertEqual(data["errors"], 0)
+        mock_import.assert_called_once_with("glossary", new_only=False)
+
     @patch("shopify_content.sync.task_dispatch.enqueue_shopify_import")
     @patch("api.sync.run_shopify_import_for_api")
     def test_pull_does_not_enqueue_celery(self, mock_import, mock_enqueue):
@@ -264,6 +284,7 @@ class GlossaryApiTests(TestCase):
         self.client = TestClient(api)
         self.key = ApiKey.objects.create(name="glossary-agent")
         locale = Locale.get_default()
+        Locale.objects.get_or_create(language_code="es-US")
         home = Page.objects.first()
         if home is None:
             home = Page.add_root(instance=Page(title="Home", slug="home", locale=locale))
@@ -561,8 +582,13 @@ class GlossaryApiTests(TestCase):
         tool_ids = {tool["operation_id"] for tool in response.json()["tools"]}
         self.assertIn("create_glossary_term", tool_ids)
         self.assertIn("push_glossary_term", tool_ids)
+        self.assertIn("pull_glossary_sync", tool_ids)
         self.assertIn(
             "glossary_wagtail_origin",
+            response.json()["workflows"],
+        )
+        self.assertIn(
+            "glossary_shopify_images",
             response.json()["workflows"],
         )
 
@@ -584,6 +610,7 @@ class CapabilitiesTests(TestCase):
 
         tool_ids = {tool["operation_id"] for tool in data["tools"]}
         self.assertIn("pull_products_sync_post", tool_ids)
+        self.assertIn("pull_glossary_sync", tool_ids)
         self.assertIn("push_location", tool_ids)
         self.assertIn("push_glossary_term", tool_ids)
         self.assertNotIn("list_agent_capabilities", tool_ids)
@@ -605,9 +632,17 @@ class CapabilitiesTests(TestCase):
         )
         self.assertIn("locations_wagtail_origin", workflows)
         self.assertIn("glossary_wagtail_origin", workflows)
+        self.assertIn("glossary_shopify_images", workflows)
 
 
 class OpenAPIAgentMetadataTests(TestCase):
+    def test_pull_glossary_has_x_agent_fields(self):
+        schema = get_schema(api=api, path_prefix="")
+        operation = schema["paths"]["/glossary/pull"]["post"]
+        self.assertEqual(operation["x-agent-capability-type"], "sync_inbound")
+        self.assertEqual(operation["x-agent-resource"], "glossary")
+        self.assertEqual(operation["x-agent-sync-direction"], "shopify_to_wagtail")
+
     def test_pull_products_has_x_agent_fields(self):
         schema = get_schema(api=api, path_prefix="")
         operation = schema["paths"]["/products/pull"]["post"]

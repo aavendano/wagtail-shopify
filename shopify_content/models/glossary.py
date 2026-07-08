@@ -60,6 +60,11 @@ class GlossaryTermPage(Page):
         blank=True,
         help_text='Alt text for the glossary image.',
     )
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        help_text='Absolute Shopify CDN URL for the glossary image (populated on pull).',
+    )
     shopify_image_id = models.CharField(
         max_length=255,
         blank=True,
@@ -109,6 +114,7 @@ class GlossaryTermPage(Page):
         FieldPanel('definition'),
         FieldPanel('image'),
         MultiFieldPanel([
+            FieldPanel('image_url'),
             FieldPanel('image_alt_text'),
             FieldPanel('shopify_image_id'),
         ], heading='Shopify Image'),

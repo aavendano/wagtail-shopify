@@ -1,7 +1,7 @@
 
 from django.contrib import admin
 from django.urls import path, include
-from core.views import HomeView, EmbeddedShopifySyncView
+from core.views import HomeView, EmbeddedShopifySyncView, EmbeddedCommandDispatchView
 
 from django.urls import include, path
 from django.conf.urls.static import static
@@ -28,6 +28,8 @@ urlpatterns = [
     path("shopify-admin", HomeView.as_view()),
     path("shopify-admin/sync/", EmbeddedShopifySyncView.as_view(), name="shopify_embedded_sync"),
     path("shopify-admin/sync", EmbeddedShopifySyncView.as_view()),
+    path("shopify-admin/commands/", EmbeddedCommandDispatchView.as_view(), name="shopify_embedded_command"),
+    path("shopify-admin/commands", EmbeddedCommandDispatchView.as_view()),
     path("core/", include("core.urls")),
     path("webhooks/", include("webhooks.urls")),
     # Root OAuth paths expected by MCP clients (Claude uses /authorize, not /o/authorize/).

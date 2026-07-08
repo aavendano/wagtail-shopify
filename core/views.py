@@ -12,6 +12,10 @@ from django.views.generic import TemplateView
 
 from shopify_content.sync.service import VALID_IMPORT_RESOURCES
 from shopify_content.sync.task_dispatch import enqueue_shopify_import
+from shopify_content.embedded_commands.dispatch import enqueue_embedded_command
+from shopify_content.embedded_commands.registry import get_commands_by_group
+from shopify_content.models.command_run import EmbeddedCommandRun
+from shopify_content.models.sync_run import ShopifySyncRun
 
 from .embedded_redirects import (
     validate_parent_redirect_url,
@@ -43,6 +47,7 @@ SYNC_RESOURCES = [
     ('products', 'Importar productos nuevos'),
     ('collections', 'Importar colecciones nuevas'),
     ('blogs', 'Importar blogs y artículos nuevos'),
+    ('glossary', 'Sincronizar imágenes del glosario'),
     ('all', 'Importar todo lo nuevo'),
 ]
 
@@ -104,6 +109,11 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
         )
         context.update(_shop_config_context(verified_shop))
         context['sync_resources'] = SYNC_RESOURCES
+        context['command_groups'] = get_commands_by_group()
+        context['recent_command_runs'] = EmbeddedCommandRun.objects.all()[:10]
+        context['recent_sync_runs'] = ShopifySyncRun.objects.filter(
+            kind=ShopifySyncRun.KIND_INBOUND,
+        )[:5]
         shop = verified_shop
         if shop:
             gql = fetch_shop_admin_graphql(
@@ -179,7 +189,8 @@ class EmbeddedShopifySyncView(AppHomeVerifiedMixin, View):
             return _redirect_home_preserving_query(request)
 
         try:
-            sync_run = enqueue_shopify_import(resource, new_only=True)
+            new_only = resource != 'glossary'
+            sync_run = enqueue_shopify_import(resource, new_only=new_only)
             messages.success(
                 request,
                 (
@@ -194,6 +205,54 @@ class EmbeddedShopifySyncView(AppHomeVerifiedMixin, View):
             messages.error(
                 request,
                 'Error inesperado durante la importación. Consulta los logs del servidor.',
+            )
+
+        return _redirect_home_preserving_query(request)
+
+
+class EmbeddedCommandDispatchView(AppHomeVerifiedMixin, View):
+    """Enqueue an allowlisted management command from the embedded app home."""
+
+    http_method_names = ['post']
+
+    def dispatch_after_verified(self, request, *args, **kwargs):
+        token_result = ensure_offline_token_lifecycle(
+            self._verification_result, self._shopify_app
+        )
+        if token_result is not None:
+            return shopify_result_to_django_response(token_result)
+        return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        verified_shop = getattr(self._verification_result, 'shop', None)
+        if not shop_has_access_token(verified_shop):
+            messages.error(
+                request,
+                'No hay token de acceso configurado. Completa la instalación de la app.',
+            )
+            return _redirect_home_preserving_query(request)
+
+        command_id = (request.POST.get('command_id') or '').strip()
+        if not command_id:
+            messages.error(request, 'Comando no especificado.')
+            return _redirect_home_preserving_query(request)
+
+        try:
+            run = enqueue_embedded_command(command_id)
+            messages.success(
+                request,
+                (
+                    f'Comando en cola (id={run.pk}). '
+                    'Consulta el historial en esta página o en Django Admin.'
+                ),
+            )
+        except ValueError as exc:
+            messages.error(request, str(exc))
+        except Exception:
+            logger.exception('Embedded command dispatch failed command_id=%s', command_id)
+            messages.error(
+                request,
+                'Error inesperado al encolar el comando. Consulta los logs del servidor.',
             )
 
         return _redirect_home_preserving_query(request)

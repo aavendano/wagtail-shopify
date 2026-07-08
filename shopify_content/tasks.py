@@ -203,3 +203,56 @@ def scheduled_import_new_content():
     from shopify_content.sync.task_dispatch import enqueue_shopify_import
 
     enqueue_shopify_import('all', new_only=True)
+
+
+@shared_task(bind=True, name='shopify_content.tasks.run_embedded_command_task')
+def run_embedded_command_task(self, run_id: int):
+    """Run an allowlisted management command and persist stdout/stderr on EmbeddedCommandRun."""
+    import traceback
+    from io import StringIO
+
+    from django.core.management import call_command
+
+    from shopify_content.models.command_run import EmbeddedCommandRun
+
+    run = EmbeddedCommandRun.objects.get(pk=run_id)
+    run.mark_running()
+
+    stdout_buffer = StringIO()
+    stderr_buffer = StringIO()
+    try:
+        call_command(
+            run.command_name,
+            stdout=stdout_buffer,
+            stderr=stderr_buffer,
+            **run.kwargs,
+        )
+        stdout_text = stdout_buffer.getvalue()
+        stderr_text = stderr_buffer.getvalue()
+        summary = _summarize_command_output(stdout_text) or f'Comando {run.command_id} completado.'
+        run.mark_success(
+            message=summary,
+            stdout=stdout_text,
+            stderr=stderr_text,
+        )
+        return {'command_id': run.command_id, 'status': 'success'}
+    except Exception as exc:
+        logger.exception(
+            'Embedded command failed run_id=%s command=%s',
+            run_id,
+            run.command_name,
+        )
+        run.mark_failed(
+            error_detail=traceback.format_exc(),
+            message=f'Comando {run.command_id} falló: {exc}',
+            stdout=stdout_buffer.getvalue(),
+            stderr=stderr_buffer.getvalue(),
+        )
+        raise
+
+
+def _summarize_command_output(stdout_text: str) -> str:
+    lines = [line.strip() for line in stdout_text.splitlines() if line.strip()]
+    if not lines:
+        return ''
+    return lines[-1][:500]

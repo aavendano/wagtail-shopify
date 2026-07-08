@@ -10,6 +10,7 @@ from .embedded_redirects import (
 from .forms import ShopConfigForm
 from .models import ShopConfig
 from .shop_config_lookup import get_shop_config, shop_has_access_token
+from shopify_content.models.command_run import EmbeddedCommandRun
 
 
 class ShopConfigFormTests(TestCase):
@@ -673,7 +674,7 @@ class EmbeddedShopifySyncViewTests(TestCase):
         response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Sincronizar contenido a Wagtail")
+        self.assertContains(response, "Importar contenido a Wagtail")
         self.assertContains(response, "Importar productos nuevos")
         self.assertContains(response, reverse("shopify_embedded_sync"))
 
@@ -711,6 +712,93 @@ class EmbeddedShopifySyncViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Importar productos nuevos")
         self.assertNotContains(response, "No hay token de acceso configurado")
+
+
+class EmbeddedCommandDispatchViewTests(TestCase):
+    def _mock_verified_app_home(self, mock_gs):
+        mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            id_token=SimpleNamespace(exchangeable=False),
+            new_id_token_response=SimpleNamespace(status=401, body="", headers={}),
+            response=SimpleNamespace(headers={}),
+            log=SimpleNamespace(code="verified", detail=""),
+        )
+
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_post_rejects_missing_command_id(self, mock_gs, _mock_token):
+        self._mock_verified_app_home(mock_gs)
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        response = self.client.post(reverse("shopify_embedded_command"), data={})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("home"))
+
+    @patch("core.views.enqueue_embedded_command")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_post_enqueues_valid_command(self, mock_gs, _mock_token, mock_enqueue):
+        self._mock_verified_app_home(mock_gs)
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        run = EmbeddedCommandRun.objects.create(
+            command_id="setup_locales",
+            command_name="setup_locales",
+            status=EmbeddedCommandRun.STATUS_PENDING,
+        )
+        mock_enqueue.return_value = run
+
+        response = self.client.post(
+            reverse("shopify_embedded_command"),
+            data={"command_id": "setup_locales"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("home"))
+        mock_enqueue.assert_called_once_with("setup_locales")
+
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_home_renders_command_sections_and_history(
+        self, mock_gs, _mock_token, mock_raw_gql
+    ):
+        self._mock_verified_app_home(mock_gs)
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            data={"shop": {"id": "gid://shopify/Shop/1", "name": "Test Shop"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+        EmbeddedCommandRun.objects.create(
+            command_id="setup_locales",
+            command_name="setup_locales",
+            status=EmbeddedCommandRun.STATUS_SUCCESS,
+            message="Locale setup complete.",
+        )
+
+        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Configuración inicial")
+        self.assertContains(response, "Configurar locales")
+        self.assertContains(response, reverse("shopify_embedded_command"))
+        self.assertContains(response, "Historial reciente")
+        self.assertContains(response, "Completado")
 
 
 class ShopConfigLookupTests(TestCase):

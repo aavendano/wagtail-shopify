@@ -11,12 +11,13 @@ from .inbound import (
     import_products,
     import_collections,
     import_blogs_and_articles,
+    import_glossary_terms,
 )
 from .import_parents import resolve_shopify_import_parent
 
-ImportResource = Literal['products', 'collections', 'blogs', 'all']
+ImportResource = Literal['products', 'collections', 'blogs', 'glossary', 'all']
 
-VALID_IMPORT_RESOURCES = frozenset({'products', 'collections', 'blogs', 'all'})
+VALID_IMPORT_RESOURCES = frozenset({'products', 'collections', 'blogs', 'glossary', 'all'})
 
 
 class ImportStats(TypedDict):
@@ -57,6 +58,11 @@ def _import_collections(shop, *, new_only: bool) -> ImportStats:
 def _import_blogs(shop, *, new_only: bool) -> dict:
     parent = resolve_shopify_import_parent('blogs')
     return import_blogs_and_articles(shop, parent, new_only=new_only)
+
+
+def _import_glossary(shop, *, new_only: bool) -> ImportStats:
+    parent = resolve_shopify_import_parent('glossary')
+    return import_glossary_terms(shop, parent, new_only=new_only)
 
 
 def import_error_count(stats: dict, resource: ImportResource) -> int:
@@ -105,20 +111,31 @@ def run_shopify_import(resource: ImportResource, *, new_only: bool = False) -> d
             ),
         }
 
+    if resource == 'glossary':
+        stats = _import_glossary(shop, new_only=new_only)
+        return {
+            'resource': resource,
+            'stats': stats,
+            'message': _format_stats_message('Glosario', stats, new_only=new_only),
+        }
+
     if resource == 'all':
         products_stats = _import_products(shop, new_only=new_only)
         collections_stats = _import_collections(shop, new_only=new_only)
         blogs_result = _import_blogs(shop, new_only=new_only)
+        glossary_stats = _import_glossary(shop, new_only=new_only)
         combined = _empty_stats()
         _merge_stats(combined, products_stats)
         _merge_stats(combined, collections_stats)
         _merge_stats(combined, blogs_result['blogs'])
         _merge_stats(combined, blogs_result['articles'])
+        _merge_stats(combined, glossary_stats)
         message = ' | '.join([
             _format_stats_message('Productos', products_stats, new_only=new_only),
             _format_stats_message('Colecciones', collections_stats, new_only=new_only),
             _format_stats_message('Blogs', blogs_result['blogs'], new_only=new_only),
             _format_stats_message('Artículos', blogs_result['articles'], new_only=new_only),
+            _format_stats_message('Glosario', glossary_stats, new_only=new_only),
         ])
         return {
             'resource': resource,
@@ -127,6 +144,7 @@ def run_shopify_import(resource: ImportResource, *, new_only: bool = False) -> d
                 'products': products_stats,
                 'collections': collections_stats,
                 'blogs': blogs_result,
+                'glossary': glossary_stats,
             },
             'message': message,
         }

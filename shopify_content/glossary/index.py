@@ -35,6 +35,21 @@ def _term_handle(page: GlossaryTermPage) -> str:
     return (page.handle or page.slug or slugify(page.term or '')).strip()
 
 
+def _glossary_index_item(page: GlossaryTermPage, term: str, handle: str) -> dict:
+    item = {
+        'term': term,
+        'handle': handle,
+        'path': glossary_term_path(handle),
+    }
+    image_url = (getattr(page, 'image_url', '') or '').strip()
+    if image_url:
+        item['image_url'] = image_url
+    image_alt = (getattr(page, 'image_alt_text', '') or '').strip()
+    if image_alt:
+        item['image_alt'] = image_alt
+    return item
+
+
 def _build_glossary_locale_listing(locale_code: str) -> dict:
     root = (
         ShopifyRootPage.objects.live()
@@ -62,11 +77,7 @@ def _build_glossary_locale_listing(locale_code: str) -> dict:
         if not handle:
             continue
         key = _section_key(term)
-        buckets.setdefault(key, []).append({
-            'term': term,
-            'handle': handle,
-            'path': glossary_term_path(handle),
-        })
+        buckets.setdefault(key, []).append(_glossary_index_item(page, term, handle))
 
     sections = []
     for key in SECTION_ORDER:

@@ -176,7 +176,10 @@ class GlossaryTermOut(LocaleOutFields):
     slug: str = Field(..., description="Wagtail page slug.")
     definition: str = Field(..., description="Definition HTML.")
     image_id: Optional[int] = Field(None, description="Wagtail Image ID for the glossary term image.")
-    image_url: Optional[str] = Field(None, description="Wagtail image URL if an image is selected.")
+    image_url: Optional[str] = Field(
+        None,
+        description="Absolute Shopify CDN image URL from pull (preferred for index JSON).",
+    )
     image_alt_text: str = Field('', description="Alt text for the glossary term image.")
     shopify_image_id: str = Field(
         '',
@@ -236,6 +239,9 @@ class GlossaryTermOut(LocaleOutFields):
 
     @staticmethod
     def resolve_image_url(obj):
+        shopify_url = (getattr(obj, 'image_url', '') or '').strip()
+        if shopify_url:
+            return shopify_url
         if not obj.image:
             return None
         try:

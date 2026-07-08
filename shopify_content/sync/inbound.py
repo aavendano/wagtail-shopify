@@ -16,6 +16,7 @@ Import strategy:
 import logging
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.text import slugify
 from wagtail.models import Page, Locale
 
 from shopify_requests.graphql_service import execute_admin_graphql
@@ -24,15 +25,25 @@ from .queries import (
     LIST_COLLECTIONS,
     LIST_BLOGS,
     LIST_ARTICLES_FOR_BLOG,
+    LIST_GLOSSARY_TERMS,
 )
 from ..models import (
     ProductPage, ProductPageImage,
     CollectionPage,
     BlogPage,
     ArticlePage,
+    GlossaryTermPage,
 )
 from .import_parents import ensure_child_of_import_parent
 from .utils import absolute_shopify_media_url, MAX_PRODUCT_IMAGES
+from .glossary_inbound import (
+    glossary_definition_html,
+    glossary_locale_wagtail_code,
+    metaobject_field_map,
+    metaobject_image_from_fields,
+    metaobject_publishable_status,
+)
+from ..glossary_locale_utils import wagtail_locale_code_for_glossary
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +345,118 @@ def import_blogs_and_articles(shop, parent_page, new_only=False):
             blog_stats['errors'] += 1
 
     return {'blogs': blog_stats, 'articles': article_stats}
+
+
+def _get_wagtail_locale(language_code: str) -> Locale:
+    locale = Locale.objects.filter(language_code=language_code).first()
+    if locale is None:
+        locale = Locale.get_default()
+    return locale
+
+
+def _get_or_create_glossary_page(shopify_id: str, *, locale_code: str):
+    """Look up GlossaryTermPage by shopify_id or return a new unsaved instance."""
+    existing = GlossaryTermPage.objects.filter(shopify_id=shopify_id).first()
+    if existing:
+        return existing, False
+    wagtail_locale_code = wagtail_locale_code_for_glossary(locale_code)
+    return GlossaryTermPage(locale=_get_wagtail_locale(wagtail_locale_code)), True
+
+
+def _apply_glossary_image_fields(page, shopify_image_id: str, image_url: str, alt_text: str):
+    page.shopify_image_id = shopify_image_id or ''
+    page.image_url = image_url or ''
+    page.image_alt_text = alt_text or ''
+
+
+def _update_glossary_image_only(page, shopify_image_id: str, image_url: str, alt_text: str):
+    type(page).objects.filter(pk=page.pk).update(
+        shopify_image_id=shopify_image_id or '',
+        image_url=image_url or '',
+        image_alt_text=alt_text or '',
+        last_synced_at=timezone.now(),
+    )
+
+
+def import_glossary_terms(
+    shop,
+    parent_page,
+    *,
+    new_only: bool = False,
+    image_only_updates: bool = True,
+    queue_index_rebuild: bool = True,
+):
+    """
+    Import glossary_term metaobjects from Shopify into GlossaryTermPage rows.
+
+    Existing pages: image fields only when image_only_updates is True (default).
+    New pages: term, handle, locale, definition (if present), and image fields.
+  """
+    stats = _empty_import_stats()
+
+    for node in _paginate(shop, LIST_GLOSSARY_TERMS, 'metaobjects'):
+        try:
+            if metaobject_publishable_status(node) != 'ACTIVE':
+                stats['skipped'] += 1
+                continue
+
+            gid = node.get('id')
+            if not gid:
+                stats['errors'] += 1
+                continue
+
+            fields = metaobject_field_map(node)
+            term = (fields.get('term') or '').strip()
+            if not term:
+                stats['skipped'] += 1
+                continue
+
+            handle = (node.get('handle') or '').strip()
+            short_locale = (fields.get('locale') or 'en').strip() or 'en'
+            shopify_image_id, image_url, image_alt = metaobject_image_from_fields(node)
+
+            page, is_new = _get_or_create_glossary_page(gid, locale_code=short_locale)
+
+            if not is_new and new_only:
+                stats['skipped'] += 1
+                continue
+
+            if not is_new and image_only_updates:
+                _update_glossary_image_only(page, shopify_image_id, image_url, image_alt)
+                stats['updated'] += 1
+                continue
+
+            page.shopify_id = gid
+            page.term = term
+            page.title = term
+            page.handle = handle or slugify(term)
+            page.slug = page.handle
+            page.locale_code = short_locale
+            page.locale = _get_wagtail_locale(glossary_locale_wagtail_code(node))
+
+            definition_html = glossary_definition_html(node)
+            if definition_html:
+                page.definition = definition_html
+
+            _apply_glossary_image_fields(page, shopify_image_id, image_url, image_alt)
+
+            if is_new:
+                parent_page.add_child(instance=page)
+                page.save_revision().publish()
+            else:
+                ensure_child_of_import_parent(page, parent_page)
+                page.save_revision().publish()
+
+            type(page).objects.filter(pk=page.pk).update(last_synced_at=timezone.now())
+            stats['created' if is_new else 'updated'] += 1
+
+        except Exception as exc:
+            logger.exception('Error importing glossary term gid=%s: %s', node.get('id'), exc)
+            stats['errors'] += 1
+
+    if queue_index_rebuild and stats['errors'] == 0 and (stats['created'] or stats['updated']):
+        from shopify_content.tasks import sync_glossary_index_task
+
+        sync_glossary_index_task.delay()
+
+    return stats

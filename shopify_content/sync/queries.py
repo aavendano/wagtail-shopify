@@ -229,3 +229,47 @@ query ListArticles($blogId: ID!, $first: Int!, $after: String) {
   }
 }
 """ % ARTICLE_LIST_FIELDS
+
+# ---------------------------------------------------------------------------
+# Glossary terms (metaobjects)
+# ---------------------------------------------------------------------------
+
+GLOSSARY_TERM_METAOBJECT_FIELDS = """
+  id
+  handle
+  capabilities {
+    publishable {
+      status
+    }
+  }
+  fields {
+    key
+    value
+    reference {
+      ... on MediaImage {
+        id
+        image {
+          url
+          altText
+        }
+      }
+    }
+  }
+"""
+
+LIST_GLOSSARY_TERMS = """
+query ListGlossaryTerms($first: Int!, $after: String) {
+  metaobjects(type: "glossary_term", first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        %s
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+""" % GLOSSARY_TERM_METAOBJECT_FIELDS

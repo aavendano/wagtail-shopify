@@ -379,14 +379,27 @@ CAPABILITIES: dict[str, AgentCapability] = {
         (SHOP_CONFIG_PREREQ,),
         sync_direction="wagtail_to_shopify",
     ),
-    # Glossary (no pull)
+    # Glossary
     "list_glossary_terms": _cap(
         "list_glossary_terms", "GET", "/glossary/",
         "discover", "glossary",
         "List Glossary term pages from Wagtail",
-        "Discover Wagtail-origin glossary terms before push to Shopify metaobjects.",
+        "Discover glossary terms before pull or push to Shopify metaobjects.",
         "List[GlossaryTermOut]",
-        ("get_glossary_term", "create_glossary_term"),
+        ("get_glossary_term", "pull_glossary_sync", "create_glossary_term"),
+    ),
+    "pull_glossary_sync": _cap(
+        "pull_glossary_sync", "POST", "/glossary/pull",
+        "sync_inbound", "glossary",
+        "Pull glossary terms from Shopify (sync)",
+        (
+            "Import glossary_term metaobjects from Shopify. Updates image fields on "
+            "existing Wagtail pages without overwriting definition or term text."
+        ),
+        "ImportResultSchema",
+        ("list_glossary_terms", "get_glossary_term"),
+        (SHOP_CONFIG_PREREQ, GLOSSARY_ROOT_PREREQ),
+        sync_direction="shopify_to_wagtail",
     ),
     "create_glossary_term": _cap(
         "create_glossary_term", "POST", "/glossary/",
@@ -474,6 +487,11 @@ WORKFLOWS: dict[str, tuple[str, ...]] = {
         "push_glossary_term",
         "get_glossary_term",
     ),
+    "glossary_shopify_images": (
+        "pull_glossary_sync",
+        "list_glossary_terms",
+        "get_glossary_term",
+    ),
 }
 
 TAG_DESCRIPTIONS: dict[str, str] = {
@@ -498,8 +516,9 @@ TAG_DESCRIPTIONS: dict[str, str] = {
         "(type local_page). No pull endpoint — content is authored in Wagtail."
     ),
     "Glossary": (
-        "Capability group: Wagtail-origin Glossary term pages pushed to Shopify metaobjects "
-        "(type glossary_term). No pull endpoint — content is authored in Wagtail."
+        "Capability group: Glossary term pages synced with Shopify metaobjects "
+        "(type glossary_term). Pull imports images from Shopify; push publishes "
+        "Wagtail-authored content."
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."

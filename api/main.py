@@ -42,7 +42,7 @@ clients in **Django Admin → Django OAuth Toolkit → Applications** and reques
 | Blogs | GET /blogs/ | GET /blogs/{id} | POST /blogs/ | PATCH /blogs/{id} | DELETE /blogs/{id} | POST /blogs/pull | POST /blogs/{id}/push |
 | Articles | GET /articles/ | GET /articles/{id} | POST /articles/ | PATCH /articles/{id} | DELETE /articles/{id} | POST /articles/pull | POST /articles/{id}/push |
 | Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | — (Wagtail-only) | POST /locations/{id}/push |
-| Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | — (Wagtail-only) | POST /glossary/{id}/push |
+| Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |
 
 **Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.
 **Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.
@@ -71,15 +71,14 @@ Locations have **no pull** — content is authored in Wagtail and pushed to Shop
 3. `POST /locations/{id}/push` — upserts metaobject; `shopify_id` saved on first success.
 4. `GET /locations/{id}` — verify `last_synced_at` and `shopify_id`.
 
-### Glossary (Wagtail-origin metaobjects)
+### Glossary (Shopify metaobjects)
 
-Glossary terms have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `glossary_term`.
-The `/pages/glossary` list page is managed by the Shopify theme in Liquid.
+Pull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`, `image_alt_text`) without overwriting existing term text or definitions.
 
-1. `POST /glossary/` with `term`, `locale_code`, and optional `definition`, `seo_title`, `search_description`, `related_links`, `external_links`, `synonyms`, `same_as` (omit or pass `[]` for empty lists).
-2. `PATCH /glossary/{id}` with `"publish": true` (optional).
-3. `POST /glossary/{id}/push` — upserts metaobject; `shopify_id` saved on first success.
-4. `GET /glossary/{id}` — verify `last_synced_at` and `shopify_id`.
+1. `POST /glossary/pull` — import metaobjects; existing pages get image fields only.
+2. `GET /glossary/?locale_code=en` — verify `image_url` populated.
+3. Index rebuild runs automatically after pull (`custom.index_listings` on Page handle `glossary`).
+4. `POST /glossary/{id}/push` — push Wagtail-authored content when needed.
 
 Note: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from Wagtail `locale`.
 

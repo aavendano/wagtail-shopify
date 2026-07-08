@@ -86,9 +86,17 @@ Corregir fallos antes de marcar fase completada.
 
 ## Fase 5 — Documentar
 
-Actualizar docs **solo** si el comportamiento público cambia:
+Cualquier cambio en `api/` debe actualizar la documentación en el mismo cambio. Ver [`.cursor/rules/api-documentation.mdc`](../../rules/api-documentation.mdc).
+
+Checklist mínimo (API):
+- [ ] `agent_registry.py` actualizado
+- [ ] Router con `capability_docstring` + `agent_openapi_extra`
+- [ ] `docs/api-agents.md` si afecta consumidores externos
+- [ ] `API_DESCRIPTION` en `api/main.py` si cambia matriz/workflows/auth
+- [ ] `make test` pasa (paridad MCP/OpenAPI)
+
+Otros cambios de comportamiento público:
 - `README.md` — setup o arquitectura
 - `docs/shopify_content.md` — modelos/sync
-- `docs/api-agents.md` — endpoints/workflows agente
 
 Al terminar, invocar lógica de `continue-work` para actualizar plan y PROGRESS.

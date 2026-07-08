@@ -545,7 +545,9 @@ Los índices `glossary`, `locations` y `blogs` usan **una URL por índice**. El 
         {
           "term": "Alpha",
           "handle": "alpha",
-          "path": "/pages/glossary/alpha"
+          "path": "/pages/glossary/alpha",
+          "image_url": "https://cdn.shopify.com/alpha.jpg",
+          "image_alt": "Alpha term"
         }
       ]
     }
@@ -562,6 +564,8 @@ Los índices `glossary`, `locations` y `blogs` usan **una URL por índice**. El 
 | `items[].term` | string | Texto del término |
 | `items[].handle` | string | `page.handle` o slug derivado |
 | `items[].path` | string | Siempre `/pages/glossary/{handle}` |
+| `items[].image_url` | string | Opcional; URL absoluta CDN desde pull Shopify |
+| `items[].image_alt` | string | Opcional; alt text de la imagen |
 
 No hay `path` a nivel raíz ni campos SEO en el índice. La agrupación A–Z ya viene hecha; no reimplementar en Liquid.
 
@@ -923,6 +927,7 @@ Los management commands de import crean páginas Wagtail desde recursos existent
 | `ProductPage` | `ProductPageImage` (InlinePanel `shopify_images`) | Máx. 10 URLs por producto |
 | `CollectionPage` | `image_url`, `image_alt_text` | 1 imagen destacada |
 | `ArticlePage` | `featured_image_url`, `featured_image_alt` | 1 imagen destacada |
+| `GlossaryTermPage` | `image_url`, `shopify_image_id`, `image_alt_text` | 1 imagen; en términos existentes el pull **solo** actualiza imagen |
 
 El FK `ArticlePage.featured_image` a `wagtailimages.Image` se conserva para uso manual o vía API; el pull no lo modifica.
 
@@ -937,6 +942,7 @@ El SEO de artículos (`seo_title`, `search_description`) **no** se rellena autom
 | `import_products(shop, parent_page)` | Importa productos → `ProductPage` |
 | `import_collections(shop, parent_page)` | Importa colecciones → `CollectionPage` |
 | `import_blogs_and_articles(shop, parent_page)` | Importa blogs → `BlogPage` con `ArticlePage` hijos |
+| `import_glossary_terms(shop, parent_page)` | Importa metaobjects `glossary_term` → `GlossaryTermPage` (imagen-only en existentes) |
 | `_paginate(shop, query, data_path, variables)` | Generator con cursor pagination |
 
 ---
@@ -948,6 +954,7 @@ El SEO de artículos (`seo_title`, `search_description`) **no** se rellena autom
 | `import_shopify_products` | Importa productos de Shopify → `ProductPage` en Wagtail |
 | `import_shopify_collections` | Importa colecciones → `CollectionPage` |
 | `import_shopify_blogs` | Importa blogs y artículos → `BlogPage` / `ArticlePage` |
+| `import_shopify_glossary` | Importa términos del glosario → `GlossaryTermPage` (imágenes desde Shopify) |
 | `setup_locales` | Crea los 4 objetos `Locale` de Wagtail (en-US, es-US, en-CA, fr-CA) |
 | `setup_celery_beat_schedules` | Crea la tarea periódica de importación inbound (deshabilitada por defecto) |
 | `ensure_metaobject_definitions` | Crea o verifica definiciones de metaobjetos merchant-owned en Shopify (idempotente) |
@@ -1029,6 +1036,7 @@ shopify_content/
     ├── import_shopify_products.py
     ├── import_shopify_collections.py
     ├── import_shopify_blogs.py
+    ├── import_shopify_glossary.py
     ├── setup_locales.py
     └── ensure_metaobject_definitions.py
 ```

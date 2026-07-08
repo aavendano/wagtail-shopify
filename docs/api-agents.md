@@ -3,6 +3,10 @@
 API autodescriptiva para agentes AI que gestionan contenido entre Wagtail CMS y Shopify.
 Todas las operaciones de la API son **síncronas**: la respuesta HTTP contiene el resultado final.
 
+> **Mantener actualizada:** cualquier cambio en `/api/v1/` debe reflejarse en la documentación en el mismo cambio.
+> Política y checklist: [`.cursor/rules/api-documentation.mdc`](../.cursor/rules/api-documentation.mdc).
+> Fuente única de verdad de capacidades: `api/agent_registry.py`.
+
 ## Quick start
 
 ### 1. Crear credencial
@@ -102,7 +106,7 @@ La fuente única de verdad es `api/agent_registry.py` — OpenAPI y `/capabiliti
 | Blogs | `GET /blogs/` | `GET /blogs/{id}` | `POST /blogs/` | `PATCH /blogs/{id}` | `DELETE /blogs/{id}` | `POST /blogs/pull` | `POST /blogs/{id}/push` |
 | Articles | `GET /articles/` | `GET /articles/{id}` | `POST /articles/` | `PATCH /articles/{id}` | `DELETE /articles/{id}` | `POST /articles/pull` | `POST /articles/{id}/push` |
 | Locations | `GET /locations/` | `GET /locations/{id}` | `POST /locations/` | `PATCH /locations/{id}` | `DELETE /locations/{id}` | — | `POST /locations/{id}/push` |
-| Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | — | `POST /glossary/{id}/push` |
+| Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | `POST /glossary/pull` | `POST /glossary/{id}/push` |
 
 ---
 
@@ -197,10 +201,29 @@ curl -H "Authorization: Bearer $API_KEY" "$BASE/locations/7"
 
 Campos rich text (`intro`, `content_2`, etc.) se envían y reciben como **HTML string**.
 
-### Glossary (solo Wagtail → Shopify)
+### Glossary (Wagtail ↔ Shopify)
 
-Los términos del glosario **no tienen pull**. El contenido se crea en Wagtail y se empuja a metaobject Shopify `glossary_term`.
-La página listado `/pages/glossary` la gestiona el theme en Liquid (no hay endpoint para ella).
+El contenido editorial (`term`, `definition`, SEO, links) se crea y edita en Wagtail y se empuja a metaobject Shopify `glossary_term`. Las **imágenes** se cargan en Shopify Admin; el pull inbound sincroniza solo campos de imagen en términos existentes y crea páginas nuevas si faltan en Wagtail.
+
+La página listado `/pages/glossary` la gestiona el theme en Liquid (no hay endpoint para ella). Tras pull, Wagtail reconstruye `custom.index_listings` con `image_url` / `image_alt` por término.
+
+#### Sincronizar imágenes desde Shopify
+
+```bash
+# Pull: metaobjects glossary_term → GlossaryTermPage (imagen en existentes; creación si falta)
+curl -X POST -H "Authorization: Bearer $API_KEY" "$BASE/glossary/pull"
+```
+
+Comportamiento del pull:
+
+| Caso | Acción |
+|------|--------|
+| Término nuevo en Wagtail (por `shopify_id`) | Crear `GlossaryTermPage` con campos básicos + imagen |
+| Término existente | Solo `image_url`, `shopify_image_id`, `image_alt_text` — no toca `definition`, `term` ni SEO |
+
+Tras import exitoso con cambios, se encola rebuild de `index_listings` automáticamente.
+
+#### Crear y publicar desde Wagtail
 
 ```bash
 # 1. Crear término

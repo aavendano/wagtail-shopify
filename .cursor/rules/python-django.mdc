@@ -20,12 +20,14 @@ alwaysApply: false
 
 ## API para agentes
 
+- Política completa: `.cursor/rules/api-documentation.mdc`
 - Fuente de verdad de capacidades: `api/agent_registry.py`
 - Routers en `api/routers/`; schemas en `api/schemas/`
 - MCP en `api/mcp_asgi.py` — requiere Daphne (ASGI)
+- Todo cambio en endpoints exige actualizar `agent_registry.py` en el mismo PR
 
 ## Patrones al implementar
 
 - Heredar de `ShopifyPageMixin` para páginas con sync
-- Nuevos endpoints: registrar en `agent_registry.py` con `x-agent-*` metadata
+- Nuevos endpoints: registrar en `agent_registry.py` con `x-agent-*` metadata (ver regla api-documentation)
 - Management commands en `shopify_content/management/commands/`

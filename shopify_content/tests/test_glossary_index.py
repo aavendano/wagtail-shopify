@@ -93,6 +93,24 @@ class BuildGlossaryIndexJsonTests(TestCase):
         self.assertEqual(en_payload['sections'][0]['items'][0]['term'], 'English')
         self.assertEqual(es_payload['sections'][0]['items'][0]['term'], 'Español')
 
+    def test_glossary_index_includes_image_url(self):
+        page = self._add_term(
+            term='Lingerie',
+            shopify_id='gid://1',
+            handle='lingerie',
+            slug='lingerie',
+        )
+        GlossaryTermPage.objects.filter(pk=page.pk).update(
+            image_url='https://cdn.shopify.com/lingerie.jpg',
+            image_alt_text='Lingerie alt',
+        )
+
+        payload = build_glossary_index_json('en-US')
+        item = payload['sections'][0]['items'][0]
+
+        self.assertEqual(item['image_url'], 'https://cdn.shopify.com/lingerie.jpg')
+        self.assertEqual(item['image_alt'], 'Lingerie alt')
+
 
 class SyncGlossaryIndexPagesTests(TestCase):
     def setUp(self):

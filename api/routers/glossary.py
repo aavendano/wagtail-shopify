@@ -7,9 +7,11 @@ from ninja import Router
 from shopify_content.models import GlossaryTermPage, ShopifyRootPage
 from shopify_content.sync.outbound import sync_glossary_term_page
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
+from shopify_content.glossary_locale_utils import wagtail_locale_code_for_glossary
 
+from ..sync import execute_pull
 from ..schemas.glossary import GlossaryTermIn, GlossaryTermPatch, GlossaryTermOut
-from ..schemas.common import SyncResultSchema, ErrorSchema
+from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
 from ..openapi_agent import agent_openapi_extra, capability_docstring
 from ..locale_utils import (
     resolve_locale,
@@ -117,6 +119,19 @@ def list_glossary_terms(
 
 
 @router.post(
+    '/pull',
+    response={200: ImportResultSchema, 400: ErrorSchema},
+    summary="Pull Glossary Terms from Shopify (sync)",
+    operation_id="pull_glossary_sync",
+    description=capability_docstring("pull_glossary_sync"),
+    openapi_extra=agent_openapi_extra("pull_glossary_sync"),
+)
+def pull_glossary(request):
+    """Import glossary_term metaobjects from Shopify synchronously."""
+    return execute_pull('glossary')
+
+
+@router.post(
     '/',
     response={201: GlossaryTermOut, 400: ErrorSchema},
     summary="Create Glossary Term",
@@ -142,7 +157,10 @@ def create_glossary_term(request, data: GlossaryTermIn):
         return 400, {"detail": detail}
 
     try:
-        page = GlossaryTermPage(locale=resolve_locale(data.locale))
+        wagtail_locale = data.locale
+        if not wagtail_locale and data.locale_code:
+            wagtail_locale = wagtail_locale_code_for_glossary(data.locale_code)
+        page = GlossaryTermPage(locale=resolve_locale(wagtail_locale))
         _apply_glossary_fields(page, data, is_create=True)
 
         source = apply_translation_link(page, data.translation_of, GlossaryTermPage)
@@ -190,6 +208,8 @@ def update_glossary_term(request, page_id: int, data: GlossaryTermPatch):
 
     if data.locale is not None:
         page.locale = resolve_locale(data.locale)
+    elif data.locale_code is not None:
+        page.locale = resolve_locale(wagtail_locale_code_for_glossary(data.locale_code))
     if data.translation_of is not None:
         source = apply_translation_link(page, data.translation_of, GlossaryTermPage)
         inherit_shopify_id_from_source(page, source)

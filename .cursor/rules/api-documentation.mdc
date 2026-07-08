@@ -1,0 +1,114 @@
+---
+description: Documentación de la API/MCP — obligatoria y sincronizada con cada cambio
+globs: "api/**"
+alwaysApply: false
+---
+
+# Documentación de la API para agentes
+
+La API es **autodescriptiva y orientada a capacidades**. Cualquier cambio en la superficie pública de `/api/v1/` debe reflejarse en la documentación en el **mismo PR/cambio**, no después.
+
+## Fuente única de verdad
+
+`api/agent_registry.py` define cada capacidad (`AgentCapability`). Desde ahí se derivan:
+
+| Consumidor | Cómo se actualiza |
+|------------|-------------------|
+| OpenAPI (`/api/v1/openapi.json`) | `operation_id`, `capability_docstring()`, `agent_openapi_extra()` en el router |
+| Catálogo (`GET /api/v1/capabilities/`) | Automático desde `CAPABILITIES` y `WORKFLOWS` |
+| MCP tools | Automático desde OpenAPI (`operation_id` = nombre de tool) |
+| Swagger (`/api/v1/docs/`) | `API_DESCRIPTION` en `api/main.py` + descripciones por endpoint |
+
+**Prohibido** documentar endpoints solo en Markdown sin registrar la capacidad en el registry.
+
+## Checklist obligatorio por tipo de cambio
+
+### Nuevo endpoint
+
+1. Entrada en `CAPABILITIES` con: `operation_id`, `method`, `path`, `capability_type`, `resource`, `summary`, `when_to_use`, `prerequisites`, `response_schema`, `next_tools`, `sync_direction` (si aplica).
+2. Router en `api/routers/` con `operation_id`, `summary`, `description=capability_docstring(...)`, `openapi_extra=agent_openapi_extra(...)`.
+3. Schema en `api/schemas/` si hay request/response nuevos.
+4. Si encaja en un flujo existente: actualizar `WORKFLOWS` y/o `next_tools` de capacidades relacionadas.
+5. Si es un recurso nuevo: añadir `TAG_DESCRIPTIONS`.
+6. Tests: `make test` (incluye paridad MCP ↔ OpenAPI en `api/tests/test_mcp.py`).
+
+### Endpoint modificado
+
+Actualizar **todo** lo que cambió:
+
+| Cambio | Dónde actualizar |
+|--------|------------------|
+| Path, método, `operation_id` | `agent_registry.py` + router |
+| Semántica / cuándo usarlo | `when_to_use`, `prerequisites`, `next_tools` en registry |
+| Request/response | `api/schemas/` + `response_schema` en registry |
+| Auth, sync, errores | `docs/api-agents.md` + `API_DESCRIPTION` si es global |
+| Workflow de agente | `WORKFLOWS` en registry + sección correspondiente en `docs/api-agents.md` |
+
+### Endpoint eliminado
+
+1. Quitar de `CAPABILITIES` y de `WORKFLOWS` / `next_tools` que lo referencien.
+2. Eliminar o deprecar router y schema.
+3. Actualizar `docs/api-agents.md` (matriz de herramientas, workflows, ejemplos curl).
+4. Verificar que `test_mcp_tool_count_matches_openapi_operations` sigue pasando.
+
+## Documentación humana (`docs/api-agents.md`)
+
+Actualizar cuando el cambio afecte a **consumidores externos** (agentes, integradores, setup MCP):
+
+- Nueva ruta o recurso en la matriz de herramientas
+- Cambio de auth, scopes OAuth o variables de entorno MCP
+- Nuevo workflow o cambio en secuencia recomendada
+- Cambio en formatos de respuesta de sync (`ImportResultSchema`, `SyncResultSchema`)
+- Setup MCP, Daphne, o configuración de cliente
+
+No duplicar en Markdown lo que ya vive en el registry; el doc humano complementa con ejemplos curl, errores frecuentes y operativa.
+
+## Descripción global (`api/main.py`)
+
+`API_DESCRIPTION` debe mantenerse alineada con:
+
+- Matriz de recursos (list/get/create/update/delete/pull/push)
+- Workflows predefinidos
+- Modelo de sync y localización
+- Notas de auth y errores comunes
+
+Si un cambio de API altera cualquiera de esos puntos, actualizar `API_DESCRIPTION` en el mismo cambio.
+
+## Convenciones de capacidad
+
+| `capability_type` | Uso |
+|-------------------|-----|
+| `discover` | Listados, catálogo |
+| `read` | GET por ID |
+| `create` | POST recurso nuevo |
+| `update` | PATCH |
+| `delete` | DELETE (solo Wagtail) |
+| `sync_inbound` | Pull Shopify → Wagtail |
+| `sync_outbound` | Push Wagtail → Shopify |
+
+- `operation_id` = nombre estable de tool (OpenAPI + MCP). No renombrar sin motivo; rompe clientes.
+- `when_to_use` en inglés, orientado a agente (qué problema resuelve la tool).
+- `prerequisites` concretos (p.ej. `Page must have shopify_id`).
+
+## Verificación antes de cerrar
+
+```bash
+make test
+# Tests críticos de documentación:
+# api/tests/test_mcp.py — paridad tools MCP = operation_id OpenAPI
+```
+
+Opcional manual:
+
+```bash
+curl -s -H "Authorization: Bearer $API_KEY" "$BASE/capabilities/" | jq '.tools | length'
+curl -s -H "Authorization: Bearer $API_KEY" "$BASE/openapi.json" | jq '.paths | keys'
+```
+
+## Anti-patrones
+
+- Endpoint en router sin entrada en `agent_registry.py`
+- `operation_id` distinto entre router y registry
+- Documentar solo en `docs/api-agents.md` sin registry
+- Cambiar schema de respuesta sin actualizar `response_schema` en registry
+- Añadir tool MCP manualmente (se genera desde OpenAPI)

@@ -3,19 +3,29 @@
 
 {% block content %}
 <s-page heading="Wagtail CMS">
-    <s-section heading="Sincronizar contenido a Wagtail">
+    {% if shop_configured %}
+        <s-section heading="Tienda conectada">
+            <s-paragraph color="subdued">
+                Tienda conectada:
+                <strong>{{ shop_domain }}</strong>
+                {% if shopify_admin_shop_name %} — {{ shopify_admin_shop_name }}{% endif %}
+            </s-paragraph>
+        </s-section>
+    {% else %}
+        <s-section heading="Estado de la app">
+            <s-banner tone="warning">
+                No hay token de acceso configurado. Completa la instalación de la app para poder ejecutar comandos.
+            </s-banner>
+        </s-section>
+    {% endif %}
+
+    <s-section heading="Importar contenido a Wagtail">
         <s-paragraph>
             Importa contenido desde tu tienda Shopify hacia Wagtail.
             Solo se crean páginas que aún no existen; el contenido ya importado no se modifica.
         </s-paragraph>
 
         {% if shop_configured %}
-            <s-paragraph color="subdued">
-                Tienda conectada:
-                <strong>{{ shop_domain }}</strong>
-                {% if shopify_admin_shop_name %} — {{ shopify_admin_shop_name }}{% endif %}
-            </s-paragraph>
-
             <s-stack direction="block" gap="small-200">
                 {% for resource_key, resource_label in sync_resources %}
                     <form
@@ -33,10 +43,113 @@
                     </form>
                 {% endfor %}
             </s-stack>
+        {% endif %}
+    </s-section>
+
+    {% if shop_configured %}
+        {% for group_key, group_label, commands in command_groups %}
+            <s-section heading="{{ group_label }}">
+                {% if group_key == 'migrations' %}
+                    <s-banner tone="warning">
+                        Estos comandos modifican datos existentes. Úsalos solo cuando sepas que son necesarios.
+                    </s-banner>
+                {% endif %}
+
+                <s-stack direction="block" gap="base">
+                    {% for command in commands %}
+                        <s-box padding="base" background="subdued" border="base" borderRadius="base">
+                            <s-stack direction="block" gap="small-200">
+                                <s-paragraph>
+                                    <strong>{{ command.label }}</strong>
+                                </s-paragraph>
+                                <s-paragraph color="subdued">{{ command.description }}</s-paragraph>
+                                {% if command.when_to_use %}
+                                    <s-paragraph color="subdued">
+                                        <s-text type="strong">Cuándo usarlo:</s-text>
+                                        {{ command.when_to_use }}
+                                    </s-paragraph>
+                                {% endif %}
+                                <form
+                                    method="post"
+                                    action="{% url 'shopify_embedded_command' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                                >
+                                    {% csrf_token %}
+                                    <input type="hidden" name="command_id" value="{{ command.id }}">
+                                    <s-button
+                                        type="submit"
+                                        variant="{% if command.dangerous %}tertiary{% else %}secondary{% endif %}"
+                                    >
+                                        Ejecutar
+                                    </s-button>
+                                </form>
+                            </s-stack>
+                        </s-box>
+                    {% endfor %}
+                </s-stack>
+            </s-section>
+        {% endfor %}
+    {% endif %}
+
+    <s-section heading="Historial reciente">
+        {% if recent_command_runs or recent_sync_runs %}
+            <s-table>
+                <s-table-header-row>
+                    <s-table-header listSlot="primary">Tarea</s-table-header>
+                    <s-table-header listSlot="labeled">Estado</s-table-header>
+                    <s-table-header listSlot="labeled">Fecha</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                    {% for run in recent_command_runs %}
+                        <s-table-row>
+                            <s-table-cell>
+                                <s-text type="strong">{{ run.command_id }}</s-text>
+                                {% if run.message %}
+                                    <s-paragraph color="subdued">{{ run.message|truncatechars:120 }}</s-paragraph>
+                                {% endif %}
+                            </s-table-cell>
+                            <s-table-cell>
+                                {% if run.status == 'success' %}
+                                    <s-badge tone="success">Completado</s-badge>
+                                {% elif run.status == 'failed' %}
+                                    <s-badge tone="critical">Error</s-badge>
+                                {% elif run.status == 'running' %}
+                                    <s-badge tone="info">En curso</s-badge>
+                                {% else %}
+                                    <s-badge tone="warning">Pendiente</s-badge>
+                                {% endif %}
+                            </s-table-cell>
+                            <s-table-cell>{{ run.created_at|date:"Y-m-d H:i" }}</s-table-cell>
+                        </s-table-row>
+                    {% endfor %}
+                    {% for run in recent_sync_runs %}
+                        <s-table-row>
+                            <s-table-cell>
+                                <s-text type="strong">import: {{ run.resource }}</s-text>
+                                {% if run.message %}
+                                    <s-paragraph color="subdued">{{ run.message|truncatechars:120 }}</s-paragraph>
+                                {% endif %}
+                            </s-table-cell>
+                            <s-table-cell>
+                                {% if run.status == 'success' %}
+                                    <s-badge tone="success">Completado</s-badge>
+                                {% elif run.status == 'failed' %}
+                                    <s-badge tone="critical">Error</s-badge>
+                                {% elif run.status == 'running' %}
+                                    <s-badge tone="info">En curso</s-badge>
+                                {% else %}
+                                    <s-badge tone="warning">Pendiente</s-badge>
+                                {% endif %}
+                            </s-table-cell>
+                            <s-table-cell>{{ run.created_at|date:"Y-m-d H:i" }}</s-table-cell>
+                        </s-table-row>
+                    {% endfor %}
+                </s-table-body>
+            </s-table>
+            <s-paragraph color="subdued">
+                Detalle completo de logs en Django Admin → Embedded command runs / Shopify sync runs.
+            </s-paragraph>
         {% else %}
-            <s-banner tone="warning">
-                No hay token de acceso configurado. Completa la instalación de la app para poder importar contenido.
-            </s-banner>
+            <s-paragraph color="subdued">No hay ejecuciones recientes.</s-paragraph>
         {% endif %}
     </s-section>
 
