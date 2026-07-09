@@ -10,7 +10,7 @@ CapabilityType = Literal[
     "sync_inbound",
     "sync_outbound",
 ]
-Resource = Literal["products", "collections", "blogs", "articles", "locations", "glossary", "capabilities"]
+Resource = Literal["products", "collections", "blogs", "articles", "locations", "glossary", "home", "capabilities"]
 SyncDirection = Literal["shopify_to_wagtail", "wagtail_to_shopify"] | None
 
 SHOP_CONFIG_PREREQ = "ShopConfig with valid offline access token"
@@ -22,6 +22,10 @@ LOCATIONS_ROOT_PREREQ = (
 GLOSSARY_ROOT_PREREQ = (
     'ShopifyRootPage with slug=glossary under Wagtail site '
     '(optional parent_page_id on create_glossary_term)'
+)
+HOME_ROOT_PREREQ = (
+    'ShopifyRootPage with slug=cms-home under Wagtail site '
+    '(optional parent_page_id on create_home_page)'
 )
 
 
@@ -444,6 +448,58 @@ CAPABILITIES: dict[str, AgentCapability] = {
         (SHOP_CONFIG_PREREQ,),
         sync_direction="wagtail_to_shopify",
     ),
+    # Home (no pull)
+    "list_home_pages": _cap(
+        "list_home_pages", "GET", "/home/",
+        "discover", "home",
+        "List Home pages from Wagtail",
+        "Discover Wagtail-origin home pages (one per locale) before push to Shopify metaobjects.",
+        "List[HomeOut]",
+        ("get_home_page", "create_home_page"),
+    ),
+    "create_home_page": _cap(
+        "create_home_page", "POST", "/home/",
+        "create", "home",
+        "Create a Home page in Wagtail",
+        "Author home content in Wagtail; push to Shopify metaobject type home_page.",
+        "HomeOut",
+        ("update_home_page", "push_home_page"),
+        (HOME_ROOT_PREREQ,),
+    ),
+    "get_home_page": _cap(
+        "get_home_page", "GET", "/home/{page_id}",
+        "read", "home",
+        "Get a single Home page",
+        "Verify shopify_id and last_synced_at after push.",
+        "HomeOut",
+        ("update_home_page", "push_home_page"),
+    ),
+    "update_home_page": _cap(
+        "update_home_page", "PATCH", "/home/{page_id}",
+        "update", "home",
+        "Update a Home page",
+        "Edit home fields; publish=true optional before push.",
+        "HomeOut",
+        ("push_home_page", "get_home_page"),
+    ),
+    "delete_home_page": _cap(
+        "delete_home_page", "DELETE", "/home/{page_id}",
+        "delete", "home",
+        "Delete a Home page from Wagtail",
+        "Removes Wagtail page only — Shopify metaobject is untouched.",
+        "None",
+        ("list_home_pages",),
+    ),
+    "push_home_page": _cap(
+        "push_home_page", "POST", "/home/{page_id}/push",
+        "sync_outbound", "home",
+        "Push Home page to Shopify metaobject",
+        "Upserts metaobject home_page; saves shopify_id on first success.",
+        "SyncResultSchema",
+        ("get_home_page",),
+        (SHOP_CONFIG_PREREQ,),
+        sync_direction="wagtail_to_shopify",
+    ),
     # Capabilities catalog
     "list_agent_capabilities": _cap(
         "list_agent_capabilities", "GET", "/capabilities/",
@@ -492,6 +548,12 @@ WORKFLOWS: dict[str, tuple[str, ...]] = {
         "list_glossary_terms",
         "get_glossary_term",
     ),
+    "home_wagtail_origin": (
+        "create_home_page",
+        "update_home_page",
+        "push_home_page",
+        "get_home_page",
+    ),
 }
 
 TAG_DESCRIPTIONS: dict[str, str] = {
@@ -519,6 +581,10 @@ TAG_DESCRIPTIONS: dict[str, str] = {
         "Capability group: Glossary term pages synced with Shopify metaobjects "
         "(type glossary_term). Pull imports images from Shopify; push publishes "
         "Wagtail-authored content."
+    ),
+    "Home": (
+        "Capability group: Wagtail-origin Home pages pushed to Shopify metaobjects "
+        "(type home_page). One page per locale; no pull endpoint."
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."

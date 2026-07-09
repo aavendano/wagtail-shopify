@@ -14,10 +14,10 @@ from ..models import ShopifyRootPage
 
 logger = logging.getLogger(__name__)
 
-ResourceType = Literal['products', 'collections', 'blogs', 'locations', 'glossary']
+ResourceType = Literal['products', 'collections', 'blogs', 'locations', 'glossary', 'home']
 
 # Slugs reserved for single-resource ShopifyRootPage containers (not the main catalog root).
-RESOURCE_CONTAINER_SLUGS = frozenset({'collections', 'blogs', 'local-us', 'glossary'})
+RESOURCE_CONTAINER_SLUGS = frozenset({'collections', 'blogs', 'local-us', 'glossary', 'cms-home'})
 
 # Preferred ShopifyRootPage slug per resource when multiple roots exist.
 IMPORT_ROOT_SLUG = {
@@ -26,6 +26,7 @@ IMPORT_ROOT_SLUG = {
     'blogs': 'blogs',
     'locations': 'local-us',
     'glossary': 'glossary',
+    'home': 'cms-home',
 }
 
 IMPORT_ROOT_TITLE = {
@@ -34,6 +35,7 @@ IMPORT_ROOT_TITLE = {
     'blogs': 'Blogs',
     'locations': 'Local US',
     'glossary': 'Glossary',
+    'home': 'CMS Home',
 }
 
 SLUG_TO_RESOURCE_TYPE = {slug: resource for resource, slug in IMPORT_ROOT_SLUG.items()}

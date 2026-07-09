@@ -78,6 +78,7 @@ execute_admin_graphql(q, shop=shop, variables={'id': page_gid})
 | `ArticlePage` | Article | `articleCreate` / `articleUpdate` |
 | `LocationPage` | Metaobject merchant-owned (`local_page`) | `metaobjectUpsert` vía `MetaobjectClient` |
 | `GlossaryTermPage` | Metaobject merchant-owned (`glossary_term`) | `metaobjectUpsert` vía `MetaobjectClient` |
+| `HomePage` | Metaobject merchant-owned (`home_page`) | `metaobjectUpsert` vía `MetaobjectClient` |
 
 ### Jerarquía de páginas
 
@@ -88,7 +89,8 @@ ShopifyRootPage
 ├── BlogPage
 │   └── ArticlePage
 ├── LocationPage  (bajo root slug=local-us)
-└── GlossaryTermPage  (bajo root slug=glossary)
+├── GlossaryTermPage  (bajo root slug=glossary)
+└── HomePage  (bajo root slug=cms-home; uno por locale)
 ```
 
 ---
@@ -812,7 +814,8 @@ after_publish_page hook  (wagtail_hooks.py)
          ├─ BlogPage       → sync_blog_page(page)
          ├─ ArticlePage    → sync_article_page(page)
          ├─ LocationPage   → sync_location_page(page)
-         └─ GlossaryTermPage → sync_glossary_term_page(page)
+         ├─ GlossaryTermPage → sync_glossary_term_page(page)
+         └─ HomePage       → sync_home_page(page)
                   │
                   ▼
          shopify_content/sync/outbound.py
@@ -837,6 +840,7 @@ Todas las funciones de sync fallan silenciosamente: loguean el error pero no blo
 | `sync_article_page(page)` | `articleCreate` o `articleUpdate`; metafields SEO + `custom.available_locales`; `translationsRegister` |
 | `sync_location_page(page)` | `MetaobjectClient.sync()` con `ensure_definition=True` |
 | `sync_glossary_term_page(page)` | `MetaobjectClient.sync()` tipo `glossary_term` |
+| `sync_home_page(page)` | `MetaobjectClient.sync()` tipo `home_page` (handle `home-<locale>`) |
 | `_glossary_term_definition()` | Constructor lazy del `MetaobjectDefinitionSpec` glossary_term |
 | `_render_streamfield_html(value)` | Convierte StreamField value → HTML string |
 | `_push_metafields(shop, owner_gid, inputs)` | `metafieldsSet` para metafields personalizados |

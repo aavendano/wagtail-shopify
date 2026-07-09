@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>{{ page.hero_heading }}</h1>
+  {% if page.hero_subheading %}
+    <p>{{ page.hero_subheading }}</p>
+  {% endif %}
+  {% if page.hero_body %}
+    {{ page.hero_body|richtext }}
+  {% endif %}
+{% endblock %}

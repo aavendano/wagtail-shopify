@@ -1,6 +1,19 @@
 from wagtail.blocks import StreamBlock
 
 from .content import HeadingBlock, ParagraphBlock, HtmlBlock, CalloutBlock, ProductBannerBlock
+from .home import (
+    TrustBarBlock,
+    FeaturedCollectionsBlock,
+    EditorialIntroBlock,
+    BestSellersBlock,
+    ShopByNeedBlock,
+    EducationalHubBlock,
+    BrandValuesBlock,
+    MarketBlock,
+    FAQBlock,
+    InternalLinksBlock,
+    SEOSchemaBlock,
+)
 from .media import ImageBlock, VideoEmbedBlock
 from .product import ProductFeatureBlock
 from .metafield import MetafieldBlock
@@ -48,6 +61,26 @@ PRODUCT_BODY_BLOCKS = ProductBodyStreamBlock()
 COLLECTION_BODY_BLOCKS = CollectionBodyStreamBlock()
 ARTICLE_BODY_BLOCKS = ArticleBodyStreamBlock()
 
+
+class HomeBodyStreamBlock(StreamBlock):
+    trust_bar = TrustBarBlock()
+    featured_collections = FeaturedCollectionsBlock()
+    editorial_intro = EditorialIntroBlock()
+    best_sellers = BestSellersBlock()
+    shop_by_need = ShopByNeedBlock()
+    educational_hub = EducationalHubBlock()
+    brand_values = BrandValuesBlock()
+    market_block = MarketBlock()
+    faq = FAQBlock()
+    internal_links = InternalLinksBlock()
+    seo_schema = SEOSchemaBlock()
+
+    class Meta:
+        label = 'Home Sections'
+
+
+HOME_BODY_BLOCKS = HomeBodyStreamBlock()
+
 __all__ = [
     'HeadingBlock',
     'ParagraphBlock',
@@ -64,4 +97,17 @@ __all__ = [
     'PRODUCT_BODY_BLOCKS',
     'COLLECTION_BODY_BLOCKS',
     'ARTICLE_BODY_BLOCKS',
+    'HomeBodyStreamBlock',
+    'HOME_BODY_BLOCKS',
+    'TrustBarBlock',
+    'FeaturedCollectionsBlock',
+    'EditorialIntroBlock',
+    'BestSellersBlock',
+    'ShopByNeedBlock',
+    'EducationalHubBlock',
+    'BrandValuesBlock',
+    'MarketBlock',
+    'FAQBlock',
+    'InternalLinksBlock',
+    'SEOSchemaBlock',
 ]

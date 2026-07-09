@@ -165,6 +165,40 @@ class ImportGlossaryTermsTests(TestCase):
         self.assertEqual(page.image_url, '')
 
     @patch('shopify_content.sync.inbound._paginate')
+    def test_import_glossary_terms_matches_existing_by_slug_when_shopify_id_stale(self, mock_paginate):
+        old_gid = 'gid://shopify/Metaobject/240123576395'
+        new_gid = 'gid://shopify/Metaobject/240247701579'
+        existing = GlossaryTermPage(
+            title='Lenceria',
+            term='Lenceria',
+            locale_code='en',
+            shopify_id=old_gid,
+            handle='lenceria',
+            slug='lenceria',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=existing)
+        existing.save_revision().publish()
+
+        mock_paginate.return_value = iter([
+            _make_glossary_node(new_gid, 'lenceria', 'Lenceria'),
+        ])
+
+        stats = import_glossary_terms(
+            'test-shop.myshopify.com',
+            self.parent,
+            queue_index_rebuild=False,
+        )
+
+        self.assertEqual(stats['created'], 0)
+        self.assertEqual(stats['updated'], 1)
+        self.assertEqual(stats['errors'], 0)
+
+        page = GlossaryTermPage.objects.get(pk=existing.pk)
+        self.assertEqual(page.shopify_id, new_gid)
+        self.assertEqual(GlossaryTermPage.objects.filter(slug='lenceria').count(), 1)
+
+    @patch('shopify_content.sync.inbound._paginate')
     @patch('shopify_content.tasks.sync_glossary_index_task.delay')
     def test_import_queues_index_rebuild_on_success(self, mock_index_delay, mock_paginate):
         mock_paginate.return_value = iter([

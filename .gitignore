@@ -87,6 +87,7 @@ __pycache__/
 local_settings.py
 
 .env
+.env.backup*
 !.env.example
 db.sqlite3
 db.session
@@ -102,9 +103,9 @@ staticfiles/
 .cursor/debug-*.log
 .claude/
 shopify.app.toml
-deploy/wagtail-shopify-celery-beat.service
-deploy/wagtail-shopify-celery-worker.service
-deploy/wagtail-shopify-daphne.service
+deploy/cms-shop-celery-beat.service
+deploy/cms-shop-celery-worker.service
+deploy/cms-shop-daphne.service
 scripts/
 
 */migrations/*

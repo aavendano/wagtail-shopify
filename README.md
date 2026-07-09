@@ -1,6 +1,8 @@
-# wagtail-shopify
+# cms-shop backend
 
 Shopify Embedded App (Django + Wagtail) que usa Wagtail como CMS headless para gestionar el contenido de una tienda Shopify. Los editores trabajan en Wagtail admin; al publicar, el contenido se sincroniza automáticamente con Shopify Admin vía GraphQL. El storefront de Shopify sigue sirviendo al cliente final.
+
+Ubicación: `/home/alejandro/apps/cms-shop/backend` (antes `wagtail-shopify`).
 
 ---
 
@@ -160,20 +162,20 @@ En producción la app corre como servicios **systemd** (ver `deploy/*.service` e
 
 | Servicio | Descripción |
 |----------|-------------|
-| `wagtail-shopify-daphne` | API + Wagtail (ASGI, puerto `8082` por defecto) |
-| `wagtail-shopify-celery-worker` | Sync async (import/push en background) |
-| `wagtail-shopify-celery-beat` | Tareas programadas (django-celery-beat) |
+| `cms-shop-daphne` | API + Wagtail (ASGI, puerto `8082` por defecto) |
+| `cms-shop-celery-worker` | Sync async (import/push en background) |
+| `cms-shop-celery-beat` | Tareas programadas (django-celery-beat) |
 
 ### Reinicio rápido (solo servicios)
 
 ```bash
-sudo systemctl restart wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-shopify-celery-beat
+sudo systemctl restart cms-shop-daphne cms-shop-celery-worker cms-shop-celery-beat
 ```
 
 Verificar estado:
 
 ```bash
-systemctl status wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-shopify-celery-beat
+systemctl status cms-shop-daphne cms-shop-celery-worker cms-shop-celery-beat
 ```
 
 ### Desplegar código nuevo
@@ -181,12 +183,12 @@ systemctl status wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-sh
 Tras `git pull` o cambios que requieran migraciones:
 
 ```bash
-cd /home/alejandro/apps/wagtail-shopify
+cd /home/alejandro/apps/cms-shop/backend
 
 git pull
 ./scripts/bootstrap_app.sh   # migrate, collectstatic, setup commands
 
-sudo systemctl restart wagtail-shopify-daphne wagtail-shopify-celery-worker wagtail-shopify-celery-beat
+sudo systemctl restart cms-shop-daphne cms-shop-celery-worker cms-shop-celery-beat
 ```
 
 Instalación completa desde cero (PostgreSQL, systemd, Caddy, Shopify app):
@@ -200,7 +202,7 @@ Instalación completa desde cero (PostgreSQL, systemd, Caddy, Shopify app):
 Si solo cambiaste schemas/endpoints y no tareas en background:
 
 ```bash
-sudo systemctl restart wagtail-shopify-daphne
+sudo systemctl restart cms-shop-daphne
 ```
 
 ### Recargar MCP en Cursor
@@ -212,7 +214,7 @@ Tras desplegar cambios en la API, recarga la ventana de Cursor para que regenere
 ### Desarrollo local (sin systemd)
 
 ```bash
-cd /home/alejandro/apps/wagtail-shopify
+cd /home/alejandro/apps/cms-shop/backend
 source .venv/bin/activate
 
 # API (terminal 1)

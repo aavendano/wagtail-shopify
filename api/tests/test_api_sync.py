@@ -10,7 +10,7 @@ from wagtail.models import Locale, Page
 from api.main import api
 from api.models import ApiKey
 from api.agent_registry import CAPABILITIES, WORKFLOWS
-from shopify_content.models import GlossaryTermPage, LocationPage, ShopifyRootPage
+from shopify_content.models import GlossaryTermPage, HomePage, LocationPage, ShopifyRootPage
 
 
 def _auth_headers(key: str) -> dict:
@@ -593,6 +593,68 @@ class GlossaryApiTests(TestCase):
         )
 
 
+class HomeApiTests(TestCase):
+    def setUp(self):
+        self.client = TestClient(api)
+        self.key = ApiKey.objects.create(name="home-agent")
+        locale = Locale.get_default()
+        site_root = Page.get_first_root_node()
+        if site_root is None:
+            site_root = Page.add_root(instance=Page(title="Site Home", slug="site-home", locale=locale))
+
+        self.home_parent = ShopifyRootPage.objects.filter(slug='cms-home').first()
+        if self.home_parent is None:
+            self.home_parent = ShopifyRootPage(title="CMS Home", slug="cms-home", locale=locale)
+            site_root.add_child(instance=self.home_parent)
+            self.home_parent.save_revision().publish()
+
+    def test_create_and_get_home_page(self):
+        response = self.client.post(
+            "/home/",
+            json={
+                "hero_heading": "Shop Bold.",
+                "hero_subheading": "Curated products.",
+                "locale": "en-US",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        page_id = response.json()["id"]
+        self.assertEqual(response.json()["hero_heading"], "Shop Bold.")
+        self.assertEqual(response.json()["slug"], "home-en-us")
+        self.assertEqual(response.json()["handle"], "home-en-us")
+
+        page = HomePage.objects.get(pk=page_id)
+        self.assertEqual(page.get_parent().pk, self.home_parent.pk)
+
+        get_response = self.client.get(
+            f"/home/{page_id}",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(get_response.json()["hero_subheading"], "Curated products.")
+
+    @patch(
+        "api.routers.home.sync_home_page",
+        return_value=(True, "Home page synced to Shopify metaobject successfully."),
+    )
+    def test_push_home_page(self, mock_sync):
+        create_response = self.client.post(
+            "/home/",
+            json={"hero_heading": "Shop Bold.", "locale": "en-US"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+
+        push_response = self.client.post(
+            f"/home/{page_id}/push",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(push_response.status_code, 200)
+        self.assertTrue(push_response.json()["success"])
+        mock_sync.assert_called_once()
+
+
 class CapabilitiesTests(TestCase):
     def setUp(self):
         self.client = TestClient(api)
@@ -613,6 +675,7 @@ class CapabilitiesTests(TestCase):
         self.assertIn("pull_glossary_sync", tool_ids)
         self.assertIn("push_location", tool_ids)
         self.assertIn("push_glossary_term", tool_ids)
+        self.assertIn("push_home_page", tool_ids)
         self.assertNotIn("list_agent_capabilities", tool_ids)
 
         expected_ops = {
@@ -633,6 +696,7 @@ class CapabilitiesTests(TestCase):
         self.assertIn("locations_wagtail_origin", workflows)
         self.assertIn("glossary_wagtail_origin", workflows)
         self.assertIn("glossary_shopify_images", workflows)
+        self.assertIn("home_wagtail_origin", workflows)
 
 
 class OpenAPIAgentMetadataTests(TestCase):

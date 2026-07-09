@@ -354,11 +354,24 @@ def _get_wagtail_locale(language_code: str) -> Locale:
     return locale
 
 
-def _get_or_create_glossary_page(shopify_id: str, *, locale_code: str):
-    """Look up GlossaryTermPage by shopify_id or return a new unsaved instance."""
+def _get_or_create_glossary_page(
+    shopify_id: str,
+    *,
+    locale_code: str,
+    parent_page=None,
+    handle: str = '',
+):
+    """Look up GlossaryTermPage by shopify_id or slug under parent; else new unsaved instance."""
     existing = GlossaryTermPage.objects.filter(shopify_id=shopify_id).first()
     if existing:
         return existing, False
+
+    slug = (handle or '').strip()
+    if parent_page is not None and slug:
+        existing = GlossaryTermPage.objects.child_of(parent_page).filter(slug=slug).first()
+        if existing:
+            return existing, False
+
     wagtail_locale_code = wagtail_locale_code_for_glossary(locale_code)
     return GlossaryTermPage(locale=_get_wagtail_locale(wagtail_locale_code)), True
 
@@ -415,13 +428,20 @@ def import_glossary_terms(
             short_locale = (fields.get('locale') or 'en').strip() or 'en'
             shopify_image_id, image_url, image_alt = metaobject_image_from_fields(node)
 
-            page, is_new = _get_or_create_glossary_page(gid, locale_code=short_locale)
+            page_slug = handle or slugify(term)
+            page, is_new = _get_or_create_glossary_page(
+                gid,
+                locale_code=short_locale,
+                parent_page=parent_page,
+                handle=page_slug,
+            )
+            shopify_id_stale = not is_new and (page.shopify_id or '') != gid
 
             if not is_new and new_only:
                 stats['skipped'] += 1
                 continue
 
-            if not is_new and image_only_updates:
+            if not is_new and image_only_updates and not shopify_id_stale:
                 _update_glossary_image_only(page, shopify_image_id, image_url, image_alt)
                 stats['updated'] += 1
                 continue

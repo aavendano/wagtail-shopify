@@ -1,9 +1,9 @@
 ---
-description: Convenciones core del proyecto wagtail-shopify
+description: Convenciones core del proyecto cms-shop backend
 alwaysApply: true
 ---
 
-# wagtail-shopify
+# cms-shop backend
 
 Shopify Embedded App (Django + Wagtail) — CMS headless: una instalación = una tienda Shopify; desplegable en cualquier shop (no multi-tenant).
 

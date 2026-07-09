@@ -148,6 +148,54 @@ class MetaobjectDefinitionSpec:
         return fields
 
     @classmethod
+    def home_native_reference_fields(
+        cls, glossary_definition_gid: str | None = None
+    ) -> list['MetaobjectFieldSpec']:
+        fields = [
+            MetaobjectFieldSpec(
+                key='featured_collections_refs',
+                name='Featured Collections Refs',
+                type='list.collection_reference',
+            ),
+            MetaobjectFieldSpec(
+                key='best_sellers_collection_ref',
+                name='Best Sellers Collection Ref',
+                type='collection_reference',
+            ),
+            MetaobjectFieldSpec(
+                key='shop_by_need_collection_refs',
+                name='Shop By Need Collection Refs',
+                type='list.collection_reference',
+            ),
+            MetaobjectFieldSpec(
+                key='education_hub_article_refs',
+                name='Education Hub Article Refs',
+                type='list.article_reference',
+            ),
+            MetaobjectFieldSpec(
+                key='related_links',
+                name='Related Links',
+                type='json',
+            ),
+        ]
+        if glossary_definition_gid:
+            fields.insert(
+                4,
+                MetaobjectFieldSpec(
+                    key='education_hub_glossary_refs',
+                    name='Education Hub Glossary Refs',
+                    type='list.metaobject_reference',
+                    validations=[
+                        {
+                            'name': 'metaobject_definition_id',
+                            'value': glossary_definition_gid,
+                        },
+                    ],
+                ),
+            )
+        return fields
+
+    @classmethod
     def from_dataclass(
         cls,
         dc_type: type,

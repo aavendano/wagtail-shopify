@@ -81,6 +81,7 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         LocationPage,
         GlossaryTermPage,
         ShopifyRootPage,
+        HomePage,
     )
     from shopify_content.sync.outbound import (
         sync_product_page,
@@ -90,6 +91,7 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         sync_location_page,
         sync_glossary_term_page,
         sync_shopify_root_page,
+        sync_home_page,
     )
 
     sync_run = _get_sync_run(sync_run_id)
@@ -103,6 +105,7 @@ def sync_page_to_shopify_task(self, sync_run_id: int, page_id: int):
         LocationPage: sync_location_page,
         GlossaryTermPage: sync_glossary_term_page,
         ShopifyRootPage: sync_shopify_root_page,
+        HomePage: sync_home_page,
     }
 
     try:

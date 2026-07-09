@@ -10,6 +10,7 @@ from .routers.blogs import router as blogs_router
 from .routers.articles import router as articles_router
 from .routers.locations import router as locations_router
 from .routers.glossary import router as glossary_router
+from .routers.home import router as home_router
 from .routers.capabilities import router as capabilities_router
 
 API_DESCRIPTION = """
@@ -43,6 +44,7 @@ clients in **Django Admin → Django OAuth Toolkit → Applications** and reques
 | Articles | GET /articles/ | GET /articles/{id} | POST /articles/ | PATCH /articles/{id} | DELETE /articles/{id} | POST /articles/pull | POST /articles/{id}/push |
 | Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | — (Wagtail-only) | POST /locations/{id}/push |
 | Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |
+| Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | — (Wagtail-only) | POST /home/{id}/push |
 
 **Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.
 **Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.
@@ -81,6 +83,15 @@ Pull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`
 4. `POST /glossary/{id}/push` — push Wagtail-authored content when needed.
 
 Note: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from Wagtail `locale`.
+
+### Home (Wagtail-origin metaobjects)
+
+Home pages have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `home_page` (one metaobject per locale).
+
+1. `POST /home/` with `hero_heading` and locale.
+2. `PATCH /home/{id}` with `"publish": true` (optional).
+3. `POST /home/{id}/push` — upserts metaobject; `shopify_id` saved on first success.
+4. `GET /home/{id}` — verify `last_synced_at` and `shopify_id`.
 
 ## Sync Model
 
@@ -125,6 +136,7 @@ api.add_router('/blogs/', blogs_router, tags=['Blogs'])
 api.add_router('/articles/', articles_router, tags=['Articles'])
 api.add_router('/locations/', locations_router, tags=['Locations'])
 api.add_router('/glossary/', glossary_router, tags=['Glossary'])
+api.add_router('/home/', home_router, tags=['Home'])
 api.add_router('/capabilities/', capabilities_router, tags=['Capabilities'])
 
 from .mcp import setup_mcp  # noqa: E402

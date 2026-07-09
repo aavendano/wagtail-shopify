@@ -26,6 +26,21 @@ class RelatedLinkSchema(Schema):
     )
 
 
+class ContentReferenceSchema(Schema):
+    """Wagtail page reference used in HomePage sections_json."""
+
+    page_id: int = Field(..., description="Wagtail Page ID (CollectionPage, ProductPage, etc.).")
+    label: Optional[str] = Field(None, max_length=100)
+    override_title: Optional[str] = Field(None, max_length=120)
+    override_label: Optional[str] = Field(None, max_length=80)
+    description: Optional[str] = Field(None, max_length=160)
+    type: Optional[str] = Field(
+        None,
+        description="Inferred on read from Wagtail page model (product, collection, article, etc.).",
+    )
+    shopify_id: Optional[str] = Field(None, description="Resolved Shopify GID on read when available.")
+
+
 class ExternalLinkSchema(Schema):
     url: str = Field(..., description="Absolute external URL.")
     label: str = Field(..., description="Display label for the external link.")

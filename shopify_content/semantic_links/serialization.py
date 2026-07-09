@@ -4,7 +4,7 @@ from typing import Any
 
 from wagtail.models import Page
 
-from shopify_content.models.blog import ArticlePage, BlogPage
+from shopify_content.models.blog import ArticlePage, BlogPage  # noqa: F401 — BlogPage used below
 from shopify_content.models.collection import CollectionPage
 from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
@@ -70,6 +70,16 @@ def page_to_related_link(page: Page) -> dict[str, Any] | None:
             'handle': handle,
             'label': specific.term or specific.title,
             'url_handle': GLOSSARY_METAOBJECT_URL_HANDLE,
+        }
+
+    if isinstance(specific, BlogPage):
+        handle = specific.handle or specific.slug
+        if not handle:
+            return None
+        return {
+            'type': 'blog',
+            'handle': handle,
+            'label': specific.title,
         }
 
     return None

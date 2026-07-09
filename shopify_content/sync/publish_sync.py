@@ -13,6 +13,7 @@ def get_syncable_page_types():
         BlogPage,
         CollectionPage,
         GlossaryTermPage,
+        HomePage,
         LocationPage,
         ProductPage,
         ShopifyRootPage,
@@ -26,6 +27,7 @@ def get_syncable_page_types():
         LocationPage,
         GlossaryTermPage,
         ShopifyRootPage,
+        HomePage,
     )
 
 

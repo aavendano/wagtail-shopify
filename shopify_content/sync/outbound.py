@@ -1367,3 +1367,196 @@ def sync_glossary_term_page(page):
     _mark_synced(type(page), page.pk)
     _queue_index_sync_after_content_sync(page)
     return True, "Glossary term synced to Shopify metaobject successfully."
+
+
+def _home_page_definition(glossary_definition_gid=None, *, include_glossary_refs=True):
+    """Build MetaobjectDefinitionSpec for merchant-owned home_page type."""
+    from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
+
+    gid = glossary_definition_gid if include_glossary_refs else None
+    base_fields = [
+        MetaobjectFieldSpec(key='hero_eyebrow', name='Hero Eyebrow', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='hero_heading', name='Hero Heading', type='single_line_text_field', required=True),
+        MetaobjectFieldSpec(key='hero_subheading', name='Hero Subheading', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='hero_body', name='Hero Body', type='rich_text_field'),
+        MetaobjectFieldSpec(key='hero_primary_cta_label', name='Primary CTA Label', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='hero_primary_cta_url', name='Primary CTA URL', type='url'),
+        MetaobjectFieldSpec(key='hero_secondary_cta_label', name='Secondary CTA Label', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='hero_secondary_cta_url', name='Secondary CTA URL', type='url'),
+        MetaobjectFieldSpec(key='hero_image_url', name='Hero Image URL', type='url'),
+        MetaobjectFieldSpec(key='sections_json', name='Sections JSON', type='json'),
+        MetaobjectFieldSpec(key='locale', name='Locale', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='meta_titulo', name='Meta Title', type='single_line_text_field'),
+        MetaobjectFieldSpec(key='meta_descripcion', name='Meta Description', type='single_line_text_field'),
+    ]
+    native_fields = MetaobjectDefinitionSpec.home_native_reference_fields(gid)
+    return MetaobjectDefinitionSpec(
+        type='home_page',
+        name='Home Page',
+        description='Storefront home content managed in Wagtail CMS (one metaobject per locale)',
+        display_name_field='hero_heading',
+        capabilities={
+            'publishable': {'enabled': True},
+            'renderable': {'enabled': True, 'data': {
+                'metaTitleKey': 'meta_titulo',
+                'metaDescriptionKey': 'meta_descripcion',
+            }},
+        },
+        access={'storefront': 'PUBLIC_READ'},
+        fields=base_fields + native_fields,
+    )
+
+
+def ensure_home_page_definition(client):
+    """Ensure home_page definition includes glossary metaobject refs when available."""
+    from metaobjects.shopify_metaobjects.definition import clear_glossary_definition_gid_cache
+
+    glossary_def = client.get_definition('glossary_term')
+    glossary_gid = glossary_def.id if glossary_def else None
+
+    result = client.ensure_definition(
+        _home_page_definition(None, include_glossary_refs=False),
+    )
+    if glossary_gid:
+        clear_glossary_definition_gid_cache()
+        result = client.ensure_definition(
+            _home_page_definition(glossary_gid, include_glossary_refs=True),
+        )
+    return result
+
+
+def _resolve_home_shopify_id(client, page, canonical: str) -> str | None:
+    if page.shopify_id:
+        return page.shopify_id
+
+    legacy_handle = (page.handle or page.slug or '').strip()
+    if not legacy_handle or legacy_handle == canonical:
+        return None
+
+    existing = client.get_by_handle('home_page', legacy_handle)
+    if existing and existing.id:
+        return existing.id
+    return None
+
+
+def _hero_image_url_for_sync(page) -> str:
+    if page.hero_image_url:
+        return page.hero_image_url.strip()
+    if not page.hero_image_id:
+        return ''
+    from django.conf import settings
+
+    image_file = getattr(page.hero_image, 'file', None)
+    if image_file is None:
+        return ''
+    base = (getattr(settings, 'WAGTAILADMIN_BASE_URL', '') or '').rstrip('/')
+    path = image_file.url
+    if path.startswith('http://') or path.startswith('https://'):
+        return path
+    if base:
+        return f'{base}/{path.lstrip("/")}'
+    return path
+
+
+def sync_home_page(page):
+    """
+    Push HomePage → Shopify merchant-owned metaobject (type: home_page).
+
+    Returns (success, message). Handle is fixed per locale (home-en-us, etc.).
+    """
+    if not page.sync_enabled:
+        return False, "Sync disabled: enable sync_enabled on this home page."
+
+    try:
+        shop = _get_shop()
+    except RuntimeError as exc:
+        return False, str(exc)
+
+    from shopify_content.home_slug import home_page_handle
+
+    canonical = home_page_handle(page)
+    if not canonical:
+        logger.error('HomePage sync aborted pk=%s: locale required for handle', page.pk)
+        return False, "Sync aborted: locale is required to build home handle."
+
+    handle = canonical
+
+    if not _has_meaningful_sync_value(page.hero_heading):
+        logger.error('HomePage sync aborted pk=%s: hero_heading is required', page.pk)
+        return False, "Sync aborted: hero_heading is required."
+
+    data: dict = {
+        'handle': handle,
+        'hero_heading': str(_wagtail_field_value(page.hero_heading)).strip(),
+    }
+    for key, value in [
+        ('hero_eyebrow', page.hero_eyebrow),
+        ('hero_subheading', page.hero_subheading),
+        ('hero_body', page.hero_body),
+        ('hero_primary_cta_label', page.hero_primary_cta_label),
+        ('hero_primary_cta_url', page.hero_primary_cta_url),
+        ('hero_secondary_cta_label', page.hero_secondary_cta_label),
+        ('hero_secondary_cta_url', page.hero_secondary_cta_url),
+        ('meta_titulo', page.get_seo_title()),
+        ('meta_descripcion', page.get_seo_description()),
+    ]:
+        if _has_meaningful_sync_value(value):
+            data[key] = _wagtail_field_value(value)
+
+    image_url = _hero_image_url_for_sync(page)
+    if image_url:
+        data['hero_image_url'] = image_url
+
+    locale_value = page.shopify_locale or page.locale.language_code
+    if locale_value:
+        data['locale'] = locale_value
+
+    sections_payload = page.sections_json if page.sections_json else {}
+    if sections_payload:
+        data['sections_json'] = sections_payload
+
+    from shopify_content.home_references import build_home_sync_references
+
+    for field_key, field_value in build_home_sync_references(sections_payload).items():
+        data[field_key] = field_value
+
+    from metaobjects.shopify_metaobjects.client import MetaobjectClient
+    from metaobjects.shopify_metaobjects.exceptions import DefinitionError, UpsertError
+
+    client = MetaobjectClient(shop=shop)
+    ensure_home_page_definition(client)
+    spec = _home_page_definition()
+    existing_id = _resolve_home_shopify_id(client, page, canonical)
+
+    try:
+        result = client.sync(
+            data,
+            definition=spec,
+            ensure_definition=True,
+            validate=False,
+            existing_id=existing_id,
+        )
+    except (DefinitionError, UpsertError) as exc:
+        detail = str(exc)
+        logger.error('HomePage sync failed pk=%s: %s', page.pk, detail)
+        return False, f"Shopify metaobject error: {detail}"
+
+    updates = {}
+    resolved_id = result.id or existing_id
+    if resolved_id and page.shopify_id != resolved_id:
+        updates['shopify_id'] = resolved_id
+        page.shopify_id = resolved_id
+    if page.slug != canonical:
+        updates['slug'] = canonical
+        page.slug = canonical
+    if page.handle != canonical:
+        updates['handle'] = canonical
+        page.handle = canonical
+    if image_url and page.hero_image_url != image_url:
+        updates['hero_image_url'] = image_url
+        page.hero_image_url = image_url
+    if updates:
+        type(page).objects.filter(pk=page.pk).update(**updates)
+
+    _mark_synced(type(page), page.pk)
+    return True, "Home page synced to Shopify metaobject successfully."

@@ -7,6 +7,7 @@ from .blog import (
 )
 from .semantic_links import ALL_TYPED_SEMANTIC_LINK_MODELS
 from .location_page import LocationPage, LocationPageFAQ
+from .home_page import HomePage
 from .glossary import GlossaryTermPage
 from .root import ShopifyRootPage
 from .sync_run import ShopifySyncRun
@@ -31,6 +32,7 @@ __all__ = [
     'ArticlePageTag',
     'LocationPage',
     'LocationPageFAQ',
+    'HomePage',
     'GlossaryTermPage',
     'ShopifyRootPage',
     'ShopifySyncRun',
