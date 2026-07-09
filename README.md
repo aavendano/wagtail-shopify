@@ -37,6 +37,7 @@ Shopify Storefront → Cliente final
 | `shopify_content` | Páginas Wagtail sincronizadas a Shopify; ver [`docs/shopify_content.md`](docs/shopify_content.md) |
 | `webhooks` | Receptores de webhooks Shopify |
 | `api` | API interna django-ninja para agentes AI — ver [`docs/api-agents.md`](docs/api-agents.md) |
+| `bigquery_gsc` | Analytics GSC vía BigQuery — ver [`docs/api-gsc.md`](docs/api-gsc.md) |
 
 ---
 
@@ -94,6 +95,7 @@ python manage.py import_shopify_collections
 | `migrate_glossary_locales` | Asigna Wagtail Locale a términos del glosario |
 | `migrate_index_export_config` | Migra export_config multi-page → `page_gid` |
 | `rebuild_blog_index` | Regenera `custom.index_listings` en Page handle `blogs` |
+| `rebuild_content_url_index` | Reconstruye el índice URL storefront → Wagtail (`ContentUrlIndex`) |
 
 ### Semantic internal links (pgvector + Gemini)
 

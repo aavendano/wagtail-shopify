@@ -75,6 +75,21 @@
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="command_id" value="{{ command.id }}">
+                                    {% if command.optional_page_id %}
+                                        <s-stack direction="block" gap="small-200">
+                                            <label for="page_id_{{ command.id }}">
+                                                <s-text type="strong">ID de página Wagtail (opcional)</s-text>
+                                            </label>
+                                            <input
+                                                type="number"
+                                                id="page_id_{{ command.id }}"
+                                                name="page_id"
+                                                min="1"
+                                                placeholder="Vacío = rebuild completo"
+                                                style="width: 100%; max-width: 20rem; padding: 0.5rem;"
+                                            >
+                                        </s-stack>
+                                    {% endif %}
                                     <s-button
                                         type="submit"
                                         variant="{% if command.dangerous %}tertiary{% else %}secondary{% endif %}"

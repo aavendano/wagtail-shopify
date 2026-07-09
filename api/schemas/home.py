@@ -5,7 +5,7 @@ from pydantic import Field
 
 from wagtail.rich_text import expand_db_html
 
-from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields
+from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields, StorefrontUrlOutFields
 
 RICH_TEXT_DESCRIPTION = (
     "Rich text content as HTML string. On read, internal Wagtail references are expanded to URLs. "
@@ -96,7 +96,7 @@ class HomePatch(LocalePatchFields):
     )
 
 
-class HomeOut(LocaleOutFields):
+class HomeOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(..., description="Wagtail page ID for /home/{page_id}/ endpoints.")
     shopify_id: str = Field(..., description="Shopify metaobject GID. Empty if never pushed.")
     hero_heading: str = Field(..., description="Hero headline.")

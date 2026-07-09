@@ -762,7 +762,35 @@ class EmbeddedCommandDispatchViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("home"))
-        mock_enqueue.assert_called_once_with("setup_locales")
+        mock_enqueue.assert_called_once_with("setup_locales", extra_kwargs={})
+
+    @patch("core.views.enqueue_embedded_command")
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_post_passes_page_id_for_optional_command(self, mock_gs, _mock_token, mock_enqueue):
+        self._mock_verified_app_home(mock_gs)
+        ShopConfig.objects.create(
+            shop="test-shop",
+            is_online=False,
+            access_token="tok",
+        )
+        run = EmbeddedCommandRun.objects.create(
+            command_id="rebuild_content_url_index",
+            command_name="rebuild_content_url_index",
+            status=EmbeddedCommandRun.STATUS_PENDING,
+        )
+        mock_enqueue.return_value = run
+
+        response = self.client.post(
+            reverse("shopify_embedded_command"),
+            data={"command_id": "rebuild_content_url_index", "page_id": "1234"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        mock_enqueue.assert_called_once_with(
+            "rebuild_content_url_index",
+            extra_kwargs={"page_id": 1234},
+        )
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
     @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
@@ -795,8 +823,9 @@ class EmbeddedCommandDispatchViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Configuración inicial")
-        self.assertContains(response, "Configurar locales")
-        self.assertContains(response, reverse("shopify_embedded_command"))
+        self.assertContains(response, 'Configurar locales')
+        self.assertContains(response, 'Reconstruir índice URL contenido')
+        self.assertContains(response, reverse('shopify_embedded_command'))
         self.assertContains(response, "Historial reciente")
         self.assertContains(response, "Completado")
 

@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema, StorefrontUrlOutFields
 
 
 SORT_ORDER_DESCRIPTION = (
@@ -149,7 +149,7 @@ class CollectionPatch(LocalePatchFields):
     )
 
 
-class CollectionOut(LocaleOutFields):
+class CollectionOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(
         ...,
         description="Wagtail page ID. Use this as page_id in all /collections/{page_id}/ endpoints.",

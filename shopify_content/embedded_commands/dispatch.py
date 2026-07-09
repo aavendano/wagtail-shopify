@@ -6,15 +6,23 @@ from shopify_content.embedded_commands.registry import get_command_by_id
 from shopify_content.models.command_run import EmbeddedCommandRun
 
 
-def enqueue_embedded_command(command_id: str) -> EmbeddedCommandRun:
+def enqueue_embedded_command(
+    command_id: str,
+    *,
+    extra_kwargs: dict | None = None,
+) -> EmbeddedCommandRun:
     spec = get_command_by_id(command_id)
     if spec is None:
         raise ValueError(f'Unknown command_id: {command_id}')
 
+    kwargs = dict(spec.kwargs)
+    if extra_kwargs:
+        kwargs.update(extra_kwargs)
+
     run = EmbeddedCommandRun.objects.create(
         command_id=spec.id,
         command_name=spec.command,
-        kwargs=dict(spec.kwargs),
+        kwargs=kwargs,
         message='Comando en cola.',
     )
 

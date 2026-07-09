@@ -123,6 +123,7 @@ Set `locale` on create; use `translation_of` (Wagtail page ID) to link variants.
 api = NinjaAPI(
     title="Wagtail-Shopify Content API",
     version="1.1.0",
+    urls_namespace="wagtail_shopify_api",
     description=API_DESCRIPTION,
     auth=ApiKeyAuth(),
     docs_url="/docs/",

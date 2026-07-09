@@ -9,14 +9,11 @@ from django.utils.text import slugify
 from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.index_builders import build_multi_locale_index
 from shopify_content.models import GlossaryTermPage, ShopifyRootPage
+from shopify_content.storefront_urls import glossary_term_path
 
 GLOSSARY_INDEX_VERSION = 1
 GLOSSARY_ROOT_SLUG = 'glossary'
 SECTION_ORDER = tuple(chr(code) for code in range(ord('A'), ord('Z') + 1)) + ('0-9', '#')
-
-
-def glossary_term_path(handle: str) -> str:
-    return f'/pages/glossary/{handle}'
 
 
 def _section_key(term: str) -> str:

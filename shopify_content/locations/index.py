@@ -8,14 +8,11 @@ from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.index_builders import build_multi_locale_index
 from shopify_content.location_slug import location_page_slug
 from shopify_content.models import LocationPage, ShopifyRootPage
+from shopify_content.storefront_urls import location_page_path
 
 LOCATION_INDEX_VERSION = 1
 LOCATION_ROOT_SLUG = 'local-us'
 UNKNOWN_STATE_KEY = '#'
-
-
-def location_page_path(handle: str) -> str:
-    return f'/pages/location/{handle}'
 
 
 def _location_locale_code(page: LocationPage) -> str:

@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from shopify_content.models.command_run import EmbeddedCommandRun
+from shopify_content.models.content_url_index import ContentUrlIndex
 from shopify_content.models.sync_run import ShopifySyncRun
 
 
@@ -31,6 +32,33 @@ class ShopifySyncRunAdmin(admin.ModelAdmin):
         'created_at',
         'started_at',
         'finished_at',
+    )
+
+
+@admin.register(ContentUrlIndex)
+class ContentUrlIndexAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'normalized_path',
+        'locale_prefix',
+        'content_type',
+        'handle',
+        'blog_handle',
+        'wagtail_page',
+        'locale',
+        'is_canonical',
+    )
+    list_filter = ('content_type', 'locale', 'is_canonical')
+    search_fields = ('normalized_path', 'handle', 'blog_handle')
+    readonly_fields = (
+        'normalized_path',
+        'wagtail_page',
+        'content_type',
+        'handle',
+        'blog_handle',
+        'locale',
+        'locale_prefix',
+        'is_canonical',
     )
 
 

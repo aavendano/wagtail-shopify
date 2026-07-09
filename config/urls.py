@@ -50,6 +50,7 @@ urlpatterns = [
     path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
 
     path('api/v1/', api.urls),
+    path('api/gsc/', include('bigquery_gsc.urls')),
 
     path('admin/', include(wagtailadmin_urls)),
     path('documents/', include(wagtaildocs_urls)),

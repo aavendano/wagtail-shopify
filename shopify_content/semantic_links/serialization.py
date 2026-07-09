@@ -9,8 +9,10 @@ from shopify_content.models.collection import CollectionPage
 from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
 from shopify_content.semantic_links.constants import SEMANTIC_LINK_RELATION_NAMES
-
-GLOSSARY_METAOBJECT_URL_HANDLE = 'glossary'
+from shopify_content.storefront_urls import (
+    GLOSSARY_METAOBJECT_URL_HANDLE,
+    related_link_path,
+)
 
 LINKABLE_PAGE_TYPES = (
     ProductPage,
@@ -87,21 +89,7 @@ def page_to_related_link(page: Page) -> dict[str, Any] | None:
 
 def related_link_url(link: dict[str, Any]) -> str:
     """Build a storefront-relative URL from a serialized link."""
-    link_type = link.get('type')
-    handle = link.get('handle', '')
-    if link_type == 'product':
-        return f'/products/{handle}'
-    if link_type == 'collection':
-        return f'/collections/{handle}'
-    if link_type == 'article':
-        blog_handle = link.get('blog_handle', '')
-        return f'/blogs/{blog_handle}/{handle}'
-    if link_type == 'metaobject':
-        url_handle = link.get('url_handle', GLOSSARY_METAOBJECT_URL_HANDLE)
-        return f'/pages/{url_handle}/{handle}'
-    if link_type == 'blog':
-        return f'/blogs/{handle}'
-    return f'/{handle}'
+    return related_link_path(link)
 
 
 def serialize_semantic_links(source_page) -> list[dict[str, Any]]:

@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields
+from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields, StorefrontUrlOutFields
 
 
 COMMENT_POLICY_DESCRIPTION = (
@@ -102,7 +102,7 @@ class BlogPatch(LocalePatchFields):
     )
 
 
-class BlogOut(LocaleOutFields):
+class BlogOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(
         ...,
         description="Wagtail page ID. Use this as page_id in all /blogs/{page_id}/ endpoints.",

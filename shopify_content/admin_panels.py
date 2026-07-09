@@ -1,4 +1,30 @@
-from wagtail.admin.panels import InlinePanel, MultiFieldPanel
+from wagtail.admin.panels import InlinePanel, MultiFieldPanel, Panel
+
+
+class StorefrontUrlsPanel(Panel):
+    """Read-only panel listing Shopify storefront paths for the current page."""
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault('heading', 'Storefront URLs')
+        kwargs.setdefault('classname', 'storefront-urls-panel')
+        kwargs.setdefault(
+            'help_text',
+            (
+                'Rutas públicas en la tienda Shopify (no la URL del CMS Wagtail). '
+                'El dominio depende de Markets; usa estas rutas para correlacionar con GSC.'
+            ),
+        )
+        super().__init__(**kwargs)
+
+    class BoundPanel(Panel.BoundPanel):
+        template_name = 'shopify_content/panels/storefront_urls.html'
+
+        def get_context_data(self, parent_context=None):
+            context = super().get_context_data(parent_context)
+            from shopify_content.storefront_url_display import get_storefront_url_display
+
+            context['storefront_display'] = get_storefront_url_display(self.instance)
+            return context
 
 
 def _typed_ai_chooser_panel(relation_name, *, heading, label, type_key, vector_index='PageIndex'):

@@ -1,0 +1,38 @@
+{% load wagtailadmin_tags i18n %}
+{% if self.help_text %}
+    {% help_block status="info" %}{{ self.help_text }}{% endhelp_block %}
+{% endif %}
+
+{% with display=storefront_display %}
+    {% if display.canonical_path %}
+        <div class="field">
+            <label class="w-label-1">{% trans "Canonical path" %}</label>
+            <div class="w-field__wrapper">
+                <code>{{ display.canonical_path }}</code>
+            </div>
+        </div>
+
+        {% if display.paths|length > 1 %}
+            <div class="field">
+                <label class="w-label-1">{% trans "URL variants" %}</label>
+                <ul class="storefront-urls-list">
+                    {% for path in display.paths %}
+                        <li><code>{{ path }}</code></li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        <p class="help-block help-info">
+            {% if display.indexed %}
+                {% trans "Paths from ContentUrlIndex (updated on publish)." %}
+            {% else %}
+                {% trans "Computed from handle; run rebuild_content_url_index after publish to persist." %}
+            {% endif %}
+        </p>
+    {% else %}
+        {% help_block status="warning" %}
+            {% trans "No storefront path for this page type, or handle is missing." %}
+        {% endhelp_block %}
+    {% endif %}
+{% endwith %}

@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema, StorefrontUrlOutFields
 
 AVAILABLE_LOCALES_DESCRIPTION = (
     "Wagtail locale codes where this article is available in the storefront "
@@ -217,7 +217,7 @@ class ArticlePatch(LocalePatchFields):
     )
 
 
-class ArticleOut(LocaleOutFields):
+class ArticleOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(
         ...,
         description="Wagtail page ID. Use this as page_id in all /articles/{page_id}/ endpoints.",

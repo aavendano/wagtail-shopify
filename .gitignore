@@ -89,6 +89,7 @@ local_settings.py
 .env
 .env.backup*
 !.env.example
+secrets/
 db.sqlite3
 db.session
 
@@ -103,9 +104,7 @@ staticfiles/
 .cursor/debug-*.log
 .claude/
 shopify.app.toml
-deploy/cms-shop-celery-beat.service
-deploy/cms-shop-celery-worker.service
-deploy/cms-shop-daphne.service
+deploy/*
 scripts/
 
 */migrations/*

@@ -78,6 +78,36 @@ class LocaleOutFields(Schema):
     )
 
 
+class StorefrontUrlOutFields(Schema):
+    storefront_path: Optional[str] = Field(
+        None,
+        description="Canonical Shopify storefront path, e.g. /products/{handle}.",
+    )
+    storefront_urls: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Storefront URL path variants for this page (canonical and Markets locale prefixes). "
+            "Populated from ContentUrlIndex when available, otherwise computed."
+        ),
+    )
+
+    @staticmethod
+    def resolve_storefront_path(obj):
+        from shopify_content.storefront_urls import storefront_path_for_page
+
+        return storefront_path_for_page(obj)
+
+    @staticmethod
+    def resolve_storefront_urls(obj):
+        from shopify_content.content_url_index import indexed_paths_for_page
+        from shopify_content.storefront_urls import all_paths_for_page
+
+        paths = indexed_paths_for_page(obj.pk)
+        if paths:
+            return paths
+        return all_paths_for_page(obj)
+
+
 class FAQSchema(Schema):
     question: str = Field(
         ...,

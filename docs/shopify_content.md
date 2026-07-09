@@ -951,6 +951,84 @@ El SEO de artículos (`seo_title`, `search_description`) **no** se rellena autom
 
 ---
 
+## Content URL Index
+
+Mapeo materializado de URLs del storefront Shopify → páginas Wagtail. Sirve para correlacionar tráfico de Google Search Console (GSC) con contenido editorial en una fase posterior.
+
+### Modelo `ContentUrlIndex`
+
+| Campo | Descripción |
+|-------|-------------|
+| `normalized_path` | Ruta relativa sin dominio ni prefijo Markets, p. ej. `/pages/glossary/alpha` |
+| `wagtail_page` | FK a `wagtailcore.Page` |
+| `content_type` | `product`, `collection`, `blog`, `article`, `glossary_term`, `location`, `home`, `index` |
+| `handle` / `blog_handle` | Handles Shopify (artículos requieren ambos) |
+| `locale` | Código Wagtail (`en-US`, etc.) |
+| `locale_prefix` | Prefijo Markets sin barras (`es-us`, vacío = canónica) |
+| `is_canonical` | `True` cuando la ruta no lleva prefijo de locale |
+
+### Rutas canónicas (`storefront_urls.py`)
+
+| Tipo Wagtail | Path |
+|--------------|------|
+| `ProductPage` | `/products/{handle}` |
+| `CollectionPage` | `/collections/{handle}` |
+| `BlogPage` | `/blogs/{handle}` |
+| `ArticlePage` | `/blogs/{blog_handle}/{handle}` |
+| `GlossaryTermPage` | `/pages/glossary/{handle}` |
+| `LocationPage` | `/pages/location/{handle}` |
+| `HomePage` | `/pages/{handle}` (`home-{locale}`) |
+| `ShopifyRootPage` (índices) | `/pages/glossary`, `/pages/locations`, `/pages/blogs` |
+
+Solo se indexan páginas **live** con `shopify_id` no vacío.
+
+### Comandos y mantenimiento
+
+Disponible también desde la **app embebida de Shopify** (sección *Índices y búsqueda* → *Reconstruir índice URL contenido*). Opcionalmente indica un ID de página Wagtail; déjalo vacío para rebuild completo.
+
+```bash
+# Rebuild completo (tras import inicial o migración)
+python manage.py rebuild_content_url_index
+
+# Una sola página
+python manage.py rebuild_content_url_index --page-id=1234
+```
+
+El índice se actualiza automáticamente al publicar/despublicar páginas sincronizables (signal `page_published` / `page_unpublished`).
+
+En **Wagtail Admin**, pestaña **Shopify** → panel **Storefront URLs** muestra la ruta canónica y variantes (read-only) al editar cada página.
+
+### Resolver URL → contenido (preparado para GSC)
+
+```python
+from shopify_content.content_url_resolver import normalize_url, resolve_url
+
+path, prefix = normalize_url(
+    'https://playlovetoys.com/es-us/pages/glossary/alpha',
+    property_url='https://playlovetoys.com/',
+)
+match = resolve_url('https://playlovetoys.com/pages/glossary/alpha')
+# match.wagtail_page_id, match.content_type, match.title
+```
+
+### API
+
+Los schemas de salida (`ProductOut`, `ArticleOut`, etc.) incluyen:
+
+- `storefront_path` — ruta canónica calculada
+- `storefront_urls` — variantes indexadas (canónica + prefijos Markets)
+
+El campo `url` existente sigue siendo la URL del sitio Wagtail (CMS), no del storefront.
+
+### Fase 2 — integración GSC
+
+Cuando `bigquery_gsc` comparta base de datos con el CMS:
+
+1. Enriquecer filas en `ReportService._snapshots_to_rows()` con `resolve_url()`
+2. **No** enriquecer en snapshot import (cambiaría `dimensions_hash` y duplicaría filas)
+
+---
+
 ## Management commands
 
 | Comando | Descripción |
@@ -971,6 +1049,7 @@ El SEO de artículos (`seo_title`, `search_description`) **no** se rellena autom
 | `rebuild_glossary_index` | Regenera `custom.index_listings` en Page handle `glossary` |
 | `rebuild_location_index` | Regenera `custom.index_listings` en Page handle `locations` |
 | `rebuild_blog_index` | Regenera `custom.index_listings` en Page handle `blogs` |
+| `rebuild_content_url_index` | Reconstruye el índice URL storefront → Wagtail (`ContentUrlIndex`) |
 
 ---
 

@@ -12,6 +12,7 @@ from .glossary import GlossaryTermPage
 from .root import ShopifyRootPage
 from .sync_run import ShopifySyncRun
 from .command_run import EmbeddedCommandRun
+from .content_url_index import ContentUrlIndex
 
 __all__ = [
     'FAQItem',
@@ -37,5 +38,6 @@ __all__ = [
     'ShopifyRootPage',
     'ShopifySyncRun',
     'EmbeddedCommandRun',
+    'ContentUrlIndex',
     *[model.__name__ for model in ALL_TYPED_SEMANTIC_LINK_MODELS],
 ]

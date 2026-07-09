@@ -11,6 +11,7 @@ from .common import (
     LocaleOutFields,
     RelatedLinkSchema,
     ExternalLinkSchema,
+    StorefrontUrlOutFields,
 )
 
 RICH_TEXT_DESCRIPTION = (
@@ -164,7 +165,7 @@ class GlossaryTermPatch(LocalePatchFields):
     )
 
 
-class GlossaryTermOut(LocaleOutFields):
+class GlossaryTermOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(..., description="Wagtail page ID for /glossary/{page_id}/ endpoints.")
     shopify_id: str = Field(
         ...,

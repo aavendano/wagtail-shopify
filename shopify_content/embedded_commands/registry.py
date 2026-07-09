@@ -18,6 +18,7 @@ class EmbeddedCommandSpec:
     when_to_use: str = ''
     kwargs: dict[str, Any] = field(default_factory=dict)
     dangerous: bool = False
+    optional_page_id: bool = False
 
 
 COMMAND_GROUPS: dict[str, str] = {
@@ -116,6 +117,21 @@ EMBEDDED_COMMANDS: tuple[EmbeddedCommandSpec, ...] = (
         description='Reconstruye y empuja custom.index_listings a la Shopify Page con handle "blogs".',
         group='indexes',
         when_to_use='Tras publicar o editar artículos cuando el índice de blog del storefront quedó obsoleto.',
+    ),
+    EmbeddedCommandSpec(
+        id='rebuild_content_url_index',
+        command='rebuild_content_url_index',
+        label='Reconstruir índice URL contenido',
+        description=(
+            'Reconstruye el mapeo ContentUrlIndex (URLs del storefront Shopify → páginas Wagtail). '
+            'Opcionalmente limita a una página con el ID de Wagtail.'
+        ),
+        group='indexes',
+        when_to_use=(
+            'Tras deploy o import inicial masivo, o cuando necesitas correlacionar URLs de GSC con contenido. '
+            'Deja el ID vacío para rebuild completo; indica un page_id para una sola página.'
+        ),
+        optional_page_id=True,
     ),
     EmbeddedCommandSpec(
         id='index_pages_batch',

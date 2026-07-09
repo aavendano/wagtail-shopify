@@ -42,9 +42,31 @@ def _queue_semantic_links_when_sync_disabled(page):
     transaction.on_commit(dispatch)
 
 
+def _queue_content_url_index_on_publish(page):
+    page_id = page.pk
+
+    def dispatch():
+        from shopify_content.content_url_index import rebuild_index_for_page
+        from wagtail.models import Page
+
+        try:
+            rebuild_index_for_page(Page.objects.get(pk=page_id))
+        except Page.DoesNotExist:
+            pass
+
+    transaction.on_commit(dispatch)
+
+
+def _on_content_url_index_unpublished(sender, instance, **kwargs):
+    from shopify_content.content_url_index import clear_index_for_page
+
+    clear_index_for_page(instance.pk)
+
+
 def _on_page_published(sender, instance, **kwargs):
     queue_shopify_sync_on_publish(instance)
     _queue_semantic_links_when_sync_disabled(instance)
+    _queue_content_url_index_on_publish(instance)
 
 
 def _on_copy_for_translation_done(sender, source_obj, target_obj, **kwargs):
@@ -89,6 +111,11 @@ def register_publish_signals():
             handler,
             sender=model,
             dispatch_uid=f'shopify_content_sync_on_publish_{model._meta.label_lower}',
+        )
+        page_unpublished.connect(
+            _on_content_url_index_unpublished,
+            sender=model,
+            dispatch_uid=f'shopify_content_url_index_on_unpublish_{model._meta.label_lower}',
         )
 
     for model in get_semantic_linkable_page_types():

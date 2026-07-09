@@ -13,7 +13,7 @@ from django.views.generic import TemplateView
 from shopify_content.sync.service import VALID_IMPORT_RESOURCES
 from shopify_content.sync.task_dispatch import enqueue_shopify_import
 from shopify_content.embedded_commands.dispatch import enqueue_embedded_command
-from shopify_content.embedded_commands.registry import get_commands_by_group
+from shopify_content.embedded_commands.registry import get_command_by_id, get_commands_by_group
 from shopify_content.models.command_run import EmbeddedCommandRun
 from shopify_content.models.sync_run import ShopifySyncRun
 
@@ -237,8 +237,19 @@ class EmbeddedCommandDispatchView(AppHomeVerifiedMixin, View):
             messages.error(request, 'Comando no especificado.')
             return _redirect_home_preserving_query(request)
 
+        spec = get_command_by_id(command_id)
+        extra_kwargs: dict = {}
+        if spec is not None and spec.optional_page_id:
+            page_id_raw = (request.POST.get('page_id') or '').strip()
+            if page_id_raw:
+                try:
+                    extra_kwargs['page_id'] = int(page_id_raw)
+                except ValueError:
+                    messages.error(request, 'El ID de página debe ser un número entero.')
+                    return _redirect_home_preserving_query(request)
+
         try:
-            run = enqueue_embedded_command(command_id)
+            run = enqueue_embedded_command(command_id, extra_kwargs=extra_kwargs)
             messages.success(
                 request,
                 (

@@ -10,9 +10,12 @@ https://docs.djangoproject.com/en/4.2/howto/deployment/asgi/
 
 import os
 
-from django.core.asgi import get_asgi_application
+from config.bigframes_bootstrap import ensure_bigframes_pre_django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
+ensure_bigframes_pre_django()
+
+from django.core.asgi import get_asgi_application
 
 django_application = get_asgi_application()
 

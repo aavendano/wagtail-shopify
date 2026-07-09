@@ -3,7 +3,7 @@ from datetime import datetime
 from ninja import Schema
 from pydantic import Field
 
-from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema, ShopifyImageUrlSchema
+from .common import MetafieldSchema, LocaleCreateFields, LocalePatchFields, LocaleOutFields, RelatedLinkSchema, ShopifyImageUrlSchema, StorefrontUrlOutFields
 
 
 class ProductIn(LocaleCreateFields):
@@ -174,7 +174,7 @@ class ProductPatch(LocalePatchFields):
     )
 
 
-class ProductOut(LocaleOutFields):
+class ProductOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(..., description="Wagtail page ID. Use this as the page_id in all /products/{page_id}/ endpoints.")
     shopify_id: str = Field(
         ...,

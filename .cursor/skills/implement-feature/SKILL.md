@@ -65,6 +65,7 @@ Patrones por tipo de cambio:
 |--------|-------------|
 | Nuevo tipo de página | `shopify_content/models/`, mixin, sync outbound |
 | Endpoint API | `api/routers/`, `api/schemas/`, `api/agent_registry.py` |
+| Endpoint GSC API | `services/bigquery_gsc/bigquery_gsc/api/routers/`, `agent_registry.py` |
 | Sync Shopify | `shopify_content/sync/`, `shopify_requests/` |
 | Metaobject | `metaobjects/shopify_metaobjects/` |
 | Management command | `shopify_content/management/commands/` |
@@ -89,9 +90,9 @@ Corregir fallos antes de marcar fase completada.
 Cualquier cambio en `api/` debe actualizar la documentación en el mismo cambio. Ver [`.cursor/rules/api-documentation.mdc`](../../rules/api-documentation.mdc).
 
 Checklist mínimo (API):
-- [ ] `agent_registry.py` actualizado
+- [ ] `agent_registry.py` actualizado (content o GSC según API)
 - [ ] Router con `capability_docstring` + `agent_openapi_extra`
-- [ ] `docs/api-agents.md` si afecta consumidores externos
+- [ ] `docs/api-agents.md` o `docs/api-gsc.md` si afecta consumidores externos
 - [ ] `API_DESCRIPTION` en `api/main.py` si cambia matriz/workflows/auth
 - [ ] `make test` pasa (paridad MCP/OpenAPI)
 

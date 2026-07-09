@@ -1,14 +1,21 @@
 ---
-description: Documentación de la API/MCP — obligatoria y sincronizada con cada cambio
-globs: "api/**"
+description: Documentación de las APIs/MCP — obligatoria y sincronizada con cada cambio
+globs: "api/**,../services/bigquery_gsc/bigquery_gsc/api/**"
 alwaysApply: false
 ---
 
-# Documentación de la API para agentes
+# Documentación de las APIs para agentes
 
-La API es **autodescriptiva y orientada a capacidades**. Cualquier cambio en la superficie pública de `/api/v1/` debe reflejarse en la documentación en el **mismo PR/cambio**, no después.
+Las APIs son **autodescriptivas y orientadas a capacidades**. Cualquier cambio en la superficie pública debe reflejarse en la documentación en el **mismo PR/cambio**, no después.
 
-## Fuente única de verdad
+## APIs del proyecto
+
+| API | Base path | Registry | Doc humano |
+|-----|-----------|----------|--------------|
+| Content (Wagtail ↔ Shopify) | `/api/v1/` | `backend/api/agent_registry.py` | `backend/docs/api-agents.md` |
+| GSC Analytics (BigQuery) | `/api/gsc/` | `services/bigquery_gsc/bigquery_gsc/api/agent_registry.py` | `backend/docs/api-gsc.md` |
+
+## Fuente única de verdad (Content API)
 
 `api/agent_registry.py` define cada capacidad (`AgentCapability`). Desde ahí se derivan:
 
@@ -19,7 +26,19 @@ La API es **autodescriptiva y orientada a capacidades**. Cualquier cambio en la 
 | MCP tools | Automático desde OpenAPI (`operation_id` = nombre de tool) |
 | Swagger (`/api/v1/docs/`) | `API_DESCRIPTION` en `api/main.py` + descripciones por endpoint |
 
-**Prohibido** documentar endpoints solo en Markdown sin registrar la capacidad en el registry.
+**Prohibido** documentar endpoints solo en Markdown sin registrar la capacidad en el registry correspondiente.
+
+## Fuente única de verdad (GSC API)
+
+`services/bigquery_gsc/bigquery_gsc/api/agent_registry.py` sigue el mismo patrón:
+
+| Consumidor | Cómo se actualiza |
+|------------|-------------------|
+| OpenAPI (`/api/gsc/openapi.json`) | `operation_id`, `capability_docstring()`, `agent_openapi_extra()` en routers |
+| Catálogo (`GET /api/gsc/capabilities/`) | Automático desde `CAPABILITIES` y `WORKFLOWS` |
+| Swagger (`/api/gsc/docs/`) | `API_DESCRIPTION` en `bigquery_gsc/api/main.py` |
+
+Routers en `bigquery_gsc/api/routers/`. Helpers en `bigquery_gsc/api/openapi_agent.py`.
 
 ## Checklist obligatorio por tipo de cambio
 
@@ -51,28 +70,23 @@ Actualizar **todo** lo que cambió:
 3. Actualizar `docs/api-agents.md` (matriz de herramientas, workflows, ejemplos curl).
 4. Verificar que `test_mcp_tool_count_matches_openapi_operations` sigue pasando.
 
-## Documentación humana (`docs/api-agents.md`)
+## Documentación humana
 
-Actualizar cuando el cambio afecte a **consumidores externos** (agentes, integradores, setup MCP):
-
-- Nueva ruta o recurso en la matriz de herramientas
-- Cambio de auth, scopes OAuth o variables de entorno MCP
-- Nuevo workflow o cambio en secuencia recomendada
-- Cambio en formatos de respuesta de sync (`ImportResultSchema`, `SyncResultSchema`)
-- Setup MCP, Daphne, o configuración de cliente
+| Archivo | Cuándo actualizar |
+|---------|-------------------|
+| `docs/api-agents.md` | Cambios en `/api/v1/` que afecten consumidores externos |
+| `docs/api-gsc.md` | Cambios en `/api/gsc/` que afecten consumidores externos |
 
 No duplicar en Markdown lo que ya vive en el registry; el doc humano complementa con ejemplos curl, errores frecuentes y operativa.
 
-## Descripción global (`api/main.py`)
+## Descripción global
 
-`API_DESCRIPTION` debe mantenerse alineada con:
+| API | Archivo |
+|-----|---------|
+| Content | `api/main.py` → `API_DESCRIPTION` |
+| GSC | `services/bigquery_gsc/bigquery_gsc/api/main.py` → `API_DESCRIPTION` |
 
-- Matriz de recursos (list/get/create/update/delete/pull/push)
-- Workflows predefinidos
-- Modelo de sync y localización
-- Notas de auth y errores comunes
-
-Si un cambio de API altera cualquiera de esos puntos, actualizar `API_DESCRIPTION` en el mismo cambio.
+Mantener alineadas con matriz de recursos, workflows, auth y errores comunes.
 
 ## Convenciones de capacidad
 

@@ -6,13 +6,10 @@ from datetime import datetime, timezone
 
 from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.models import ArticlePage, BlogPage, ShopifyRootPage
+from shopify_content.storefront_urls import article_path
 
 BLOG_INDEX_LISTINGS_VERSION = 1
 BLOGS_ROOT_SLUG = 'blogs'
-
-
-def article_path(blog_handle: str, article_handle: str) -> str:
-    return f'/blogs/{blog_handle}/{article_handle}'
 
 
 def _article_handle(page: ArticlePage) -> str:

@@ -12,6 +12,7 @@ from wagtail.search import index
 from .mixins import FAQItem, SHOPIFY_SEO_PANELS
 
 from config.settings import ALLOWED_LOCALE_CODES
+from ..admin_panels import StorefrontUrlsPanel
 from ..location_slug import location_page_slug
 
 
@@ -155,6 +156,7 @@ class LocationPage(Page):
             FieldPanel('sync_enabled'),
             FieldPanel('last_synced_at', read_only=True),
         ], heading='Shopify Sync'),
+        StorefrontUrlsPanel(),
     ]
 
     edit_handler = TabbedInterface([

@@ -24,7 +24,13 @@ class EmbeddedCommandRegistryTests(TestCase):
             registry_command_names | IMPORT_COMMAND_NAMES,
             ALL_MANAGEMENT_COMMAND_NAMES,
         )
-        self.assertEqual(len(ALL_MANAGEMENT_COMMAND_NAMES), 22)
+        self.assertEqual(len(ALL_MANAGEMENT_COMMAND_NAMES), 23)
+
+    def test_registry_has_rebuild_content_url_index(self):
+        spec = get_command_by_id('rebuild_content_url_index')
+        self.assertIsNotNone(spec)
+        self.assertEqual(spec.command, 'rebuild_content_url_index')
+        self.assertTrue(spec.optional_page_id)
 
     def test_registry_has_bootstrap_apply_variant(self):
         default = get_command_by_id('bootstrap_index_pages')
@@ -39,6 +45,18 @@ class EmbeddedCommandRegistryTests(TestCase):
 
 
 class EmbeddedCommandDispatchTests(TestCase):
+    @patch('shopify_content.tasks.run_embedded_command_task')
+    def test_enqueue_passes_extra_kwargs(self, mock_task):
+        mock_task.delay.return_value.id = 'celery-abc'
+
+        run = enqueue_embedded_command(
+            'rebuild_content_url_index',
+            extra_kwargs={'page_id': 99},
+        )
+
+        self.assertEqual(run.kwargs, {'page_id': 99})
+        mock_task.delay.assert_called_once_with(run.pk)
+
     @patch('shopify_content.tasks.run_embedded_command_task')
     def test_enqueue_creates_run_and_dispatches_celery(self, mock_task):
         mock_task.delay.return_value.id = 'celery-abc'

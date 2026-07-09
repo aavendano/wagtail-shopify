@@ -10,6 +10,7 @@ from wagtail.search import index
 
 from config.settings import ALLOWED_LOCALE_CODES
 from .mixins import SHOPIFY_SEO_PANELS
+from ..admin_panels import StorefrontUrlsPanel
 from ..home_slug import home_page_handle
 
 
@@ -114,6 +115,7 @@ class HomePage(Page):
             FieldPanel('last_synced_at', read_only=True),
             FieldPanel('hero_image_url', read_only=True),
         ], heading='Shopify Sync'),
+        StorefrontUrlsPanel(),
     ]
 
     edit_handler = TabbedInterface([

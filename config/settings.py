@@ -135,6 +135,7 @@ INSTALLED_APPS = [
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
+    'bigquery_gsc',
     'django_celery_beat',
 ]
 
@@ -355,3 +356,40 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'false').lower() == 'true'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_TASK_DEFAULT_QUEUE = os.environ.get('CELERY_TASK_DEFAULT_QUEUE', 'wagtail_shopify')
+
+# BigQuery GSC (Google Search Console analytics)
+_BQ_PROJECT = os.environ.get('BIGQUERY_PROJECT_ID', 'YOUR_PROJECT_ID')
+
+BIGQUERY_GSC = {
+    'BIGQUERY_LOCATION': os.environ.get('BIGQUERY_LOCATION', 'US'),
+    'BIGQUERY_ORDERING_MODE': 'partial',
+    'DEFAULT_LIMIT': 5000,
+    'LAG_DAYS': 3,
+    'MIN_IMPRESSIONS_OPPORTUNITY': 50,
+    'MIN_IMPRESSIONS_STRIKING_DISTANCE': 30,
+    'CTR_LOW_THRESHOLD': 0.03,
+    'OPPORTUNITY_POSITION_MIN': 4,
+    'OPPORTUNITY_POSITION_MAX': 20,
+    'STRIKING_DISTANCE_MIN': 4,
+    'STRIKING_DISTANCE_MAX': 15,
+    'MIN_IMPRESSIONS_CANNIBALIZATION': 30,
+    'MIN_URLS_CANNIBALIZATION': 2,
+    'GSC_DATASETS': [
+        {
+            'key': 'ca',
+            'project_id': _BQ_PROJECT,
+            'dataset': 'searchconsole',
+            'property_url': 'https://playlovetoys.ca/',
+            'market': 'CA',
+            'default_country': 'can',
+        },
+        {
+            'key': 'us',
+            'project_id': _BQ_PROJECT,
+            'dataset': 'searchconsole_us',
+            'property_url': 'https://playlovetoys.com/',
+            'market': 'US',
+            'default_country': 'usa',
+        },
+    ],
+}
