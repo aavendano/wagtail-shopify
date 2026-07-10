@@ -5,8 +5,92 @@ from django.core.management.base import BaseCommand
 from wagtail.models import Locale
 
 from core.models import ShopConfig
-from shopify_content.models import HomePage
+from shopify_content.models import CollectionPage, HomePage
 from shopify_content.sync.outbound import sync_home_page
+
+
+def _collection_page_id(handle: str) -> int | None:
+    """Resolve CollectionPage Wagtail pk by Shopify handle."""
+    page = CollectionPage.objects.filter(handle=handle).first()
+    return page.pk if page else None
+
+
+def _promo_gateway_section() -> dict:
+    card1_categories = _collection_page_ids(
+        'best-sex-toys',
+        'sex-toys-for-women',
+        'sexy-lingerie',
+        'vibrators',
+    )
+    card2_categories = _collection_page_ids(
+        'male-wand',
+        'male-masturbators-strokers',
+        'penis-ring-cock-ring-sex-toys-for-men',
+        'prostate-massage',
+    )
+    card3_categories = _collection_page_ids(
+        'anal-stimulation',
+        'romance',
+        'rose-toys',
+        'pleasure-enhancers',
+    )
+    card4_primary = _collection_page_id('bachelorette-party-novelties')
+
+    cards = [
+        {
+            'title': 'Viral picks',
+            'badge': 'Up to 30% off',
+            'media_source': 'collection_list',
+            'category_page_ids': card1_categories,
+            'cta_label': 'Shop trending',
+            'cta_url': '',
+            'column_span': '1',
+        },
+        {
+            'title': 'Fresh new arrivals',
+            'badge': 'Up to 30% off',
+            'media_source': 'collection_list',
+            'category_page_ids': card2_categories,
+            'cta_label': 'Shop trending',
+            'cta_url': '',
+            'column_span': '1',
+        },
+        {
+            'title': 'Premium picks',
+            'badge': '',
+            'media_source': 'collection_list',
+            'category_page_ids': card3_categories,
+            'cta_label': 'Shop trending',
+            'cta_url': '',
+            'column_span': '1',
+        },
+    ]
+    card4: dict = {
+        'title': 'Shop by category',
+        'badge': '',
+        'media_source': 'collection_products',
+        'cta_label': 'Shop trending',
+        'cta_url': '',
+        'column_span': '1',
+    }
+    if card4_primary:
+        card4['primary_collection_page_id'] = card4_primary
+    cards.append(card4)
+
+    return {
+        'type': 'promo_gateway',
+        'id': 'promo-gateway',
+        'value': {'cards': cards},
+    }
+
+
+def _collection_page_ids(*handles: str) -> list[int]:
+    ids = []
+    for handle in handles:
+        page_id = _collection_page_id(handle)
+        if page_id:
+            ids.append(page_id)
+    return ids
 
 
 def _storefront_url(path: str) -> str:
@@ -50,6 +134,7 @@ def _sections_payload() -> dict:
                     ],
                 },
             },
+            _promo_gateway_section(),
             {
                 'type': 'featured_collections',
                 'id': 'featured-collections',

@@ -1517,7 +1517,10 @@ def sync_home_page(page):
 
     from shopify_content.home_references import build_home_sync_references
 
-    for field_key, field_value in build_home_sync_references(sections_payload).items():
+    for field_key, field_value in build_home_sync_references(
+        sections_payload,
+        home_page=page,
+    ).items():
         data[field_key] = field_value
 
     from metaobjects.shopify_metaobjects.client import MetaobjectClient

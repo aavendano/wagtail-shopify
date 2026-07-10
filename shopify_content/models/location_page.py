@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from modelcluster.fields import ParentalKey
@@ -13,6 +14,7 @@ from .mixins import FAQItem, SHOPIFY_SEO_PANELS
 
 from config.settings import ALLOWED_LOCALE_CODES
 from ..admin_panels import StorefrontUrlsPanel
+from ..content_templates.location_city_en_us import find_forbidden_phrases
 from ..location_slug import location_page_slug
 
 
@@ -175,6 +177,29 @@ class LocationPage(Page):
         if canonical:
             self.slug = canonical
             self.handle = canonical
+
+        rich_parts = [
+            str(self.intro or ''),
+            str(self.content_2 or ''),
+            str(self.content_3 or ''),
+            str(self.brand_section_content or ''),
+            str(self.map_content or ''),
+            str(self.after_page_content or ''),
+        ]
+        for faq in self.faqs.all():
+            rich_parts.append(faq.question)
+            rich_parts.append(faq.answer)
+
+        forbidden = find_forbidden_phrases(' '.join(rich_parts))
+        if forbidden:
+            raise ValidationError(
+                {
+                    'intro': (
+                        'Content contains forbidden brick-and-mortar phrases: '
+                        + ', '.join(forbidden)
+                    )
+                }
+            )
 
     def get_seo_title(self):
         return self.seo_title or self.titulo

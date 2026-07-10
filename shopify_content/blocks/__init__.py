@@ -12,6 +12,7 @@ from .home import (
     MarketBlock,
     FAQBlock,
     InternalLinksBlock,
+    PromoGatewayBlock,
     SEOSchemaBlock,
 )
 from .media import ImageBlock, VideoEmbedBlock
@@ -73,6 +74,7 @@ class HomeBodyStreamBlock(StreamBlock):
     market_block = MarketBlock()
     faq = FAQBlock()
     internal_links = InternalLinksBlock()
+    promo_gateway = PromoGatewayBlock()
     seo_schema = SEOSchemaBlock()
 
     class Meta:
@@ -109,5 +111,6 @@ __all__ = [
     'MarketBlock',
     'FAQBlock',
     'InternalLinksBlock',
+    'PromoGatewayBlock',
     'SEOSchemaBlock',
 ]

@@ -243,6 +243,50 @@ class InternalLinksBlock(StructBlock):
         label = 'Internal links'
 
 
+class PromoGatewayCardBlock(StructBlock):
+    title = CharBlock(max_length=120, required=True)
+    badge = CharBlock(max_length=80, required=False)
+    media_source = ChoiceBlock(
+        choices=[
+            ('collection_products', 'Collection products'),
+            ('collection_list', 'Collection list'),
+        ],
+        default='collection_products',
+        required=False,
+    )
+    primary_collection = PageChooserBlock(
+        required=False,
+        page_type=['shopify_content.CollectionPage'],
+    )
+    category_collections = ListBlock(
+        PageChooserBlock(
+            required=True,
+            page_type=['shopify_content.CollectionPage'],
+        ),
+        max_num=4,
+        required=False,
+    )
+    cta_label = CharBlock(max_length=80, required=False, default='Shop trending')
+    cta_url = URLBlock(required=False)
+    column_span = ChoiceBlock(
+        choices=[('1', '1 column'), ('2', '2 columns')],
+        default='1',
+        required=False,
+    )
+
+    class Meta:
+        icon = 'pick'
+        label = 'Promo card'
+
+
+class PromoGatewayBlock(StructBlock):
+    cards = ListBlock(PromoGatewayCardBlock(), min_num=4, max_num=4)
+
+    class Meta:
+        icon = 'grip'
+        label = 'Promo gateway'
+
+
 class SEOSchemaBlock(StructBlock):
     include_faq_schema = BooleanBlock(default=True, required=False)
     include_organization = BooleanBlock(default=True, required=False)

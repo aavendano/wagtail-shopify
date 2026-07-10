@@ -171,6 +171,31 @@ def _serialize_internal_links(block: StructValue) -> dict[str, Any]:
     return {'heading': block.get('heading') or '', 'groups': groups}
 
 
+def _serialize_promo_gateway(block: StructValue) -> dict[str, Any]:
+    cards = []
+    for card in block.get('cards') or []:
+        entry: dict[str, Any] = {
+            'title': card.get('title') or '',
+            'badge': card.get('badge') or '',
+            'media_source': card.get('media_source') or 'collection_products',
+            'cta_label': card.get('cta_label') or 'Shop trending',
+            'cta_url': card.get('cta_url') or '',
+            'column_span': card.get('column_span') or '1',
+        }
+        primary_id = _page_id_from_chooser(card.get('primary_collection'))
+        if primary_id:
+            entry['primary_collection_page_id'] = primary_id
+        category_ids = []
+        for category in card.get('category_collections') or []:
+            category_id = _page_id_from_chooser(category)
+            if category_id:
+                category_ids.append(category_id)
+        if category_ids:
+            entry['category_page_ids'] = category_ids
+        cards.append(entry)
+    return {'cards': cards}
+
+
 def _serialize_seo_schema(block: StructValue) -> dict[str, Any]:
     return {
         'include_faq_schema': bool(block.get('include_faq_schema', True)),
@@ -189,6 +214,7 @@ _SERIALIZERS = {
     'market_block': _serialize_market_block,
     'faq': _serialize_faq,
     'internal_links': _serialize_internal_links,
+    'promo_gateway': _serialize_promo_gateway,
     'seo_schema': _serialize_seo_schema,
 }
 

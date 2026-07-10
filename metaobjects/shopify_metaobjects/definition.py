@@ -168,6 +168,11 @@ class MetaobjectDefinitionSpec:
                 type='list.collection_reference',
             ),
             MetaobjectFieldSpec(
+                key='promo_gateway_collection_refs',
+                name='Promo Gateway Collection Refs',
+                type='list.collection_reference',
+            ),
+            MetaobjectFieldSpec(
                 key='education_hub_article_refs',
                 name='Education Hub Article Refs',
                 type='list.article_reference',

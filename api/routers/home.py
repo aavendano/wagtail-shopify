@@ -138,6 +138,7 @@ def create_home_page(request, data: HomeIn):
         if data.translation_of is not None:
             apply_translation_link(page, data.translation_of, HomePage)
 
+        page.full_clean()
         parent.add_child(instance=page)
         page.refresh_from_db()
     except ValidationError as exc:
@@ -184,6 +185,11 @@ def update_home_page(request, page_id: int, data: HomePatch):
         apply_translation_link(page, data.translation_of, HomePage)
 
     _apply_home_fields(page, data, is_create=False)
+
+    try:
+        page.full_clean()
+    except ValidationError as exc:
+        return 400, {"detail": str(exc)}
 
     if data.publish:
         revision = page.save_revision()

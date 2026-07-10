@@ -7,14 +7,44 @@ from typing import Any
 
 from wagtail.models import Page
 
+from shopify_content.home_locale_validation import is_page_valid_for_home_locale
 from shopify_content.models.blog import ArticlePage, BlogPage
 from shopify_content.models.collection import CollectionPage
 from shopify_content.models.glossary import GlossaryTermPage
+from shopify_content.models.home_page import HomePage
 from shopify_content.models.product import ProductPage
 from shopify_content.semantic_links.references import page_to_shopify_gid
 from shopify_content.semantic_links.serialization import page_to_related_link
 
 logger = logging.getLogger(__name__)
+
+
+def _page_is_allowed(home_page: HomePage | None, page: Page | None) -> bool:
+    if page is None:
+        return False
+    if home_page is None:
+        return True
+    return is_page_valid_for_home_locale(home_page, page)
+
+
+def _get_page(page_id: Any, *, home_page: HomePage | None = None) -> Page | None:
+    if not page_id:
+        return None
+    try:
+        page = Page.objects.filter(pk=int(page_id)).select_related('locale').first()
+    except (TypeError, ValueError):
+        return None
+    if page is None:
+        logger.warning('Home sync: page_id=%s not found', page_id)
+        return None
+    if not _page_is_allowed(home_page, page):
+        logger.warning(
+            'Home sync: omitting page_id=%s (locale mismatch for HomePage pk=%s)',
+            page_id,
+            getattr(home_page, 'pk', None),
+        )
+        return None
+    return page
 
 
 def _append_unique_link(links: list[dict[str, Any]], seen: set, link: dict[str, Any] | None) -> None:
@@ -31,15 +61,9 @@ def _append_unique_link(links: list[dict[str, Any]], seen: set, link: dict[str, 
     links.append(link)
 
 
-def _page_id_to_gid(page_id: Any) -> str | None:
-    if not page_id:
-        return None
-    try:
-        page = Page.objects.filter(pk=int(page_id)).first()
-    except (TypeError, ValueError):
-        return None
+def _page_id_to_gid(page_id: Any, *, home_page: HomePage | None = None) -> str | None:
+    page = _get_page(page_id, home_page=home_page)
     if page is None:
-        logger.warning('Home sync: page_id=%s not found', page_id)
         return None
     try:
         specific = page.specific
@@ -48,13 +72,13 @@ def _page_id_to_gid(page_id: Any) -> str | None:
     return page_to_shopify_gid(specific)
 
 
-def _page_id_to_link(page_id: Any, *, label: str | None = None) -> dict[str, Any] | None:
-    if not page_id:
-        return None
-    try:
-        page = Page.objects.filter(pk=int(page_id)).first()
-    except (TypeError, ValueError):
-        return None
+def _page_id_to_link(
+    page_id: Any,
+    *,
+    label: str | None = None,
+    home_page: HomePage | None = None,
+) -> dict[str, Any] | None:
+    page = _get_page(page_id, home_page=home_page)
     if page is None:
         return None
     try:
@@ -71,15 +95,21 @@ def _page_id_to_link(page_id: Any, *, label: str | None = None) -> dict[str, Any
     return link
 
 
-def _is_collection_page(page_id: Any) -> bool:
+def _is_collection_page(page_id: Any, *, home_page: HomePage | None = None) -> bool:
+    page = _get_page(page_id, home_page=home_page)
+    if page is None:
+        return False
     try:
-        page = Page.objects.filter(pk=int(page_id)).first()
-        return isinstance(page.specific if page else None, CollectionPage)
-    except (TypeError, ValueError):
+        return isinstance(page.specific, CollectionPage)
+    except Exception:
         return False
 
 
-def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
+def build_home_sync_references(
+    sections_json: dict | None,
+    *,
+    home_page: HomePage | None = None,
+) -> dict[str, Any]:
     """
     Extract native reference GID lists and related_links from sections_json.
 
@@ -90,6 +120,7 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
     shop_by_need_collection_refs: list[str] = []
     education_hub_article_refs: list[str] = []
     education_hub_glossary_refs: list[str] = []
+    promo_gateway_collection_refs: list[str] = []
     related_links: list[dict[str, Any]] = []
     seen_links: set[tuple] = set()
     best_sellers_collection_ref: str | None = None
@@ -106,24 +137,26 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
             for item in value.get('items') or []:
                 if not isinstance(item, dict):
                     continue
-                gid = _page_id_to_gid(item.get('page_id'))
-                if gid and _is_collection_page(item.get('page_id')):
+                page_id = item.get('page_id')
+                gid = _page_id_to_gid(page_id, home_page=home_page)
+                if gid and _is_collection_page(page_id, home_page=home_page):
                     featured_collections_refs.append(gid)
                 label = item.get('override_label') or item.get('label')
                 _append_unique_link(
                     related_links,
                     seen_links,
-                    _page_id_to_link(item.get('page_id'), label=label),
+                    _page_id_to_link(page_id, label=label, home_page=home_page),
                 )
 
         elif block_type == 'best_sellers':
-            gid = _page_id_to_gid(value.get('collection_page_id'))
+            page_id = value.get('collection_page_id')
+            gid = _page_id_to_gid(page_id, home_page=home_page)
             if gid:
                 best_sellers_collection_ref = gid
             _append_unique_link(
                 related_links,
                 seen_links,
-                _page_id_to_link(value.get('collection_page_id')),
+                _page_id_to_link(page_id, home_page=home_page),
             )
 
         elif block_type == 'shop_by_need':
@@ -131,13 +164,13 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
                 if not isinstance(card, dict):
                     continue
                 target_id = card.get('target_page_id')
-                gid = _page_id_to_gid(target_id)
-                if gid and _is_collection_page(target_id):
+                gid = _page_id_to_gid(target_id, home_page=home_page)
+                if gid and _is_collection_page(target_id, home_page=home_page):
                     shop_by_need_collection_refs.append(gid)
                 _append_unique_link(
                     related_links,
                     seen_links,
-                    _page_id_to_link(target_id, label=card.get('cta_label')),
+                    _page_id_to_link(target_id, label=card.get('cta_label'), home_page=home_page),
                 )
 
         elif block_type == 'educational_hub':
@@ -145,8 +178,8 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
                 if not isinstance(link_item, dict):
                     continue
                 page_id = link_item.get('page_id')
-                gid = _page_id_to_gid(page_id)
-                page = Page.objects.filter(pk=page_id).first() if page_id else None
+                gid = _page_id_to_gid(page_id, home_page=home_page)
+                page = _get_page(page_id, home_page=home_page)
                 specific = page.specific if page else None
                 if gid and isinstance(specific, ArticlePage):
                     education_hub_article_refs.append(gid)
@@ -155,7 +188,7 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
                 _append_unique_link(
                     related_links,
                     seen_links,
-                    _page_id_to_link(page_id, label=link_item.get('label')),
+                    _page_id_to_link(page_id, label=link_item.get('label'), home_page=home_page),
                 )
 
         elif block_type == 'internal_links':
@@ -165,10 +198,36 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
                 for link_item in group.get('links') or []:
                     if not isinstance(link_item, dict):
                         continue
+                    page_id = link_item.get('page_id')
                     _append_unique_link(
                         related_links,
                         seen_links,
-                        _page_id_to_link(link_item.get('page_id'), label=link_item.get('label')),
+                        _page_id_to_link(page_id, label=link_item.get('label'), home_page=home_page),
+                    )
+
+        elif block_type == 'promo_gateway':
+            for card in value.get('cards') or []:
+                if not isinstance(card, dict):
+                    continue
+                media_source = card.get('media_source') or 'collection_products'
+                if media_source == 'collection_products':
+                    primary_id = card.get('primary_collection_page_id')
+                    gid = _page_id_to_gid(primary_id, home_page=home_page)
+                    if gid and _is_collection_page(primary_id, home_page=home_page):
+                        promo_gateway_collection_refs.append(gid)
+                    _append_unique_link(
+                        related_links,
+                        seen_links,
+                        _page_id_to_link(primary_id, label=card.get('cta_label'), home_page=home_page),
+                    )
+                for category_id in card.get('category_page_ids') or []:
+                    gid = _page_id_to_gid(category_id, home_page=home_page)
+                    if gid and _is_collection_page(category_id, home_page=home_page):
+                        promo_gateway_collection_refs.append(gid)
+                    _append_unique_link(
+                        related_links,
+                        seen_links,
+                        _page_id_to_link(category_id, home_page=home_page),
                     )
 
     result: dict[str, Any] = {}
@@ -182,6 +241,8 @@ def build_home_sync_references(sections_json: dict | None) -> dict[str, Any]:
         result['education_hub_article_refs'] = education_hub_article_refs
     if education_hub_glossary_refs:
         result['education_hub_glossary_refs'] = education_hub_glossary_refs
+    if promo_gateway_collection_refs:
+        result['promo_gateway_collection_refs'] = promo_gateway_collection_refs
     if related_links:
         result['related_links'] = related_links
     return result

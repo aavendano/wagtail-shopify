@@ -11,6 +11,7 @@ from wagtail.search import index
 from config.settings import ALLOWED_LOCALE_CODES
 from .mixins import SHOPIFY_SEO_PANELS
 from ..admin_panels import StorefrontUrlsPanel
+from ..home_locale_validation import validate_sections_json_locale
 from ..home_slug import home_page_handle
 
 
@@ -137,6 +138,10 @@ class HomePage(Page):
 
         if self.sections_json is None:
             self.sections_json = {}
+
+        locale_errors = validate_sections_json_locale(self)
+        if locale_errors:
+            raise ValidationError({'sections_json': locale_errors})
 
         parent = self.get_parent()
         if parent is not None and parent.specific_class.__name__ == 'ShopifyRootPage':

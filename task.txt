@@ -317,7 +317,10 @@ Lee el bloque `ESTADO ACTUAL` de este prompt:
 
 ### Paso 3 — Publicar en PLT-CMS
 
-
+Opciones:
+- **MCP:** `create_location` con todos los campos generados
+- **CLI seed:** `python manage.py seed_location_city --city "Anaheim" --state California --push`
+- **Spec:** ver [`docs/local-page-content-spec.md`](../../docs/local-page-content-spec.md)
 
 Llama a `mcp__5a695f89-52b5-4d5a-a259-2854b17ef7c9__create_location` con todos los campos generados.
 
