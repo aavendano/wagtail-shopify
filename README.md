@@ -171,6 +171,7 @@ En producción la app corre como servicios **systemd** (ver `deploy/*.service` e
 ### Reinicio rápido (solo servicios)
 
 ```bash
+cd /home/alejandro/apps/cms-shop/backend
 sudo systemctl restart cms-shop-daphne cms-shop-celery-worker cms-shop-celery-beat
 ```
 
