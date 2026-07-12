@@ -1,6 +1,6 @@
 ---
 name: theme-index-pages
-overview: Implementar plantillas Liquid del theme Shopify para consumir índices precomputados (glossary_index, location_index) y páginas de detalle de metaobjects.
+overview: Implementar plantillas Liquid del theme Shopify para consumir índices precomputados (index_listings) y páginas de detalle de metaobjects.
 active: true
 created: 2026-07-05
 ---
@@ -11,13 +11,13 @@ Plan completo: [`theme-index-pages.plan.md`](theme-index-pages.plan.md)
 
 ## Fases
 
-- [x] Fase 1 — Snippet compartido parseo JSON de índice (`wagtail-root-index-parse`)
-- [x] Fase 2 — Índice glosario (`page.glossary.json` + `wagtail-root-index`)
-- [x] Fase 3 — Índice locations (`page.locations.json` + `wagtail-root-index`)
-- [ ] Fase 4 — Plantilla detalle `glossary_term`
-- [ ] Fase 5 — Plantilla detalle `local_page`
-- [ ] Fase 6 — Navegación global, SEO e i18n (parcial: hreflang vía metafields hecho)
-- [ ] Fase 7 — QA y documentación theme
+- [x] Fase 1 — Snippet compartido parseo JSON de índice (`cms-index-listings-parse` / legacy parse)
+- [x] Fase 2 — Índice glosario (`page.glossary.json` + `wagtail-root-index`) — Page única `glossary` + `custom.index_listings`
+- [x] Fase 3 — Índice locations (`page.locations.json` + `wagtail-root-index`) — Page única `locations`
+- [x] Fase 4 — Plantilla detalle `glossary_term` (H1, definition, image, synonyms, native related + `related_links` fallback, JSON-LD `DefinedTerm`)
+- [x] Fase 5 — Plantilla detalle `local_page` (secciones + FAQs + JSON-LD `LocalBusiness`)
+- [x] Fase 6 — Navegación global, SEO e i18n (nav CMS + hreflang índices vía `index_alternates`; verificado en smoke 2026-07-11)
+- [ ] Fase 7 — QA formal (Theme check / Lighthouse) y documentación theme restante
 
 ## Modelo de despliegue
 
@@ -29,7 +29,7 @@ Al instalar en una tienda nueva, seguir el checklist **Onboarding nueva tienda**
 
 ## Estado
 
-Backend listo. **Índices (fases 1–3) completados** en theme vía `wagtail-root-index`. Pendiente: detalle metaobject (fases 4–5), nav global y QA (fases 6–7).
+Backend listo. **Índices (1–3) y detalle metaobject (4–5) completados** en el theme. Nav + hreflang de índices (6) en producción. Pendiente: Fase 7 QA formal.
 
 ## Prompt rápido
 

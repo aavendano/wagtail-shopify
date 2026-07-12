@@ -43,6 +43,12 @@ def collect_sections_page_ids(sections_json: dict | None) -> list[int]:
                 if isinstance(item, dict):
                     _append_page_id(ids, item.get('page_id'))
 
+        elif block_type == 'nav_collection_pills':
+            _append_page_id(ids, value.get('source_collection_page_id'))
+            for item in value.get('items') or []:
+                if isinstance(item, dict):
+                    _append_page_id(ids, item.get('page_id'))
+
         elif block_type == 'best_sellers':
             _append_page_id(ids, value.get('collection_page_id'))
 

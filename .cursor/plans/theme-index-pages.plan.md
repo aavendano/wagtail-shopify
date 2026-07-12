@@ -1,13 +1,13 @@
 ---
 name: theme-index-pages
-overview: Implementar plantillas Liquid del theme Shopify para consumir índices precomputados (glossary_index, location_index) y páginas de detalle de metaobjects glossary_term / local_page.
+overview: Plantillas Liquid para índices (custom.index_listings) y detalle metaobject glossary_term / local_page. Fases 1–6 hechas; queda Fase 7 QA formal.
 active: true
 created: 2026-07-05
 ---
 
 # Theme — índices A–Z y páginas CMS (Liquid)
 
-> **Nota (2026-07):** Las fases 1–3 de listado índice están **completadas** vía section unificada [`wagtail-root-index`](wagtail-root-index-section.plan.md) (`templates/page.glossary.json`, `page.locations.json`). Las fases 2–3 originales (plantillas `.liquid` separadas) quedan **superseded**. **SEO hreflang/noindex:** prohibido vía section settings/blocks — ver [`wagtail-root-index-section.plan.md`](wagtail-root-index-section.plan.md) y `docs/shopify_content.md` → Anti-patrones SEO.
+> **Nota (2026-07-11):** Fases 1–6 **completadas**. Índices canónicos: Pages únicas `glossary` / `locations` / `blogs` + `custom.index_listings`. Detalle glossary/local incluye synonyms, DefinedTerm, related_links fallback y LocalBusiness. **SEO hreflang/noindex:** solo vía Page metafields — ver [`wagtail-root-index-section.plan.md`](wagtail-root-index-section.plan.md) y `docs/shopify_content.md` → Anti-patrones SEO.
 
 ## Prompt de implementación
 
@@ -220,24 +220,17 @@ Capability `onlineStore` con `urlHandle: local-page` → URLs `/pages/location/{
 
 ### Fase 4 — Plantilla detalle `glossary_term`
 
-- [ ] Crear/actualizar plantilla metaobject `glossary_term` en theme:
+- [x] Crear/actualizar plantilla metaobject `glossary_term` en theme:
   - H1 = `metaobject.term`.
   - Cuerpo = `metaobject.definition` (rich text ya viene HTML).
   - Imagen si `metaobject.image`.
   - Bloque synonyms como lista.
-  - **Enlaces relacionados:** preferir refs nativas:
-    ```liquid
-    {% for product in metaobject.related_products.value %}
-      <a href="{{ product.url }}">{{ product.title }}</a>
-    {% endfor %}
-    ```
-  - Fallback a `related_links` JSON si refs vacías.
-  - Breadcrumb: índice locale → término (`/pages/glossary-{locale}` → término).
-  - JSON-LD `DefinedTerm` con `sameAs` desde `metaobject.same_as`.
+  - **Enlaces relacionados:** preferir refs nativas; fallback a `related_links` JSON si refs vacías.
+  - Breadcrumb + JSON-LD `DefinedTerm` con `sameAs` desde `metaobject.same_as`.
 
 ### Fase 5 — Plantilla detalle `local_page`
 
-- [ ] Crear/actualizar plantilla metaobject `local_page`:
+- [x] Crear/actualizar plantilla metaobject `local_page`:
   - Secciones según tabla de campos.
   - FAQs desde `metaobject.faqs` (parse json).
   - Breadcrumb: índice locations → ciudad/estado → título.
@@ -245,18 +238,15 @@ Capability `onlineStore` con `urlHandle: local-page` → URLs `/pages/location/{
 
 ### Fase 6 — Navegación, SEO e i18n
 
-- [ ] Añadir enlaces en header/footer al índice glosario del locale activo de la tienda.
-- [ ] Mapeo locale Shopify Markets ↔ `glossary_locale` / `location_locale`:
-  - Glosario: `en` / `es` / `fr` (no incluye sufijo país).
-  - Locations: `en-US` / `es-US`.
-- [x] **hreflang / x-default / noindex (índices):** solo vía Page metafields `custom.index_alternates` y `custom.index_noindex`, emitidos en `<head>` por `snippets/wagtail-root-index-head.liquid` (hook en `layout/theme.liquid`). Wagtail los empuja en cada `rebuild_*_index` / `PageIndexConsumer.sync()`. **Prohibido:** section settings, blocks `alternate_locale`, links hardcoded, `root_page.config` GIDs.
-- [ ] Verificar view-source: `<link rel="alternate" hreflang=...>` presentes tras `rebuild_glossary_index`.
-- [ ] Verificar que `path` del JSON coincide con rutas reales del metaobject (smoke test 3 términos + 3 locations).
+- [x] Enlaces en header al índice glosario/locations (`cms-glossary-url` / `cms-locations-url`).
+- [x] Arquitectura single-page: Markets + `custom.index_listings` (no handles `glossary-en`).
+- [x] **hreflang / x-default / noindex (índices):** vía `custom.index_alternates` / `custom.index_noindex` + `wagtail-root-index-head.liquid`.
+- [x] Smoke 2026-07-11: hreflang en `/pages/glossary` y `/pages/locations`; 3 términos + 3 locations HTTP 200.
 
 ### Fase 7 — QA y documentación theme
 
 - [ ] Theme check / Lighthouse en Pages índice y 2 detalles por tipo.
-- [ ] Documentar en README del theme: handles, templateSuffix, dependencia de metafields.
+- [x] Documentar en README del theme: handles canónicos single-page + `index_listings`.
 - [ ] Checklist post-deploy Wagtail: publish término → índice se actualiza en ≤ Celery latency; refresh storefront.
 
 ## Patrones Liquid recomendados

@@ -158,6 +158,11 @@ class MetaobjectDefinitionSpec:
                 type='list.collection_reference',
             ),
             MetaobjectFieldSpec(
+                key='nav_collection_pills_refs',
+                name='Nav Collection Pills Refs',
+                type='list.collection_reference',
+            ),
+            MetaobjectFieldSpec(
                 key='best_sellers_collection_ref',
                 name='Best Sellers Collection Ref',
                 type='collection_reference',

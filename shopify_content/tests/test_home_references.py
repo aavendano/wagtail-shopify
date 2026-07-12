@@ -103,6 +103,76 @@ class HomeReferencesTests(TestCase):
             'gid://shopify/Collection/10',
         )
         self.assertTrue(refs['related_links'])
+        # Defaults fill nav pills when no nav_collection_pills block is present.
+        self.assertIn('nav_collection_pills_refs', refs)
+        self.assertEqual(refs['nav_collection_pills_refs'], ['gid://shopify/Collection/10'])
+
+    def test_nav_collection_pills_manual_items(self):
+        sections_json = {
+            'version': 1,
+            'sections': [
+                {
+                    'type': 'nav_collection_pills',
+                    'id': 'nav-pills',
+                    'value': {
+                        'items': [
+                            {
+                                'page_id': self.collection.pk,
+                                'override_label': 'Vibrators',
+                            },
+                            {
+                                'page_id': self.collection_b.pk,
+                                'override_label': 'Couples',
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+        refs = build_home_sync_references(sections_json)
+        self.assertEqual(
+            refs['nav_collection_pills_refs'],
+            ['gid://shopify/Collection/10', 'gid://shopify/Collection/11'],
+        )
+        labels = {
+            link['handle']: link.get('label')
+            for link in refs['related_links']
+            if link.get('type') == 'collection'
+        }
+        self.assertEqual(labels['vibrators'], 'Vibrators')
+        self.assertEqual(labels['couples'], 'Couples')
+
+    def test_nav_collection_pills_semantic_source(self):
+        from shopify_content.models.semantic_links import CollectionRelatedCollectionLink
+
+        CollectionRelatedCollectionLink.objects.create(
+            page=self.collection,
+            related_page=self.collection_b,
+            sort_order=0,
+        )
+        CollectionRelatedCollectionLink.objects.create(
+            page=self.collection,
+            related_page=self.collection_c,
+            sort_order=1,
+        )
+        sections_json = {
+            'version': 1,
+            'sections': [
+                {
+                    'type': 'nav_collection_pills',
+                    'id': 'nav-pills',
+                    'value': {
+                        'source_collection_page_id': self.collection.pk,
+                        'items': [],
+                    },
+                },
+            ],
+        }
+        refs = build_home_sync_references(sections_json)
+        self.assertEqual(
+            refs['nav_collection_pills_refs'],
+            ['gid://shopify/Collection/11', 'gid://shopify/Collection/12'],
+        )
 
     def test_promo_gateway_ref_order(self):
         """Ref order contract for promo-gateway-card Liquid cursor — see test name in snippet."""
@@ -157,6 +227,7 @@ class HomePageDefinitionNativeFieldsTests(TestCase):
         field_keys = {field.key for field in spec.fields}
         self.assertIn('hero_eyebrow', field_keys)
         self.assertIn('featured_collections_refs', field_keys)
+        self.assertIn('nav_collection_pills_refs', field_keys)
         self.assertIn('best_sellers_collection_ref', field_keys)
         self.assertIn('promo_gateway_collection_refs', field_keys)
         self.assertIn('related_links', field_keys)

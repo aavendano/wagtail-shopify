@@ -93,6 +93,24 @@ def _collection_page_ids(*handles: str) -> list[int]:
     return ids
 
 
+def _nav_collection_pills_section() -> dict:
+    items = []
+    for handle, label in (
+        ('vibrators', 'Vibrators'),
+        ('lubricants', 'Lubricants'),
+        ('anal-stimulation', 'Anal Stimulation'),
+        ('penis-ring-cock-ring-sex-toys-for-men', 'For Men'),
+    ):
+        page_id = _collection_page_id(handle)
+        if page_id:
+            items.append({'page_id': page_id, 'override_label': label})
+    return {
+        'type': 'nav_collection_pills',
+        'id': 'nav-collection-pills',
+        'value': {'items': items},
+    }
+
+
 def _storefront_url(path: str) -> str:
     """Build absolute URL for Wagtail URLField (storefront-relative path)."""
     path = path if path.startswith('/') else f'/{path}'
@@ -135,6 +153,7 @@ def _sections_payload() -> dict:
                 },
             },
             _promo_gateway_section(),
+            _nav_collection_pills_section(),
             {
                 'type': 'featured_collections',
                 'id': 'featured-collections',

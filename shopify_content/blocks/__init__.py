@@ -4,6 +4,7 @@ from .content import HeadingBlock, ParagraphBlock, HtmlBlock, CalloutBlock, Prod
 from .home import (
     TrustBarBlock,
     FeaturedCollectionsBlock,
+    NavCollectionPillsBlock,
     EditorialIntroBlock,
     BestSellersBlock,
     ShopByNeedBlock,
@@ -66,6 +67,7 @@ ARTICLE_BODY_BLOCKS = ArticleBodyStreamBlock()
 class HomeBodyStreamBlock(StreamBlock):
     trust_bar = TrustBarBlock()
     featured_collections = FeaturedCollectionsBlock()
+    nav_collection_pills = NavCollectionPillsBlock()
     editorial_intro = EditorialIntroBlock()
     best_sellers = BestSellersBlock()
     shop_by_need = ShopByNeedBlock()
@@ -103,6 +105,7 @@ __all__ = [
     'HOME_BODY_BLOCKS',
     'TrustBarBlock',
     'FeaturedCollectionsBlock',
+    'NavCollectionPillsBlock',
     'EditorialIntroBlock',
     'BestSellersBlock',
     'ShopByNeedBlock',

@@ -51,6 +51,23 @@ def _serialize_featured_collections(block: StructValue) -> dict[str, Any]:
     }
 
 
+def _serialize_nav_collection_pills(block: StructValue) -> dict[str, Any]:
+    items = []
+    for item in block.get('items') or []:
+        page_id = _page_id_from_chooser(item.get('collection'))
+        if not page_id:
+            continue
+        entry: dict[str, Any] = {'page_id': page_id}
+        if item.get('override_label'):
+            entry['override_label'] = item['override_label']
+        items.append(entry)
+    value: dict[str, Any] = {'items': items}
+    source_id = _page_id_from_chooser(block.get('source_collection'))
+    if source_id:
+        value['source_collection_page_id'] = source_id
+    return value
+
+
 def _serialize_editorial_intro(block: StructValue) -> dict[str, Any]:
     return {
         'heading': block.get('heading') or '',
@@ -206,6 +223,7 @@ def _serialize_seo_schema(block: StructValue) -> dict[str, Any]:
 _SERIALIZERS = {
     'trust_bar': _serialize_trust_bar,
     'featured_collections': _serialize_featured_collections,
+    'nav_collection_pills': _serialize_nav_collection_pills,
     'editorial_intro': _serialize_editorial_intro,
     'best_sellers': _serialize_best_sellers,
     'shop_by_need': _serialize_shop_by_need,

@@ -66,6 +66,33 @@ class FeaturedCollectionsBlock(StructBlock):
         label = 'Featured collections'
 
 
+class NavCollectionPillItemBlock(StructBlock):
+    collection = PageChooserBlock(
+        required=True,
+        page_type=['shopify_content.CollectionPage'],
+    )
+    override_label = CharBlock(max_length=80, required=False)
+
+    class Meta:
+        icon = 'tag'
+        label = 'Nav pill'
+
+
+class NavCollectionPillsBlock(StructBlock):
+    """Header quick-link pills; not rendered as a home section."""
+
+    source_collection = PageChooserBlock(
+        required=False,
+        page_type=['shopify_content.CollectionPage'],
+        help_text='If items are empty, seed pills from this collection’s related_collections.',
+    )
+    items = ListBlock(NavCollectionPillItemBlock(), required=False, max_num=8)
+
+    class Meta:
+        icon = 'list-ul'
+        label = 'Nav collection pills'
+
+
 class EditorialIntroBlock(StructBlock):
     heading = CharBlock(max_length=120, required=True)
     body = RichTextBlock(
