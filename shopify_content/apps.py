@@ -8,6 +8,12 @@ class ShopifyContentConfig(AppConfig):
 
     def ready(self):
         import shopify_content.wagtail_ai_setup  # noqa: F401
+        # Patch django-ai-core before PageIndex registration / indexing runs.
+        from shopify_content.vector_index_tracking_fix import (
+            install_stable_index_name_fix,
+        )
+
+        install_stable_index_name_fix()
         import shopify_content.indexes  # noqa: F401
         from shopify_content.wagtail_ai_fixes import install_suggested_content_fallback
 
