@@ -374,15 +374,40 @@ Esto llama `MetaobjectClient.ensure_definition()` — idempotente; crea definici
 
 Implementada como **merchant-owned metaobject** (tipo `glossary_term`) en Shopify. Los términos viven bajo un `ShopifyRootPage` con slug `glossary` (solo organizacional). La página listado `/pages/glossary` la gestiona el theme en Liquid.
 
+### Autoridad: contenido vs media
+
+| Capa | Fuente de verdad | Notas |
+|------|------------------|-------|
+| Texto (`term`, `definition`, SEO, links, synonyms, …) | **Wagtail** | Outbound push al metaobject |
+| Media (`image` / File GID / CDN URL) | **Shopify** | Local `shopify_image_id`, `image_url`, `image_alt_text` son espejo |
+| FK Wagtail `image` | Intención de upload | Solo sube a Shopify Files si hay FK y `shopify_image_id` vacío |
+
+**Outbound (media):**
+
+1. Si el término ya tiene `shopify_id` y **no** hay upload pendiente → refresh del espejo desde el metaobject (`GET_GLOSSARY_TERM`).
+2. Si hay FK Wagtail y no hay GID → `stagedUploadsCreate` + `fileCreate`, luego incluye `image` en el upsert.
+3. En cualquier otro caso **omite** el campo `image` (patch de `metaobjectUpsert`: preserva el `file_reference` en Shopify). Nunca envía `image` vacío.
+4. Tras el sync se reconstruye el índice; los thumbnails usan `image_url` del espejo local.
+
+Para forzar un re-upload desde Wagtail cuando ya existe GID: vaciar `shopify_image_id` y publicar con FK `image` set.
+
+**Recuperación** (imágenes en Shopify pero espejo/índice vacío):
+
+```bash
+python manage.py import_shopify_glossary   # image-only en existentes
+python manage.py rebuild_glossary_index
+```
+
 | Campo Wagtail | Campo Shopify (metaobject field) |
 |---------------|----------------------------------|
 | `term` (requerido) | `term` |
 | `definition` (RichTextField) | `definition` |
-| `shopify_image_id` (File/MediaImage GID) | `image` |
+| `shopify_image_id` (File/MediaImage GID, espejo) | `image` (solo se escribe tras upload Wagtail) |
 | `locale_code` (`en`/`es`/`fr`) | `locale` |
 | `seo_title` (Page) | `meta_title` |
 | `search_description` (Page) | `meta_description` |
-| `related_links` (JSONField) | `related_links` |
+| `related_links` (JSONField, cache) | `related_links` |
+| `related_*` FKs tipadas (fuente de verdad) | campos nativos + proyección JSON |
 | `external_links` (JSONField) | `external_links` |
 | `synonyms` (JSONField, list of strings) | `synonyms` (`list.single_line_text_field`) |
 | `same_as` (JSONField, list of URLs) | `same_as` (`list.url`) |
@@ -621,7 +646,7 @@ URL storefront: `/pages/glossary/{handle}` (`onlineStore.urlHandle = glossary`).
 
 **JSON embebidos** (omitidos en sync si vacíos):
 
-`related_links` — array:
+`related_links` — array (proyección JSON del cache; en API write se materializa como FKs tipadas `is_auto=False`):
 
 ```json
 [
@@ -732,9 +757,10 @@ Claves opcionales en `export_config` de roots `root` / `collections` para planti
 
 ProductPage, CollectionPage, ArticlePage y GlossaryTermPage usan **cuatro relaciones tipadas** (`related_products`, `related_collections`, `related_articles`, `related_glossary_terms`) con FK a `Page` y flag `is_auto`.
 
-- **Manual:** cuatro paneles en Wagtail admin bajo *Internal Links* (`AIMultipleChooserPanel` por tipo cuando `WAGTAIL_AI_PGVECTOR=true`; suggest filtrado por tipo).
-- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True` en cada relación).
-- **Backfill:** Celery Beat diario a las 04:00 (`backfill_semantic_links_task`) y encolado al terminar `index_pages_batch` (omitir con `--skip-semantic-backfill`). Por defecto `only_missing=true`.
+- **Manual:** cuatro paneles en Wagtail admin bajo *Internal Links* (`AIMultipleChooserPanel` por tipo cuando `WAGTAIL_AI_PGVECTOR=true`; suggest filtrado por tipo). API glossary `POST`/`PATCH` con `related_links` escribe las mismas FKs (`is_auto=False`).
+- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True` en cada relación; no pisa manuales). La búsqueda vectorial es **por tipo** (product / collection / article / glossary), con overfetch (`SEMANTIC_LINKS_TYPE_OVERFETCH`, default 10) para llenar hasta `SEMANTIC_LINKS_LIMIT_PER_TYPE` (default 5) por bucket. Solo se excluyen self + links manuales; los autos previos pueden re-seleccionarse.
+- **Glosario JSON:** `GlossaryTermPage.related_links` es cache reescrito desde FKs en apply API y en refresh; no es fuente de verdad frente a enrich.
+- **Backfill:** Celery Beat diario a las 04:00 (`backfill_semantic_links_task`) y encolado al terminar `index_pages_batch` (omitir con `--skip-semantic-backfill`). Por defecto en Beat `only_missing=true` (páginas con ≥1 auto link se saltan). Para regenerar buckets incompletos: `python manage.py refresh_semantic_links_batch` **sin** `--only-missing`.
 - **Shopify:** productos, colecciones y artículos reciben metafield `custom.internal_links` (JSON) **y**, en paralelo, metafields nativos `custom.related_products`, `custom.related_collections`, `custom.related_articles` y `custom.related_glossary_terms` (`list.*_reference` con GIDs). Glosario usa el campo metaobject `related_links` (JSON) **más** los campos nativos homónimos en la definición `glossary_term`.
 - **Requisitos:** `CREATE EXTENSION vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, índice poblado con `index_pages_batch`.
 
@@ -747,7 +773,7 @@ python manage.py migrate_glossary_links_to_fk   # opcional: JSON legacy → FK m
 python manage.py sync_semantic_links_revisions  # si el batch ya corrió sin revisiones
 ```
 
-Variables opcionales: `SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED`, `SEMANTIC_LINKS_BACKFILL_ONLY_MISSING`, `SEMANTIC_LINKS_NATIVE_REFS_ENABLED`, `SEMANTIC_LINKS_NATIVE_REFS_NAMESPACE`.
+Variables opcionales: `SEMANTIC_LINKS_LIMIT_PER_TYPE`, `SEMANTIC_LINKS_TYPE_OVERFETCH`, `SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED`, `SEMANTIC_LINKS_BACKFILL_ONLY_MISSING`, `SEMANTIC_LINKS_NATIVE_REFS_ENABLED`, `SEMANTIC_LINKS_NATIVE_REFS_NAMESPACE`.
 
 Definir en Shopify Admin → Custom data:
 

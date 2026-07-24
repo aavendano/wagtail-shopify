@@ -160,6 +160,7 @@ class ShopifySyncViewTests(TestCase):
         self.assertContains(response, 'Sincronizar desde Shopify')
         self.assertContains(response, 'test-shop.myshopify.com')
         self.assertContains(response, 'Importar productos nuevos')
+        self.assertContains(response, 'Importar términos del glosario nuevos')
 
     def test_get_shows_warning_when_shop_not_configured(self):
         response = self.client.get(reverse('shopify_sync'))
@@ -189,6 +190,30 @@ class ShopifySyncViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('shopify_sync'))
         mock_enqueue.assert_called_once_with('products', new_only=True)
+
+    @patch('shopify_content.admin.sync_views.enqueue_shopify_import')
+    def test_post_triggers_glossary_import(self, mock_enqueue):
+        ShopConfig.objects.create(
+            shop='test-shop.myshopify.com',
+            access_token='tok',
+        )
+        sync_run = ShopifySyncRun.objects.create(
+            kind=ShopifySyncRun.KIND_INBOUND,
+            resource='glossary',
+            new_only=True,
+            status=ShopifySyncRun.STATUS_PENDING,
+            message='Importación en cola.',
+        )
+        mock_enqueue.return_value = sync_run
+
+        response = self.client.post(
+            reverse('shopify_sync'),
+            data={'resource': 'glossary'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('shopify_sync'))
+        mock_enqueue.assert_called_once_with('glossary', new_only=True)
 
     def test_post_rejects_invalid_resource(self):
         ShopConfig.objects.create(

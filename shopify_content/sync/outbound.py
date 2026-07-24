@@ -1274,9 +1274,57 @@ def ensure_glossary_term_definition(client):
     return result
 
 
+def _refresh_glossary_image_mirror(shop, page) -> None:
+    """
+    Pull Shopify metaobject image into Wagtail mirror fields (Shopify owns media).
+
+    Best-effort: fetch failures are logged and do not raise.
+    """
+    shopify_id = (getattr(page, 'shopify_id', None) or '').strip()
+    if not shopify_id:
+        return
+
+    from shopify_content.sync.glossary_inbound import metaobject_image_from_fields
+    from shopify_content.sync.inbound import _update_glossary_image_only
+    from shopify_content.sync.queries import GET_GLOSSARY_TERM
+
+    result = execute_admin_graphql(
+        GET_GLOSSARY_TERM,
+        shop=shop,
+        variables={'id': shopify_id},
+    )
+    if not result.ok:
+        logger.warning(
+            'GlossaryTermPage image refresh failed pk=%s: %s',
+            page.pk,
+            _graphql_error_detail(result) or 'metaobject fetch failed',
+        )
+        return
+
+    node = (result.data or {}).get('metaobject')
+    if not isinstance(node, dict):
+        logger.warning(
+            'GlossaryTermPage image refresh: no metaobject pk=%s gid=%s',
+            page.pk,
+            shopify_id,
+        )
+        return
+
+    shopify_image_id, image_url, alt_text = metaobject_image_from_fields(node)
+    _update_glossary_image_only(page, shopify_image_id, image_url, alt_text)
+    page.shopify_image_id = shopify_image_id or ''
+    page.image_url = image_url or ''
+    page.image_alt_text = alt_text or ''
+
+
 def sync_glossary_term_page(page):
     """
     Push GlossaryTermPage → Shopify merchant-owned metaobject (type: glossary_term).
+
+    Content (term, definition, SEO, links) is owned by Wagtail.
+    Media (metaobject image) is owned by Shopify: outbound refreshes the local
+    mirror before upsert and only writes `image` after an explicit Wagtail upload
+    (FK set and no shopify_image_id yet).
 
     Returns (success, message). Message is human-readable and safe for API clients.
 
@@ -1306,7 +1354,15 @@ def sync_glossary_term_page(page):
     if _has_meaningful_sync_value(page.definition):
         data['definition'] = _wagtail_field_value(page.definition)
 
-    if getattr(page, 'image_id', None) and not page.shopify_image_id:
+    # Media: Shopify is source of truth. Only write `image` after an explicit
+    # Wagtail upload (FK set, no shopify_image_id yet). Otherwise omit the field
+    # so metaobjectUpsert patch semantics preserve Shopify's file_reference.
+    pending_upload = bool(getattr(page, 'image_id', None)) and not page.shopify_image_id
+
+    if page.shopify_id and not pending_upload:
+        _refresh_glossary_image_mirror(shop, page)
+
+    if pending_upload:
         ok, shopify_image_id, message = _upload_wagtail_image_to_shopify_file(shop, page)
         if not ok:
             logger.error(
@@ -1317,9 +1373,8 @@ def sync_glossary_term_page(page):
             return False, f"Shopify image upload error: {message}"
         if shopify_image_id:
             page.shopify_image_id = shopify_image_id
+            data['image'] = shopify_image_id
 
-    if page.shopify_image_id:
-        data['image'] = page.shopify_image_id
     if page.locale_code:
         data['locale'] = page.locale_code
     for key, value in [

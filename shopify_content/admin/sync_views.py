@@ -33,6 +33,7 @@ class ShopifySyncView(WagtailAdminTemplateMixin, TemplateView):
             ('products', 'Importar productos nuevos'),
             ('collections', 'Importar colecciones nuevas'),
             ('blogs', 'Importar blogs y artículos nuevos'),
+            ('glossary', 'Importar términos del glosario nuevos'),
             ('all', 'Importar todo lo nuevo'),
         ]
         return context

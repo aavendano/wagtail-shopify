@@ -162,9 +162,186 @@ class SyncGlossaryTermPageTests(TestCase):
         self.assertEqual(data['term'], 'Vibrator')
         self.assertEqual(data['locale'], 'en')
         self.assertEqual(data['definition'], '<p>A device that vibrates.</p>')
-        self.assertEqual(data['image'], 'gid://shopify/MediaImage/10')
+        # Shopify owns media: existing local GID is not re-sent (omit preserves Shopify).
+        self.assertNotIn('image', data)
         self.assertEqual(data['meta_title'], 'Vibrator')
         self.assertEqual(data['meta_description'], 'A device that vibrates.')
+
+    @patch('shopify_content.sync.outbound._refresh_glossary_image_mirror')
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_refreshes_image_mirror_and_omits_image_field(
+        self, mock_client_cls, mock_refresh,
+    ):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='glossary_term',
+            handle='vibrator',
+            id='gid://shopify/Metaobject/1',
+        )
+        mock_client_cls.return_value = mock_client
+
+        def _apply_mirror(shop, page):
+            page.shopify_image_id = 'gid://shopify/MediaImage/99'
+            page.image_url = 'https://cdn.shopify.com/lingerie.jpg'
+            page.image_alt_text = 'Lingerie alt'
+            type(page).objects.filter(pk=page.pk).update(
+                shopify_image_id=page.shopify_image_id,
+                image_url=page.image_url,
+                image_alt_text=page.image_alt_text,
+            )
+
+        mock_refresh.side_effect = _apply_mirror
+
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            definition='<p>A device that vibrates.</p>',
+            shopify_id='gid://shopify/Metaobject/1',
+            locale_code='en',
+            slug='vibrator',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        success, _ = sync_glossary_term_page(page)
+
+        self.assertTrue(success)
+        mock_refresh.assert_called_once()
+        data = mock_client.sync.call_args.args[0]
+        self.assertNotIn('image', data)
+        page.refresh_from_db()
+        self.assertEqual(page.shopify_image_id, 'gid://shopify/MediaImage/99')
+        self.assertEqual(page.image_url, 'https://cdn.shopify.com/lingerie.jpg')
+        self.assertEqual(page.image_alt_text, 'Lingerie alt')
+
+        from shopify_content.glossary.index import _glossary_index_item
+
+        item = _glossary_index_item(page, page.term, 'vibrator')
+        self.assertEqual(item['image_url'], 'https://cdn.shopify.com/lingerie.jpg')
+        self.assertEqual(item['image_alt'], 'Lingerie alt')
+
+    @patch('shopify_content.sync.outbound._refresh_glossary_image_mirror')
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_with_local_gid_refreshes_and_does_not_resend_image(
+        self, mock_client_cls, mock_refresh,
+    ):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='glossary_term',
+            handle='vibrator',
+            id='gid://shopify/Metaobject/1',
+        )
+        mock_client_cls.return_value = mock_client
+
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            shopify_id='gid://shopify/Metaobject/1',
+            shopify_image_id='gid://shopify/MediaImage/stale',
+            locale_code='en',
+            slug='vibrator',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        success, _ = sync_glossary_term_page(page)
+
+        self.assertTrue(success)
+        mock_refresh.assert_called_once()
+        data = mock_client.sync.call_args.args[0]
+        self.assertNotIn('image', data)
+
+    @patch('shopify_content.sync.outbound._upload_wagtail_image_to_shopify_file')
+    @patch('shopify_content.sync.outbound._refresh_glossary_image_mirror')
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_pending_upload_includes_image_and_skips_refresh(
+        self, mock_client_cls, mock_refresh, mock_upload,
+    ):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='glossary_term',
+            handle='vibrator',
+            id='gid://shopify/Metaobject/1',
+        )
+        mock_client_cls.return_value = mock_client
+        mock_upload.return_value = (True, 'gid://shopify/MediaImage/new', '')
+
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            shopify_id='gid://shopify/Metaobject/1',
+            locale_code='en',
+            slug='vibrator',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+        # Simulate pending upload without creating a real wagtailimages.Image row.
+        page.image_id = 4242
+        page.shopify_image_id = ''
+
+        success, _ = sync_glossary_term_page(page)
+
+        self.assertTrue(success)
+        mock_refresh.assert_not_called()
+        mock_upload.assert_called_once()
+        data = mock_client.sync.call_args.args[0]
+        self.assertEqual(data['image'], 'gid://shopify/MediaImage/new')
+
+    @patch('shopify_content.sync.outbound.execute_admin_graphql')
+    def test_refresh_glossary_image_mirror_updates_page(self, mock_graphql):
+        from shopify_content.sync.outbound import _refresh_glossary_image_mirror
+        from shopify_requests.graphql_service import AdminGraphqlResult
+
+        mock_graphql.return_value = AdminGraphqlResult(
+            ok=True,
+            shop='test-shop.myshopify.com',
+            data={
+                'metaobject': {
+                    'id': 'gid://shopify/Metaobject/1',
+                    'handle': 'vibrator',
+                    'fields': [
+                        {
+                            'key': 'image',
+                            'value': 'gid://shopify/MediaImage/55',
+                            'reference': {
+                                'id': 'gid://shopify/MediaImage/55',
+                                'image': {
+                                    'url': 'https://cdn.shopify.com/term.jpg',
+                                    'altText': 'Term alt',
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+            extensions=None,
+            error_code=None,
+            log_detail='',
+            reauthorization_required=False,
+            retryable=False,
+            raw=None,
+        )
+
+        page = GlossaryTermPage(
+            title='Vibrator',
+            term='Vibrator',
+            shopify_id='gid://shopify/Metaobject/1',
+            slug='vibrator-refresh',
+            locale=Locale.get_default(),
+        )
+        self.parent.add_child(instance=page)
+        page.save_revision().publish()
+
+        _refresh_glossary_image_mirror('test-shop.myshopify.com', page)
+
+        page.refresh_from_db()
+        self.assertEqual(page.shopify_image_id, 'gid://shopify/MediaImage/55')
+        self.assertEqual(page.image_url, 'https://cdn.shopify.com/term.jpg')
+        self.assertEqual(page.image_alt_text, 'Term alt')
+        mock_graphql.assert_called_once()
 
     @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
     def test_sync_uses_explicit_seo_fields(self, mock_client_cls):

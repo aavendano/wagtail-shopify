@@ -206,6 +206,177 @@ class RefreshSemanticLinksTests(TestCase):
             ).exists()
         )
 
+    @override_settings(SEMANTIC_LINKS_ENABLED=True, SEMANTIC_LINKS_LIMIT_PER_TYPE=2)
+    @patch('shopify_content.semantic_links.service.search_similar_pages')
+    def test_refresh_searches_per_type_and_skips_prior_autos_in_excludes(self, mock_search):
+        blog_page = BlogPage(title='B3', slug='b3', handle='b3', locale=self.source.locale)
+        self.root.add_child(instance=blog_page)
+        blog_page.save_revision().publish()
+        article = ArticlePage(title='A3', slug='a3', handle='a3', locale=self.source.locale)
+        blog_page.add_child(instance=article)
+        article.save_revision().publish()
+
+        prior_auto = ProductPage(
+            title='Prior Auto',
+            slug='prior-auto',
+            handle='prior-auto',
+            locale=self.source.locale,
+        )
+        self.root.add_child(instance=prior_auto)
+        prior_auto.save_revision().publish()
+        self.source.related_products.create(
+            related_page=prior_auto,
+            is_auto=True,
+            sort_order=0,
+        )
+
+        search_calls = {'n': 0}
+
+        def _search(content, *, exclude_pks, limit, allowed_types=None):
+            search_calls['n'] += 1
+            self.assertIn(self.source.pk, exclude_pks)
+            # First call must not exclude prior autos (only self + manuals).
+            if search_calls['n'] == 1:
+                self.assertNotIn(prior_auto.pk, exclude_pks)
+            if allowed_types == ['article']:
+                return [article]
+            if allowed_types == ['product']:
+                return [prior_auto]
+            return []
+
+        mock_search.side_effect = _search
+        refresh_semantic_links(self.source)
+
+        self.assertEqual(mock_search.call_count, 4)
+        called_types = [
+            call.kwargs.get('allowed_types')
+            for call in mock_search.call_args_list
+        ]
+        self.assertEqual(
+            called_types,
+            [['product'], ['collection'], ['article'], ['glossary']],
+        )
+        self.assertTrue(
+            self.source.related_articles.filter(
+                related_page=article,
+                is_auto=True,
+            ).exists()
+        )
+        self.assertTrue(
+            self.source.related_products.filter(
+                related_page=prior_auto,
+                is_auto=True,
+            ).exists()
+        )
+        self.assertTrue(
+            self.source.related_collections.filter(
+                related_page=self.target,
+                is_auto=False,
+            ).exists()
+        )
+
+
+class GlossaryManualRelatedLinksTests(TestCase):
+    def setUp(self):
+        locale = Locale.get_default()
+        home = Page.objects.first()
+        if home is None:
+            home = Page.add_root(instance=Page(title='Home', slug='home', locale=locale))
+        self.root = ShopifyRootPage(title='Root', slug='root-glossary-manual', locale=locale)
+        home.add_child(instance=self.root)
+        self.root.save_revision().publish()
+
+        self.term = GlossaryTermPage(
+            title='Source Term',
+            term='Source Term',
+            slug='source-term',
+            handle='source-term',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.term)
+        self.term.save_revision().publish()
+
+        self.product = ProductPage(
+            title='Manual Product',
+            slug='manual-product',
+            handle='manual-product',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.product)
+        self.product.save_revision().publish()
+
+        self.other_product = ProductPage(
+            title='Auto Product',
+            slug='auto-product',
+            handle='auto-product',
+            locale=locale,
+        )
+        self.root.add_child(instance=self.other_product)
+        self.other_product.save_revision().publish()
+
+    def test_apply_manual_related_links_creates_fks_and_json_cache(self):
+        from shopify_content.semantic_links.manual_links import apply_manual_related_links
+
+        apply_manual_related_links(
+            self.term,
+            [
+                {
+                    'type': 'product',
+                    'handle': 'manual-product',
+                    'label': 'Manual Product',
+                }
+            ],
+            persist_revision=False,
+        )
+
+        self.term.refresh_from_db()
+        self.assertTrue(
+            self.term.related_products.filter(
+                related_page=self.product,
+                is_auto=False,
+            ).exists()
+        )
+        self.assertEqual(self.term.related_links[0]['handle'], 'manual-product')
+        serialized = serialize_semantic_links(self.term)
+        self.assertEqual(serialized[0]['handle'], 'manual-product')
+
+    @override_settings(SEMANTIC_LINKS_ENABLED=True, SEMANTIC_LINKS_LIMIT_PER_TYPE=2)
+    @patch('shopify_content.semantic_links.service.search_similar_pages')
+    def test_refresh_preserves_manual_glossary_links(self, mock_search):
+        from shopify_content.semantic_links.manual_links import apply_manual_related_links
+
+        apply_manual_related_links(
+            self.term,
+            [
+                {
+                    'type': 'product',
+                    'handle': 'manual-product',
+                    'label': 'Manual Product',
+                }
+            ],
+            persist_revision=False,
+        )
+        mock_search.return_value = [self.other_product]
+
+        refresh_semantic_links(self.term)
+
+        self.term.refresh_from_db()
+        self.assertTrue(
+            self.term.related_products.filter(
+                related_page=self.product,
+                is_auto=False,
+            ).exists()
+        )
+        self.assertTrue(
+            self.term.related_products.filter(
+                related_page=self.other_product,
+                is_auto=True,
+            ).exists()
+        )
+        handles = {link['handle'] for link in self.term.related_links}
+        self.assertIn('manual-product', handles)
+        self.assertIn('auto-product', handles)
+
 
 class ClassifyAndCapTests(TestCase):
     def test_respects_limit_per_type(self):

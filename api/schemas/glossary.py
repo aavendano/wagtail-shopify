@@ -87,7 +87,11 @@ class GlossaryTermIn(LocaleCreateFields):
     )
     related_links: Optional[List[RelatedLinkSchema]] = Field(
         None,
-        description="Internal Shopify/Wagtail links synced as JSON on push.",
+        description=(
+            "Internal links stored as typed manual semantic FKs (is_auto=False). "
+            "JSON related_links on the page is a derived cache. "
+            "Supported types: product, collection, article, metaobject."
+        ),
     )
     external_links: Optional[List[ExternalLinkSchema]] = Field(
         None,
@@ -144,7 +148,12 @@ class GlossaryTermPatch(LocalePatchFields):
     )
     related_links: Optional[List[RelatedLinkSchema]] = Field(
         None,
-        description="Replace related links. Pass [] to clear. Omit to leave unchanged.",
+        description=(
+            "Replace manual related links (typed FKs, is_auto=False). "
+            "Pass [] to clear manuals. Omit to leave unchanged. "
+            "Auto-enriched links (is_auto=True) are preserved on refresh. "
+            "JSON related_links is rewritten as a projection of all typed FKs."
+        ),
     )
     external_links: Optional[List[ExternalLinkSchema]] = Field(
         None,
@@ -191,7 +200,10 @@ class GlossaryTermOut(StorefrontUrlOutFields, LocaleOutFields):
     locale_code: str = Field(..., description="Shopify locale pushed on sync (en/es/fr).")
     related_links: List[RelatedLinkSchema] = Field(
         default_factory=list,
-        description="Internal links synced to Shopify.",
+        description=(
+            "Internal links from typed semantic FKs (manual + auto). "
+            "Falls back to legacy JSON related_links only when no FKs exist."
+        ),
     )
     external_links: List[ExternalLinkSchema] = Field(
         default_factory=list,

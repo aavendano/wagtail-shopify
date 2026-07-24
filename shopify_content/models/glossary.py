@@ -53,22 +53,33 @@ class GlossaryTermPage(Page):
         blank=True,
         on_delete=models.SET_NULL,
         related_name='+',
-        help_text='Manual Wagtail image for the glossary term.',
+        help_text=(
+            'Optional Wagtail upload to create/replace the Shopify File when '
+            'shopify_image_id is empty. Shopify owns media; clear shopify_image_id '
+            'to force a new upload.'
+        ),
     )
     image_alt_text = models.CharField(
         max_length=255,
         blank=True,
-        help_text='Alt text for the glossary image.',
+        help_text='Alt text mirror from Shopify (or used on Wagtail upload).',
     )
     image_url = models.URLField(
         max_length=500,
         blank=True,
-        help_text='Absolute Shopify CDN URL for the glossary image (populated on pull).',
+        help_text=(
+            'Absolute Shopify CDN URL (mirror). Populated on pull/refresh; '
+            'used by the glossary index. Shopify owns media.'
+        ),
     )
     shopify_image_id = models.CharField(
         max_length=255,
         blank=True,
-        help_text='Shopify File/MediaImage GID used for the metaobject image field.',
+        help_text=(
+            'Shopify File/MediaImage GID (mirror of metaobject image). '
+            'Shopify is source of truth; outbound only writes this field after '
+            'an explicit Wagtail upload.'
+        ),
     )
     locale_code = models.CharField(
         max_length=10,

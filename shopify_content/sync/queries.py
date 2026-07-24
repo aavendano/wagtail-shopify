@@ -273,3 +273,11 @@ query ListGlossaryTerms($first: Int!, $after: String) {
   }
 }
 """ % GLOSSARY_TERM_METAOBJECT_FIELDS
+
+GET_GLOSSARY_TERM = """
+query GetGlossaryTerm($id: ID!) {
+  metaobject(id: $id) {
+    %s
+  }
+}
+""" % GLOSSARY_TERM_METAOBJECT_FIELDS

@@ -426,7 +426,7 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "update_glossary_term", "PATCH", "/glossary/{page_id}",
         "update", "glossary",
         "Update a Glossary term page",
-        "Edit term fields; publish=true optional before push.",
+        "Edit term fields; related_links writes manual typed FKs; publish=true optional before push.",
         "GlossaryTermOut",
         ("push_glossary_term", "get_glossary_term"),
     ),

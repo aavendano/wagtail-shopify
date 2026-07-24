@@ -39,9 +39,10 @@ curl -s -H "Authorization: Bearer $API_KEY" "$BASE/openapi.json" | head
 
 ### 3. Documentación interactiva
 
-- OpenAPI JSON: `/api/v1/openapi.json`
+- OpenAPI JSON: `/api/v1/openapi.json` (incluye `servers` con URL absoluta del host público)
 - **Catálogo de capacidades (agentes):** `GET /api/v1/capabilities/`
 - Swagger UI: `/api/v1/docs/`
+- **ChatGPT Actions (import inmediato):** pegar `docs/openapi-chatgpt.json` (OpenAPI 3.0.3 + `servers`). Auth: API Key → Bearer.
 
 Usa los `operation_id` del OpenAPI como nombres estables de herramientas (p.ej. `pull_products_sync_post`, `push_location`).
 
@@ -243,6 +244,8 @@ curl -X POST -H "Authorization: Bearer $API_KEY" \
 ```
 
 `synonyms` y `same_as` son opcionales: omitir o enviar `[]` deja listas vacías (default). `same_as` son URLs externas schema.org (Wikipedia/Wikidata), distintas de `translation_of` (variantes Wagtail por locale).
+
+`related_links` en POST/PATCH se persisten como **FKs tipadas manuales** (`is_auto=False` en `related_products` / `related_collections` / `related_articles` / `related_glossary_terms`). El JSONField `related_links` es **cache derivado** (se reescribe al aplicar el PATCH y en `refresh_semantic_links`). Tipos soportados: `product`, `collection`, `article`, `metaobject`. Un handle no resoluble en el mismo locale → `400`. `[]` borra solo los manuales; los auto (`is_auto=True`) los gestiona el enrich al publicar.
 
 ```bash
 # Crear término mínimo (sin synonyms/same_as)

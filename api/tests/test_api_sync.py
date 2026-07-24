@@ -10,7 +10,13 @@ from wagtail.models import Locale, Page
 from api.main import api
 from api.models import ApiKey
 from api.agent_registry import CAPABILITIES, WORKFLOWS
-from shopify_content.models import GlossaryTermPage, HomePage, LocationPage, ShopifyRootPage
+from shopify_content.models import (
+    GlossaryTermPage,
+    HomePage,
+    LocationPage,
+    ProductPage,
+    ShopifyRootPage,
+)
 
 
 def _auth_headers(key: str) -> dict:
@@ -410,6 +416,149 @@ class GlossaryApiTests(TestCase):
         self.assertEqual(patch_response.json()["locale_code"], "es")
         self.assertEqual(patch_response.json()["definition"], "<p>Updated definition.</p>")
 
+    def test_patch_related_links_persists_as_manual_fks(self):
+        locale = Locale.get_default()
+        product = ProductPage(
+            title="Satisfyer Pro 2",
+            slug="satisfyer-pro-2",
+            handle="satisfyer-pro-2",
+            locale=locale,
+        )
+        self.products_parent.add_child(instance=product)
+        product.save_revision().publish()
+
+        create_response = self.client.post(
+            "/glossary/",
+            json={"term": "Vibrator", "locale_code": "en", "handle": "vibrator"},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(create_response.status_code, 201)
+        page_id = create_response.json()["id"]
+
+        related = [
+            {
+                "type": "product",
+                "handle": "satisfyer-pro-2",
+                "label": "Satisfyer Pro 2",
+            }
+        ]
+        patch_response = self.client.patch(
+            f"/glossary/{page_id}",
+            json={"related_links": related},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        body_links = patch_response.json()["related_links"]
+        self.assertEqual(len(body_links), 1)
+        self.assertEqual(body_links[0]["type"], "product")
+        self.assertEqual(body_links[0]["handle"], "satisfyer-pro-2")
+
+        page = GlossaryTermPage.objects.get(pk=page_id)
+        self.assertTrue(
+            page.related_products.filter(related_page=product, is_auto=False).exists()
+        )
+        self.assertEqual(len(page.related_links), 1)
+
+        get_response = self.client.get(
+            f"/glossary/{page_id}",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(get_response.json()["related_links"][0]["handle"], "satisfyer-pro-2")
+
+    def test_create_with_related_links_persists_manual_fks(self):
+        locale = Locale.get_default()
+        product = ProductPage(
+            title="Linked Product",
+            slug="linked-product",
+            handle="linked-product",
+            locale=locale,
+        )
+        self.products_parent.add_child(instance=product)
+        product.save_revision().publish()
+
+        response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Massager",
+                "locale_code": "en",
+                "related_links": [
+                    {
+                        "type": "product",
+                        "handle": "linked-product",
+                        "label": "Linked Product",
+                    }
+                ],
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201)
+        page = GlossaryTermPage.objects.get(pk=response.json()["id"])
+        self.assertTrue(
+            page.related_products.filter(related_page=product, is_auto=False).exists()
+        )
+        self.assertEqual(response.json()["related_links"][0]["handle"], "linked-product")
+
+    def test_patch_related_links_unresolved_returns_400(self):
+        create_response = self.client.post(
+            "/glossary/",
+            json={"term": "Broken Links", "locale_code": "en"},
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+
+        patch_response = self.client.patch(
+            f"/glossary/{page_id}",
+            json={
+                "related_links": [
+                    {
+                        "type": "product",
+                        "handle": "does-not-exist",
+                        "label": "Missing",
+                    }
+                ]
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 400)
+        self.assertIn("could not resolve", patch_response.json()["detail"])
+
+    def test_patch_related_links_empty_clears_manuals(self):
+        locale = Locale.get_default()
+        product = ProductPage(
+            title="Clear Me",
+            slug="clear-me",
+            handle="clear-me",
+            locale=locale,
+        )
+        self.products_parent.add_child(instance=product)
+        product.save_revision().publish()
+
+        create_response = self.client.post(
+            "/glossary/",
+            json={
+                "term": "Clear Links",
+                "locale_code": "en",
+                "related_links": [
+                    {"type": "product", "handle": "clear-me", "label": "Clear Me"}
+                ],
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        page_id = create_response.json()["id"]
+        page = GlossaryTermPage.objects.get(pk=page_id)
+        self.assertEqual(page.related_products.filter(is_auto=False).count(), 1)
+
+        patch_response = self.client.patch(
+            f"/glossary/{page_id}",
+            json={"related_links": []},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.json()["related_links"], [])
+        page.refresh_from_db()
+        self.assertEqual(page.related_products.filter(is_auto=False).count(), 0)
+
     def test_create_and_patch_glossary_seo_fields(self):
         create_response = self.client.post(
             "/glossary/",
@@ -722,3 +871,18 @@ class OpenAPIAgentMetadataTests(TestCase):
         self.assertIn("Capabilities", tag_names)
         products_tag = next(t for t in schema["tags"] if t["name"] == "Products")
         self.assertIn("sync_inbound", products_tag["description"])
+
+    def test_openapi_servers_has_absolute_url(self):
+        """ChatGPT Actions rejects specs with empty/missing servers URLs."""
+        schema = get_schema(api=api, path_prefix="/api/v1")
+        servers = schema.get("servers") or []
+        self.assertTrue(servers, "servers must not be empty")
+        url = servers[0].get("url", "")
+        self.assertTrue(
+            url.startswith(("http://", "https://")),
+            f"servers[0].url must be absolute, got {url!r}",
+        )
+        self.assertFalse(
+            url.rstrip("/").endswith("/api/v1"),
+            "server URL must be origin only; paths already include /api/v1",
+        )

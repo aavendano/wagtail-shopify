@@ -1,5 +1,6 @@
 import api.ninja_compat  # noqa: F401 — patch URL converters before ninja import
 
+from django.conf import settings
 from ninja import NinjaAPI
 
 from .auth import ApiKeyAuth
@@ -12,6 +13,22 @@ from .routers.locations import router as locations_router
 from .routers.glossary import router as glossary_router
 from .routers.home import router as home_router
 from .routers.capabilities import router as capabilities_router
+
+
+def openapi_servers() -> list[dict[str, str]]:
+    """Absolute public host for OpenAPI `servers` (ChatGPT Actions requires it).
+
+    Paths in the mounted schema are `/api/v1/...`, so the server URL must be the
+    origin only (no `/api/v1` suffix).
+    """
+    base = (
+        getattr(settings, "SHOPIFY_APP_URL", None)
+        or getattr(settings, "WAGTAILADMIN_BASE_URL", "")
+        or ""
+    ).rstrip("/")
+    if not base.startswith(("http://", "https://")):
+        return []
+    return [{"url": base, "description": "Public CMS host"}]
 
 API_DESCRIPTION = """
 # Wagtail-Shopify Content API (AI Agent Tool Registry)
@@ -120,6 +137,35 @@ Set `locale` on create; use `translation_of` (Wagtail page ID) to link variants.
 - Use `operation_id` values in OpenAPI for stable AI tool names.
 """
 
+_OPENAPI_SERVERS = openapi_servers()
+
+# #region agent log
+try:
+    import json as _json
+    import time as _time
+    from pathlib import Path as _Path
+
+    _Path("/home/alejandro/apps/.cursor/debug-d032c4.log").open("a").write(
+        _json.dumps(
+            {
+                "sessionId": "d032c4",
+                "runId": "post-fix",
+                "hypothesisId": "A",
+                "location": "api/main.py:openapi_servers",
+                "message": "NinjaAPI servers configured",
+                "data": {
+                    "servers": _OPENAPI_SERVERS,
+                    "has_valid_absolute_url": bool(_OPENAPI_SERVERS),
+                },
+                "timestamp": int(_time.time() * 1000),
+            }
+        )
+        + "\n"
+    )
+except Exception:
+    pass
+# #endregion
+
 api = NinjaAPI(
     title="Wagtail-Shopify Content API",
     version="1.1.0",
@@ -128,6 +174,7 @@ api = NinjaAPI(
     auth=ApiKeyAuth(),
     docs_url="/docs/",
     openapi_url="/openapi.json",
+    servers=_OPENAPI_SERVERS,
     openapi_extra={"tags": build_openapi_tags()},
 )
 

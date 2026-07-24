@@ -65,6 +65,7 @@ SEMANTIC_LINKS_AUTO_ON_PUBLISH = (
     os.environ.get('SEMANTIC_LINKS_AUTO_ON_PUBLISH', 'true').lower() == 'true'
 )
 SEMANTIC_LINKS_LIMIT_PER_TYPE = int(os.environ.get('SEMANTIC_LINKS_LIMIT_PER_TYPE', '5'))
+SEMANTIC_LINKS_TYPE_OVERFETCH = int(os.environ.get('SEMANTIC_LINKS_TYPE_OVERFETCH', '10'))
 SEMANTIC_LINKS_INDEX_ON_PUBLISH = (
     os.environ.get('SEMANTIC_LINKS_INDEX_ON_PUBLISH', 'true').lower() == 'true'
 )

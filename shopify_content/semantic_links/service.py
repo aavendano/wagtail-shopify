@@ -13,7 +13,6 @@ from shopify_content.models.collection import CollectionPage
 from shopify_content.models.glossary import GlossaryTermPage
 from shopify_content.models.product import ProductPage
 from shopify_content.models.semantic_links import (
-    all_related_page_pks,
     count_auto_semantic_links,
     delete_auto_semantic_links,
     get_typed_link_model,
@@ -126,9 +125,17 @@ def search_similar_pages(
     limit: int,
     allowed_types: list[str] | None = None,
 ) -> list[Page]:
+    """
+    Vector search against PageIndex.
+
+    Pass ``allowed_types`` so the SuggestedContentAgent wrapper can overfetch
+    and filter by page type before returning.
+    """
     if not content.strip():
         return []
     if not getattr(settings, 'WAGTAIL_AI_PGVECTOR', False):
+        return []
+    if limit <= 0:
         return []
 
     from wagtail_ai.agents.suggested_content import SuggestedContentAgent
@@ -139,6 +146,7 @@ def search_similar_pages(
         content=content,
         exclude_pks=[str(pk) for pk in exclude_pks],
         limit=limit,
+        allowed_types=allowed_types,
     )
 
     pages: list[Page] = []
@@ -160,11 +168,57 @@ def search_similar_pages(
         if allowed_types and type_key not in allowed_types:
             continue
         pages.append(page)
+        if len(pages) >= limit:
+            break
     return pages
 
 
 def _existing_manual_related_pks(page) -> set[int]:
     return manual_related_page_pks(page)
+
+
+def _suggest_links_by_type(
+    content: str,
+    *,
+    source_page,
+    exclude_pks: list[int],
+    limit_per_type: int,
+) -> dict[str, list[Page]]:
+    """
+    Fill up to ``limit_per_type`` suggestions per linkable type via separate searches.
+
+    Only ``exclude_pks`` (self + manuals) are withheld; prior auto links may be
+    re-selected so regeneration is not starved by the previous top-K.
+    """
+    grouped: dict[str, list[Page]] = {
+        'product': [],
+        'collection': [],
+        'article': [],
+        'glossary': [],
+    }
+    chosen: set[int] = set(exclude_pks)
+
+    for type_key in ('product', 'collection', 'article', 'glossary'):
+        candidates = search_similar_pages(
+            content,
+            exclude_pks=list(chosen),
+            limit=limit_per_type,
+            allowed_types=[type_key],
+        )
+        typed = classify_and_cap(
+            candidates,
+            source_page=source_page,
+            limit_per_type=limit_per_type,
+        )
+        for page in typed[type_key]:
+            if page.pk in chosen:
+                continue
+            grouped[type_key].append(page)
+            chosen.add(page.pk)
+            if len(grouped[type_key]) >= limit_per_type:
+                break
+
+    return grouped
 
 
 def _sync_glossary_related_links_cache(page: GlossaryTermPage):
@@ -241,14 +295,16 @@ def refresh_semantic_links(
     limit_per_type = getattr(settings, 'SEMANTIC_LINKS_LIMIT_PER_TYPE', 5)
     content = extract_page_content(specific)
     manual_pks = _existing_manual_related_pks(specific)
-    exclude_pks = [specific.pk, *manual_pks, *all_related_page_pks(specific)]
+    # Exclude only self + manual links. Prior auto links must remain searchable
+    # so regeneration can refill each type up to the limit.
+    exclude_pks = [specific.pk, *manual_pks]
 
-    candidates = search_similar_pages(
+    grouped = _suggest_links_by_type(
         content,
-        exclude_pks=list(exclude_pks),
-        limit=limit_per_type * len(SEMANTIC_LINK_PAGE_TYPES),
+        source_page=specific,
+        exclude_pks=exclude_pks,
+        limit_per_type=limit_per_type,
     )
-    grouped = classify_and_cap(candidates, source_page=specific, limit_per_type=limit_per_type)
 
     created_count = sum(len(grouped[key]) for key in grouped)
     removed_count = count_auto_semantic_links(specific)

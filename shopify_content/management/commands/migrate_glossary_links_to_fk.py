@@ -3,12 +3,9 @@
 from django.core.management.base import BaseCommand
 
 from shopify_content.models import GlossaryTermPage
-from shopify_content.models.blog import ArticlePage, BlogPage
-from shopify_content.models.collection import CollectionPage
-from shopify_content.models.product import ProductPage
 from shopify_content.models.semantic_links import relation_for_page_type
+from shopify_content.semantic_links.manual_links import resolve_related_link_target
 from shopify_content.semantic_links.service import page_type_key_for, persist_semantic_links_revision
-from wagtail.models import Page
 
 
 class Command(BaseCommand):
@@ -36,7 +33,11 @@ class Command(BaseCommand):
                 continue
 
             for link in links:
-                target = self._resolve_page(link, locale_id=term_page.locale_id)
+                try:
+                    target = resolve_related_link_target(link, locale_id=term_page.locale_id)
+                except Exception:
+                    skipped += 1
+                    continue
                 if target is None:
                     skipped += 1
                     continue
@@ -82,32 +83,3 @@ class Command(BaseCommand):
                 f'Migration complete (created={created}, skipped={skipped}, dry_run={dry_run}).'
             )
         )
-
-    def _resolve_page(self, link, *, locale_id):
-        link_type = link.get('type')
-        handle = link.get('handle')
-        if not link_type or not handle:
-            return None
-
-        if link_type == 'product':
-            qs = ProductPage.objects.filter(handle=handle, locale_id=locale_id)
-        elif link_type == 'collection':
-            qs = CollectionPage.objects.filter(handle=handle, locale_id=locale_id)
-        elif link_type == 'article':
-            blog_handle = link.get('blog_handle')
-            if not blog_handle:
-                return None
-            try:
-                blog = BlogPage.objects.get(handle=blog_handle, locale_id=locale_id)
-            except BlogPage.DoesNotExist:
-                return None
-            qs = ArticlePage.objects.filter(handle=handle, locale_id=locale_id).descendant_of(blog)
-        elif link_type == 'metaobject':
-            qs = GlossaryTermPage.objects.filter(handle=handle, locale_id=locale_id)
-        else:
-            return None
-
-        page = qs.first()
-        if page is None:
-            return None
-        return Page.objects.get(pk=page.pk)

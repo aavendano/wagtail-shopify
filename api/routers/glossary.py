@@ -37,6 +37,25 @@ def _serialize_links(links):
     return result
 
 
+def _validation_detail(exc: ValidationError) -> str:
+    if hasattr(exc, 'messages'):
+        return '; '.join(str(message) for message in exc.messages)
+    return str(exc)
+
+
+def _apply_related_links(page: GlossaryTermPage, data, *, persist_revision: bool):
+    """Persist related_links as typed manual FKs once the page has a primary key."""
+    if data.related_links is None:
+        return
+    from shopify_content.semantic_links.manual_links import apply_manual_related_links
+
+    apply_manual_related_links(
+        page,
+        _serialize_links(data.related_links),
+        persist_revision=persist_revision,
+    )
+
+
 def _apply_glossary_fields(page: GlossaryTermPage, data, *, is_create: bool = False):
     if is_create:
         page.term = data.term
@@ -168,8 +187,10 @@ def create_glossary_term(request, data: GlossaryTermIn):
 
         parent.add_child(instance=page)
         page.refresh_from_db()
+        _apply_related_links(page, data, persist_revision=True)
+        page.refresh_from_db()
     except ValidationError as exc:
-        return 400, {"detail": str(exc)}
+        return 400, {"detail": _validation_detail(exc)}
 
     return 201, page
 
@@ -216,11 +237,22 @@ def update_glossary_term(request, page_id: int, data: GlossaryTermPatch):
 
     _apply_glossary_fields(page, data, is_create=False)
 
-    if data.publish:
-        revision = page.save_revision()
-        revision.publish()
-    else:
-        page.save()
+    # Persist scalar fields first, then manual FKs, then publish so enrich keeps manuals.
+    try:
+        if data.publish:
+            page.save()
+            _apply_related_links(page, data, persist_revision=False)
+            revision = page.save_revision()
+            revision.publish()
+        else:
+            page.save()
+            _apply_related_links(
+                page,
+                data,
+                persist_revision=bool(page.live),
+            )
+    except ValidationError as exc:
+        return 400, {"detail": _validation_detail(exc)}
 
     page.refresh_from_db()
     return page
