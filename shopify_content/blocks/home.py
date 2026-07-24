@@ -59,7 +59,7 @@ class FeaturedCollectionsBlock(StructBlock):
     badge = CharBlock(max_length=40, required=False)
     title = CharBlock(max_length=120, required=True)
     intro = CharBlock(max_length=300, required=False)
-    items = ListBlock(FeaturedCollectionItemBlock(), min_num=1, max_num=6)
+    items = ListBlock(FeaturedCollectionItemBlock(), min_num=1, max_num=4)
 
     class Meta:
         icon = 'folder-open-1'

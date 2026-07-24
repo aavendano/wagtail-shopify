@@ -797,7 +797,7 @@ Para `list.metaobject_reference`, configurar validación a la definición metaob
 {% endfor %}
 ```
 
-Mientras el theme no migre, seguir usando `related_links` (JSON) o `custom.internal_links` en productos/colecciones/artículos.
+El theme consume refs nativas en glosario, productos, colecciones y artículos (`cms-related-content` / `cms-related-term-pills`). `custom.internal_links` JSON sigue como fallback cuando las refs nativas están vacías.
 
 **Backfill de referencias nativas** (tras crear las definiciones en Admin):
 
@@ -806,7 +806,7 @@ python manage.py backfill_shopify_native_references --model all --dry-run
 python manage.py backfill_shopify_native_references --model all
 ```
 
-Orden recomendado: `migrate_glossary_links_to_fk` → deploy → `ensure_metaobject_definitions` → metafield definitions en Admin → `backfill_shopify_native_references` → verificar GIDs en Admin API → theme migra a refs nativas → futuro: deprecar `internal_links` JSON.
+Orden recomendado: `migrate_glossary_links_to_fk` → deploy → `ensure_metaobject_definitions` → metafield definitions en Admin → `backfill_shopify_native_references` → verificar GIDs en Admin API → theme (ya consume refs nativas en P/C/A/glosario) → futuro: deprecar `internal_links` JSON.
 
 ### Actualizar definición `glossary_term` existente
 

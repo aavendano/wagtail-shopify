@@ -111,6 +111,21 @@ def _nav_collection_pills_section() -> dict:
     }
 
 
+def _featured_collection_items() -> list[dict]:
+    """Four core category cards for the featured grid (lg:grid-cols-4)."""
+    items = []
+    for handle, title in (
+        ('vibrators', 'Vibrators'),
+        ('sex-toys-for-couples', 'Couples'),
+        ('best-sex-toys', 'Best Sex Toys'),
+        ('sex-toys-for-women', 'For Women'),
+    ):
+        page_id = _collection_page_id(handle)
+        if page_id:
+            items.append({'page_id': page_id, 'override_title': title})
+    return items
+
+
 def _storefront_url(path: str) -> str:
     """Build absolute URL for Wagtail URLField (storefront-relative path)."""
     path = path if path.startswith('/') else f'/{path}'
@@ -161,11 +176,7 @@ def _sections_payload() -> dict:
                     'badge': 'TRENDING',
                     'title': 'Core Categories',
                     'intro': 'Shop our most-loved collections, curated for discovery and everyday pleasure.',
-                    'items': [
-                        {'page_id': 2859, 'override_title': 'Vibrators'},
-                        {'page_id': 242, 'override_title': 'Couples'},
-                        {'page_id': 200, 'override_title': 'Best Sex Toys'},
-                    ],
+                    'items': _featured_collection_items(),
                 },
             },
             {
