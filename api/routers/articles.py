@@ -91,7 +91,13 @@ def create_article(request, data: ArticleIn):
     source = apply_translation_link(page, data.translation_of, ArticlePage)
     inherit_shopify_id_from_source(page, source)
 
+    # Create as unpublished draft. Wagtail add_child defaults to live=True;
+    # Content API create must not publish (Dirección owns publish/push).
+    page.live = False
     blog_page.add_child(instance=page)
+    page.refresh_from_db()
+    if page.live:
+        page.unpublish()
 
     if data.tags:
         page.tags.set(data.tags)

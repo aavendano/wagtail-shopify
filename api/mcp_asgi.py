@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import time
+from pathlib import Path
 
 from asgiref.sync import sync_to_async
 from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
@@ -12,6 +15,29 @@ from starlette.responses import JSONResponse
 logger = logging.getLogger(__name__)
 
 MCP_PATH = "/api/v1/mcp"
+
+# #region agent log
+_DEBUG_LOG = Path("/home/alejandro/apps/.cursor/debug-628bdd.log")
+
+
+def _agent_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    try:
+        payload = {
+            "sessionId": "628bdd",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with _DEBUG_LOG.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+# #endregion
 
 
 def _get_header(scope, name: str) -> str:
@@ -66,6 +92,32 @@ class MCPStreamableHTTPMiddleware:
             await self._handle_lifespan(scope, receive, send)
             return
 
+        path = scope.get("path", "")
+        if scope["type"] == "http" and path in (MCP_PATH, f"{MCP_PATH}/"):
+            # #region agent log
+            method = scope.get("method", "")
+            has_auth = bool(_get_header(scope, "authorization"))
+            has_session = bool(_get_header(scope, MCP_SESSION_ID_HEADER))
+            accept = _get_header(scope, "accept")[:120]
+            ua = _get_header(scope, "user-agent")[:160]
+            streamable = self._is_streamable_http_request(scope)
+            _agent_log(
+                "A,B,C,E",
+                "mcp_asgi.py:__call__",
+                "MCP path hit",
+                {
+                    "method": method,
+                    "path": path,
+                    "has_auth": has_auth,
+                    "has_session": has_session,
+                    "accept": accept,
+                    "user_agent": ua,
+                    "routed_streamable": streamable,
+                    "trailing_slash": path.endswith("/"),
+                },
+            )
+            # #endregion
+
         if self._is_streamable_http_request(scope):
             await self._handle_streamable(scope, receive, send)
             return
@@ -109,7 +161,30 @@ class MCPStreamableHTTPMiddleware:
 
     async def _handle_streamable(self, scope, receive, send):
         ok, auth_header = await _authenticate_scope(scope)
+        from django.conf import settings as dj_settings
+
+        # #region agent log
+        _agent_log(
+            "B,D",
+            "mcp_asgi.py:_handle_streamable",
+            "Streamable auth decision",
+            {
+                "method": scope.get("method"),
+                "auth_ok": ok,
+                "has_fallback_key": bool(getattr(dj_settings, "MCP_DEFAULT_API_KEY", "")),
+                "has_session": bool(_get_header(scope, MCP_SESSION_ID_HEADER)),
+            },
+        )
+        # #endregion
         if not ok:
+            # #region agent log
+            _agent_log(
+                "A,B",
+                "mcp_asgi.py:_handle_streamable:401",
+                "Streamable 401 without WWW-Authenticate",
+                {"www_authenticate_present": False},
+            )
+            # #endregion
             response = JSONResponse({"detail": "Unauthorized"}, status_code=401)
             await response(scope, receive, send)
             return
@@ -126,6 +201,34 @@ class MCPStreamableHTTPMiddleware:
 
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
+                status = message.get("status", 0)
+                hdrs = {
+                    k.decode(): v.decode()[:80]
+                    for k, v in message.get("headers", [])
+                    if k.lower()
+                    in (
+                        b"content-type",
+                        b"mcp-session-id",
+                        b"www-authenticate",
+                    )
+                }
+                # #region agent log
+                _agent_log(
+                    "D,E",
+                    "mcp_asgi.py:send_wrapper",
+                    "Streamable response start",
+                    {
+                        "status": status,
+                        "headers": hdrs,
+                        "server_version_len": len(getattr(mcp.server, "version", "") or ""),
+                        "server_version_is_markdown": str(
+                            getattr(mcp.server, "version", "") or ""
+                        )
+                        .lstrip()
+                        .startswith("#"),
+                    },
+                )
+                # #endregion
                 for key, value in message.get("headers", []):
                     if key.lower() == b"mcp-session-id":
                         mcp.set_streamable_session_auth(value.decode(), auth_header)
