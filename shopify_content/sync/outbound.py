@@ -357,22 +357,101 @@ def _push_metafields(shop, metafield_inputs):
     return True
 
 
+def _serialize_faqs_json(page_or_queryset):
+    """
+    Serialize FAQ rows to JSON for custom.faqs (push or translationsRegister).
+    Accepts a page with .faqs or a FAQ queryset.
+    """
+    faqs = (
+        page_or_queryset.faqs
+        if hasattr(page_or_queryset, 'faqs')
+        else page_or_queryset
+    )
+    items = list(faqs.order_by('sort_order'))
+    if not items:
+        return ''
+    faq_data = [{'question': f.question, 'answer': f.answer} for f in items]
+    return json.dumps(faq_data, ensure_ascii=False)
+
+
 def _push_faq_metafield(shop, owner_gid, faq_queryset):
     """
     Push FAQ items as a single JSON metafield custom.faqs.
     Value: [{"question": "...", "answer": "..."}, ...]
     """
-    items = list(faq_queryset.order_by('sort_order'))
-    if not items:
+    value = _serialize_faqs_json(faq_queryset)
+    if not value:
         return True
-    faq_data = [{'question': f.question, 'answer': f.answer} for f in items]
     return _push_metafields(shop, [{
         'ownerId': owner_gid,
         'namespace': 'custom',
         'key': 'faqs',
         'type': 'json',
-        'value': json.dumps(faq_data, ensure_ascii=False),
+        'value': value,
     }])
+
+
+def _page_metafield_value(page, namespace, key):
+    """Return metafield value from inline panel or body MetafieldBlock, or ''."""
+    for mf in page.metafields.all():
+        if mf.namespace == namespace and mf.key == key:
+            return str(mf.value)
+    body = getattr(page, 'body', None)
+    if not body:
+        return ''
+    for block in body:
+        if block.block_type != 'metafield':
+            continue
+        v = block.value
+        ns = str(v.get('namespace', 'custom'))
+        k = str(v.get('key', ''))
+        if ns == namespace and k == key:
+            return str(v.get('value', ''))
+    return ''
+
+
+def _iter_page_metafield_keys(page):
+    """Yield (namespace, key) from inline metafields and body MetafieldBlocks."""
+    seen = set()
+    for mf in page.metafields.all():
+        pair = (mf.namespace, mf.key)
+        if pair not in seen:
+            seen.add(pair)
+            yield pair
+    body = getattr(page, 'body', None)
+    if not body:
+        return
+    for block in body:
+        if block.block_type != 'metafield':
+            continue
+        v = block.value
+        pair = (str(v.get('namespace', 'custom')), str(v.get('key', '')))
+        if pair[1] and pair not in seen:
+            seen.add(pair)
+            yield pair
+
+
+def _product_translatable_fields(primary):
+    """
+    Field map for Product translationsRegister.
+
+    Native Product keys: title, body_html, meta_title, meta_description.
+    Metafield keys follow metafields.{namespace}.{key}; keys come from primary
+    (already pushed via metafieldsSet), values from each locale variant.
+    """
+    fields = {
+        'title': 'title',
+        'body_html': lambda t: _render_streamfield_html(t.body),
+        'meta_title': lambda t: t.get_seo_title(),
+        'meta_description': lambda t: t.get_seo_description(),
+        'metafields.custom.faqs': _serialize_faqs_json,
+    }
+    for namespace, key in _iter_page_metafield_keys(primary):
+        shopify_key = f'metafields.{namespace}.{key}'
+        fields[shopify_key] = (
+            lambda t, ns=namespace, k=key: _page_metafield_value(t, ns, k)
+        )
+    return fields
 
 
 def _push_internal_links_metafield(shop, owner_gid, page):
@@ -673,11 +752,7 @@ def sync_product_page(page):
     from shopify_content.sync.theme_config import push_theme_config_metafields
     push_theme_config_metafields(shop, primary, shopify_id)
     _register_shopify_translations(
-        page, shop, shopify_id,
-        {
-            'title': 'title',
-            'body_html': lambda t: _render_streamfield_html(t.body),
-        },
+        page, shop, shopify_id, _product_translatable_fields(primary),
     )
 
     _mark_synced(type(page), page.pk)

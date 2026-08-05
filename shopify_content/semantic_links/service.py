@@ -16,6 +16,7 @@ from shopify_content.models.semantic_links import (
     count_auto_semantic_links,
     delete_auto_semantic_links,
     get_typed_link_model,
+    inbound_related_product_sources,
     manual_related_page_pks,
     relation_for_page_type,
 )
@@ -221,6 +222,56 @@ def _suggest_links_by_type(
     return grouped
 
 
+def _suggest_product_links_hybrid(
+    content: str,
+    *,
+    source_page: ProductPage,
+    exclude_pks: list[int],
+    limit_per_type: int,
+) -> dict[str, list[Page]]:
+    """
+    ProductPage hybrid suggestions:
+
+    - articles / collections / glossary from reverse ORM (who links to this product)
+    - related_products from a single vector search
+    """
+    reverse = inbound_related_product_sources(
+        source_page,
+        limit_per_type=limit_per_type,
+        exclude_pks=set(exclude_pks),
+    )
+    grouped: dict[str, list[Page]] = {
+        'product': [],
+        'collection': list(reverse.get('collection', [])),
+        'article': list(reverse.get('article', [])),
+        'glossary': list(reverse.get('glossary', [])),
+    }
+    chosen: set[int] = set(exclude_pks)
+    for pages in (grouped['collection'], grouped['article'], grouped['glossary']):
+        chosen.update(page.pk for page in pages)
+
+    candidates = search_similar_pages(
+        content,
+        exclude_pks=list(chosen),
+        limit=limit_per_type,
+        allowed_types=['product'],
+    )
+    typed = classify_and_cap(
+        candidates,
+        source_page=source_page,
+        limit_per_type=limit_per_type,
+    )
+    for page in typed['product']:
+        if page.pk in chosen:
+            continue
+        grouped['product'].append(page)
+        chosen.add(page.pk)
+        if len(grouped['product']) >= limit_per_type:
+            break
+
+    return grouped
+
+
 def _sync_glossary_related_links_cache(page: GlossaryTermPage):
     page.related_links = serialize_semantic_links(page)
 
@@ -281,7 +332,10 @@ def refresh_semantic_links(
     skip_publish_signals: bool = True,
 ) -> dict[str, int]:
     """
-    Replace is_auto semantic links with fresh vector suggestions per typed relation.
+    Replace is_auto semantic links with fresh suggestions per typed relation.
+
+    ProductPage uses hybrid reverse ORM (non-product buckets) + one vector
+    search for related_products. Other linkable types use per-type vector search.
 
     Returns counts: {'created': N, 'removed': N, 'manual_kept': N}
     """
@@ -299,12 +353,20 @@ def refresh_semantic_links(
     # so regeneration can refill each type up to the limit.
     exclude_pks = [specific.pk, *manual_pks]
 
-    grouped = _suggest_links_by_type(
-        content,
-        source_page=specific,
-        exclude_pks=exclude_pks,
-        limit_per_type=limit_per_type,
-    )
+    if isinstance(specific, ProductPage):
+        grouped = _suggest_product_links_hybrid(
+            content,
+            source_page=specific,
+            exclude_pks=exclude_pks,
+            limit_per_type=limit_per_type,
+        )
+    else:
+        grouped = _suggest_links_by_type(
+            content,
+            source_page=specific,
+            exclude_pks=exclude_pks,
+            limit_per_type=limit_per_type,
+        )
 
     created_count = sum(len(grouped[key]) for key in grouped)
     removed_count = count_auto_semantic_links(specific)

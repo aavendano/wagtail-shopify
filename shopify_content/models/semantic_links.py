@@ -184,3 +184,71 @@ def relation_for_page_type(type_key: str) -> str:
 
 def type_key_for_relation(relation_name: str) -> str:
     return RELATION_TO_TYPE[relation_name]
+
+
+# Parent page types whose outbound related_products feed ProductPage reverse buckets.
+_INBOUND_PRODUCT_LINK_PARENTS = (
+    ('ArticlePage', 'article'),
+    ('CollectionPage', 'collection'),
+    ('GlossaryTermPage', 'glossary'),
+)
+
+
+def inbound_related_product_sources(
+    product_page,
+    *,
+    limit_per_type: int,
+    exclude_pks: set[int] | None = None,
+) -> dict[str, list]:
+    """
+    Pages that already link to ``product_page`` via related_products.
+
+    Returns buckets keyed by destination type on the product
+    (article / collection / glossary). Includes both auto and manual inbound
+    rows. ``related_page`` has related_name='+', so this queries link models
+    directly.
+    """
+    from wagtail.models import Page
+
+    exclude = set(exclude_pks or ())
+    exclude.add(product_page.pk)
+    source_locale_id = product_page.locale_id
+
+    grouped: dict[str, list] = {
+        'article': [],
+        'collection': [],
+        'glossary': [],
+    }
+    seen: set[int] = set(exclude)
+
+    for parent_label, type_key in _INBOUND_PRODUCT_LINK_PARENTS:
+        model_cls = TYPED_SEMANTIC_LINK_MODELS.get((parent_label, 'related_products'))
+        if model_cls is None:
+            continue
+
+        bucket = grouped[type_key]
+        if len(bucket) >= limit_per_type:
+            continue
+
+        link_rows = (
+            model_cls.objects.filter(related_page_id=product_page.pk)
+            .order_by('sort_order', 'pk')
+            .values_list('page_id', flat=True)
+        )
+        for page_id in link_rows:
+            if page_id in seen:
+                continue
+            try:
+                page = Page.objects.get(pk=page_id)
+            except Page.DoesNotExist:
+                continue
+            if not page.live:
+                continue
+            if page.locale_id != source_locale_id:
+                continue
+            bucket.append(page)
+            seen.add(page_id)
+            if len(bucket) >= limit_per_type:
+                break
+
+    return grouped

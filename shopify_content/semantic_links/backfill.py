@@ -24,8 +24,9 @@ def run_semantic_links_backfill(
             'manual_kept': 0,
         }
 
+    # Non-products first so ProductPage hybrid reverse sees fresh outbound links.
     targets = (
-        ['article', 'product', 'collection', 'glossary']
+        ['article', 'collection', 'glossary', 'product']
         if model == 'all'
         else [model]
     )
