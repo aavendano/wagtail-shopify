@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Daphne entry point: import bigframes before twisted/daphne (zope.interface conflict).
+# Daphne entry point for cms-shop ASGI.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

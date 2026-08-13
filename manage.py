@@ -3,12 +3,16 @@
 import os
 import sys
 
-from config.bigframes_bootstrap import ensure_bigframes_pre_django
-
 
 def main():
     """Run administrative tasks."""
-    ensure_bigframes_pre_django()
+    # BigFrames only when explicitly requested (same gate as Celery GSC worker).
+    _load_bigframes = os.environ.get('CMS_SHOP_LOAD_BIGFRAMES', '').strip().lower()
+    if _load_bigframes in ('1', 'true', 'yes'):
+        from config.bigframes_bootstrap import ensure_bigframes_pre_django
+
+        ensure_bigframes_pre_django()
+
     if 'test' in sys.argv:
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings_test')
     else:

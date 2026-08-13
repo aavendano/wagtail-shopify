@@ -108,3 +108,7 @@ deploy/*
 scripts/
 
 */migrations/*
+bin/*
+
+bin/daphne
+bin/daphne_boot.py
