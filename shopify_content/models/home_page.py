@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from wagtail.models import Page
-from wagtail.fields import RichTextField
+from wagtail.fields import RichTextField, StreamField
 from wagtail.admin.panels import (
     FieldPanel, MultiFieldPanel, ObjectList, TabbedInterface,
 )
@@ -11,8 +11,20 @@ from wagtail.search import index
 from config.settings import ALLOWED_LOCALE_CODES
 from .mixins import SHOPIFY_SEO_PANELS
 from ..admin_panels import StorefrontUrlsPanel
+from ..blocks import HOME_BODY_BLOCKS
 from ..home_locale_validation import validate_sections_json_locale
+from ..home_sections_normalization import normalize_sections_json
+from ..home_serialization import sections_json_to_stream_data, streamfield_to_sections_json
 from ..home_slug import home_page_handle
+
+
+def _stream_has_blocks(stream_value) -> bool:
+    if stream_value is None:
+        return False
+    try:
+        return len(stream_value) > 0
+    except TypeError:
+        return False
 
 
 class HomePage(Page):
@@ -52,11 +64,21 @@ class HomePage(Page):
     hero_primary_cta_label = models.CharField(
         max_length=255, blank=True, verbose_name='Primary CTA label',
     )
-    hero_primary_cta_url = models.URLField(max_length=500, blank=True, verbose_name='Primary CTA URL')
+    hero_primary_cta_url = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='Primary CTA URL',
+        help_text='Storefront path (e.g. /collections/all) or absolute https URL.',
+    )
     hero_secondary_cta_label = models.CharField(
         max_length=255, blank=True, verbose_name='Secondary CTA label',
     )
-    hero_secondary_cta_url = models.URLField(max_length=500, blank=True, verbose_name='Secondary CTA URL')
+    hero_secondary_cta_url = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name='Secondary CTA URL',
+        help_text='Storefront path (e.g. /collections/all) or absolute https URL.',
+    )
     hero_image = models.ForeignKey(
         'wagtailimages.Image',
         null=True,
@@ -71,11 +93,21 @@ class HomePage(Page):
         help_text='Absolute hero image URL pushed to Shopify. Auto-filled from hero_image on sync.',
     )
 
+    body = StreamField(
+        HOME_BODY_BLOCKS,
+        blank=True,
+        use_json_field=True,
+        verbose_name='Home sections',
+    )
+
     sections_json = models.JSONField(
         default=dict,
         blank=True,
         db_default={},
-        help_text='Home sections JSON (version 1). See docs/home-page-content-schema.json.',
+        help_text=(
+            'Home sections JSON (version 1, 13 canonical types). '
+            'Derived from body StreamField on save. See docs/home-page-content-schema.json.'
+        ),
     )
 
     template = 'shopify_content/home_page.html'
@@ -100,7 +132,7 @@ class HomePage(Page):
             FieldPanel('hero_secondary_cta_label'),
             FieldPanel('hero_secondary_cta_url'),
         ], heading='Hero'),
-        FieldPanel('sections_json'),
+        FieldPanel('body'),
     ]
 
     promote_panels = SHOPIFY_SEO_PANELS + [
@@ -115,6 +147,7 @@ class HomePage(Page):
             FieldPanel('sync_enabled'),
             FieldPanel('last_synced_at', read_only=True),
             FieldPanel('hero_image_url', read_only=True),
+            FieldPanel('sections_json', read_only=True),
         ], heading='Shopify Sync'),
         StorefrontUrlsPanel(),
     ]
@@ -129,6 +162,17 @@ class HomePage(Page):
         verbose_name = 'Home Page'
         verbose_name_plural = 'Home Pages'
 
+    def sync_body_and_sections_json(self) -> None:
+        """Keep body StreamField and sections_json in sync as the 13-type envelope."""
+        if _stream_has_blocks(self.body):
+            self.sections_json = streamfield_to_sections_json(self.body)
+        else:
+            if self.sections_json is None:
+                self.sections_json = {}
+            self.sections_json = normalize_sections_json(self.sections_json)
+        # Always rewrite body from normalized JSON so admin never sees a partial stream.
+        self.body = sections_json_to_stream_data(self.sections_json)
+
     def clean(self):
         super().clean()
         canonical = home_page_handle(self)
@@ -136,8 +180,7 @@ class HomePage(Page):
             self.slug = canonical
             self.handle = canonical
 
-        if self.sections_json is None:
-            self.sections_json = {}
+        self.sync_body_and_sections_json()
 
         locale_errors = validate_sections_json_locale(self)
         if locale_errors:

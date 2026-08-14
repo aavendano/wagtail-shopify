@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from ninja import Router
 
 from shopify_content.models import HomePage, ShopifyRootPage
+from shopify_content.home_sections_normalization import incoming_sections_from_api
+from shopify_content.home_serialization import sections_json_to_stream_data
 from shopify_content.home_slug import home_page_handle
 from shopify_content.richtext_sanitize import sanitize_richtext_html
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
@@ -38,7 +40,8 @@ def _apply_home_fields(page: HomePage, data, *, is_create: bool = False):
         page.sync_enabled = data.sync_enabled if data.sync_enabled is not None else True
         page.seo_title = data.seo_title or ''
         page.search_description = data.search_description or ''
-        page.sections_json = data.sections_json if data.sections_json is not None else {}
+        page.sections_json = incoming_sections_from_api(data, is_create=True)
+        page.body = sections_json_to_stream_data(page.sections_json)
     elif data.hero_heading is not None:
         page.hero_heading = data.hero_heading
         page.title = data.hero_heading
@@ -69,8 +72,14 @@ def _apply_home_fields(page: HomePage, data, *, is_create: bool = False):
             page.seo_title = data.seo_title
         if data.search_description is not None:
             page.search_description = data.search_description
-        if data.sections_json is not None:
-            page.sections_json = data.sections_json
+        sections_payload = incoming_sections_from_api(
+            data,
+            existing=page.sections_json,
+            is_create=False,
+        )
+        if sections_payload is not None:
+            page.sections_json = sections_payload
+            page.body = sections_json_to_stream_data(sections_payload)
 
     for field in _RICH_TEXT_FIELDS:
         value = getattr(data, field, None)
@@ -138,7 +147,6 @@ def create_home_page(request, data: HomeIn):
         if data.translation_of is not None:
             apply_translation_link(page, data.translation_of, HomePage)
 
-        page.full_clean()
         parent.add_child(instance=page)
         page.refresh_from_db()
     except ValidationError as exc:

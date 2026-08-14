@@ -1588,6 +1588,18 @@ def _hero_image_url_for_sync(page) -> str:
     return path
 
 
+def _absolutize_storefront_href(value: str, shop: str) -> str:
+    """Shopify metaobject url fields need absolute URLs; CMS allows /paths."""
+    href = (value or '').strip()
+    if not href:
+        return ''
+    if href.startswith('http://') or href.startswith('https://'):
+        return href
+    if href.startswith('/') and shop:
+        return f'https://{shop}{href}'
+    return href
+
+
 def sync_home_page(page):
     """
     Push HomePage → Shopify merchant-owned metaobject (type: home_page).
@@ -1624,14 +1636,25 @@ def sync_home_page(page):
         ('hero_subheading', page.hero_subheading),
         ('hero_body', page.hero_body),
         ('hero_primary_cta_label', page.hero_primary_cta_label),
-        ('hero_primary_cta_url', page.hero_primary_cta_url),
         ('hero_secondary_cta_label', page.hero_secondary_cta_label),
-        ('hero_secondary_cta_url', page.hero_secondary_cta_url),
         ('meta_titulo', page.get_seo_title()),
         ('meta_descripcion', page.get_seo_description()),
     ]:
         if _has_meaningful_sync_value(value):
             data[key] = _wagtail_field_value(value)
+
+    primary_cta = _absolutize_storefront_href(
+        str(_wagtail_field_value(page.hero_primary_cta_url) or ''),
+        shop,
+    )
+    if primary_cta:
+        data['hero_primary_cta_url'] = primary_cta
+    secondary_cta = _absolutize_storefront_href(
+        str(_wagtail_field_value(page.hero_secondary_cta_url) or ''),
+        shop,
+    )
+    if secondary_cta:
+        data['hero_secondary_cta_url'] = secondary_cta
 
     image_url = _hero_image_url_for_sync(page)
     if image_url:

@@ -461,7 +461,8 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "create_home_page", "POST", "/home/",
         "create", "home",
         "Create a Home page in Wagtail",
-        "Author home content in Wagtail; push to Shopify metaobject type home_page.",
+        "Author home content via API (hero + typed section fields). "
+        "Partial sections are merged; required keys and the 13-type envelope are filled server-side.",
         "HomeOut",
         ("update_home_page", "push_home_page"),
         (HOME_ROOT_PREREQ,),
@@ -478,7 +479,8 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "update_home_page", "PATCH", "/home/{page_id}",
         "update", "home",
         "Update a Home page",
-        "Edit home fields; publish=true optional before push.",
+        "Patch hero and/or individual sections (editorial_intro, faq, …). "
+        "Omitted section fields are kept; required keys are normalized. publish=true optional before push.",
         "HomeOut",
         ("push_home_page", "get_home_page"),
     ),

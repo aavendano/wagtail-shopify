@@ -6,6 +6,8 @@ from django.core.management.base import BaseCommand
 from wagtail.models import Locale
 
 from shopify_content.models import HomePage, ShopifyRootPage
+from shopify_content.home_sections_normalization import normalize_sections_json
+from shopify_content.home_serialization import sections_json_to_stream_data
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 
@@ -72,6 +74,8 @@ class Command(BaseCommand):
                 locale=locale,
                 shopify_locale=locale_code,
             )
+            page.sections_json = normalize_sections_json({})
+            page.body = sections_json_to_stream_data(page.sections_json)
             parent.add_child(instance=page)
             revision = page.save_revision()
             if publish:

@@ -13,6 +13,20 @@ LINKABLE_PAGE_TYPES = [
     'shopify_content.BlogPage',
 ]
 
+# URLBlock rejects storefront-relative paths like /collections/all.
+STOREFRONT_CTA_URL_HELP = (
+    'Storefront path (e.g. /collections/all) or absolute https URL.'
+)
+
+
+def _storefront_cta_url_block(**kwargs):
+    return CharBlock(
+        required=False,
+        max_length=500,
+        help_text=STOREFRONT_CTA_URL_HELP,
+        **kwargs,
+    )
+
 
 class TrustBarItemBlock(StructBlock):
     icon = ChoiceBlock(
@@ -35,7 +49,7 @@ class TrustBarItemBlock(StructBlock):
 
 
 class TrustBarBlock(StructBlock):
-    items = ListBlock(TrustBarItemBlock(), min_num=2, max_num=6)
+    items = ListBlock(TrustBarItemBlock(), min_num=0, max_num=6)
 
     class Meta:
         icon = 'list-ul'
@@ -57,9 +71,9 @@ class FeaturedCollectionItemBlock(StructBlock):
 
 class FeaturedCollectionsBlock(StructBlock):
     badge = CharBlock(max_length=40, required=False)
-    title = CharBlock(max_length=120, required=True)
+    title = CharBlock(max_length=120, required=False)
     intro = CharBlock(max_length=300, required=False)
-    items = ListBlock(FeaturedCollectionItemBlock(), min_num=1, max_num=4)
+    items = ListBlock(FeaturedCollectionItemBlock(), min_num=0, max_num=6)
 
     class Meta:
         icon = 'folder-open-1'
@@ -94,10 +108,10 @@ class NavCollectionPillsBlock(StructBlock):
 
 
 class EditorialIntroBlock(StructBlock):
-    heading = CharBlock(max_length=120, required=True)
+    heading = CharBlock(max_length=120, required=False)
     body = RichTextBlock(
         features=['bold', 'italic', 'link', 'ol', 'ul'],
-        required=True,
+        required=False,
     )
     alignment = ChoiceBlock(
         choices=[('left', 'Left'), ('center', 'Center')],
@@ -111,9 +125,9 @@ class EditorialIntroBlock(StructBlock):
 
 
 class BestSellersBlock(StructBlock):
-    title = CharBlock(max_length=120, required=True)
+    title = CharBlock(max_length=120, required=False)
     collection = PageChooserBlock(
-        required=True,
+        required=False,
         page_type=['shopify_content.CollectionPage'],
     )
     product_limit = IntegerBlock(default=8, min_value=4, max_value=12, required=False)
@@ -137,7 +151,7 @@ class ShopByNeedCardBlock(StructBlock):
         page_type=['shopify_content.CollectionPage', 'shopify_content.ProductPage'],
     )
     cta_label = CharBlock(max_length=40, required=False, default='Shop')
-    cta_url = URLBlock(required=False)
+    cta_url = _storefront_cta_url_block()
     image_url = URLBlock(required=False)
     intent_tag = CharBlock(max_length=40, required=False)
 
@@ -148,7 +162,7 @@ class ShopByNeedCardBlock(StructBlock):
 
 class ShopByNeedBlock(StructBlock):
     title = CharBlock(max_length=120, required=False)
-    cards = ListBlock(ShopByNeedCardBlock(), min_num=4, max_num=8)
+    cards = ListBlock(ShopByNeedCardBlock(), min_num=0, max_num=8)
 
     class Meta:
         icon = 'grip'
@@ -166,9 +180,9 @@ class EducationalHubLinkBlock(StructBlock):
 
 
 class EducationalHubBlock(StructBlock):
-    title = CharBlock(max_length=120, required=True)
+    title = CharBlock(max_length=120, required=False)
     intro = CharBlock(max_length=300, required=False)
-    links = ListBlock(EducationalHubLinkBlock(), min_num=3, max_num=6)
+    links = ListBlock(EducationalHubLinkBlock(), min_num=0, max_num=6)
 
     class Meta:
         icon = 'book'
@@ -187,7 +201,7 @@ class BrandValueItemBlock(StructBlock):
 
 class BrandValuesBlock(StructBlock):
     eyebrow = CharBlock(max_length=60, required=False)
-    heading = CharBlock(max_length=120, required=True)
+    heading = CharBlock(max_length=120, required=False)
     body = RichTextBlock(features=['bold', 'italic', 'link'], required=False)
     image = ImageChooserBlock(required=False)
     image_url = URLBlock(required=False)
@@ -198,7 +212,7 @@ class BrandValuesBlock(StructBlock):
     )
     values = ListBlock(BrandValueItemBlock(), max_num=4, required=False)
     cta_label = CharBlock(max_length=80, required=False)
-    cta_url = URLBlock(required=False)
+    cta_url = _storefront_cta_url_block()
 
     class Meta:
         icon = 'group'
@@ -206,11 +220,11 @@ class BrandValuesBlock(StructBlock):
 
 
 class MarketBlock(StructBlock):
-    heading = CharBlock(max_length=120, required=True)
-    body = RichTextBlock(features=['bold', 'italic', 'link'], required=True)
+    heading = CharBlock(max_length=120, required=False)
+    body = RichTextBlock(features=['bold', 'italic', 'link'], required=False)
     highlights = ListBlock(CharBlock(max_length=120), max_num=4, required=False)
     cta_label = CharBlock(max_length=80, required=False)
-    cta_url = URLBlock(required=False)
+    cta_url = _storefront_cta_url_block()
     market_code = ChoiceBlock(
         choices=[('US', 'United States'), ('CA', 'Canada')],
         required=False,
@@ -236,7 +250,7 @@ class FAQBlock(StructBlock):
         required=False,
         default='Frequently asked questions',
     )
-    items = ListBlock(FAQItemBlock(), min_num=4, max_num=6)
+    items = ListBlock(FAQItemBlock(), min_num=0, max_num=6)
 
     class Meta:
         icon = 'help'
@@ -253,8 +267,8 @@ class InternalLinkItemBlock(StructBlock):
 
 
 class InternalLinkGroupBlock(StructBlock):
-    title = CharBlock(max_length=80, required=True)
-    links = ListBlock(InternalLinkItemBlock(), min_num=3, max_num=12)
+    title = CharBlock(max_length=80, required=False)
+    links = ListBlock(InternalLinkItemBlock(), min_num=0, max_num=12)
 
     class Meta:
         icon = 'list-ul'
@@ -263,7 +277,7 @@ class InternalLinkGroupBlock(StructBlock):
 
 class InternalLinksBlock(StructBlock):
     heading = CharBlock(max_length=120, required=False)
-    groups = ListBlock(InternalLinkGroupBlock(), min_num=2, max_num=6)
+    groups = ListBlock(InternalLinkGroupBlock(), min_num=0, max_num=6)
 
     class Meta:
         icon = 'link-external'
@@ -285,16 +299,19 @@ class PromoGatewayCardBlock(StructBlock):
         required=False,
         page_type=['shopify_content.CollectionPage'],
     )
+    # required=False: cards with media_source=collection_products omit
+    # categories; Wagtail also POSTs empty chooser slots that must not fail.
     category_collections = ListBlock(
         PageChooserBlock(
-            required=True,
+            required=False,
             page_type=['shopify_content.CollectionPage'],
         ),
+        min_num=0,
         max_num=4,
         required=False,
     )
     cta_label = CharBlock(max_length=80, required=False, default='Shop trending')
-    cta_url = URLBlock(required=False)
+    cta_url = _storefront_cta_url_block()
     column_span = ChoiceBlock(
         choices=[('1', '1 column'), ('2', '2 columns')],
         default='1',
@@ -307,7 +324,7 @@ class PromoGatewayCardBlock(StructBlock):
 
 
 class PromoGatewayBlock(StructBlock):
-    cards = ListBlock(PromoGatewayCardBlock(), min_num=4, max_num=4)
+    cards = ListBlock(PromoGatewayCardBlock(), min_num=0, max_num=4)
 
     class Meta:
         icon = 'grip'

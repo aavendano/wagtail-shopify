@@ -103,12 +103,12 @@ Note: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from W
 
 ### Home (Wagtail-origin metaobjects)
 
-Home pages have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `home_page` (one metaobject per locale).
+Home pages have **no pull** — content is authored via this API (AI agents) and pushed to Shopify metaobject type `home_page` (one metaobject per locale). `sections_json` is always normalized to 13 section types; send one typed field (e.g. `editorial_intro`) or a partial envelope.
 
-1. `POST /home/` with `hero_heading` and locale.
-2. `PATCH /home/{id}` with `"publish": true` (optional).
+1. `POST /home/` with `hero_heading` and locale (section skeleton is filled automatically).
+2. `PATCH /home/{id}` with typed section fields and `"publish": true` (optional).
 3. `POST /home/{id}/push` — upserts metaobject; `shopify_id` saved on first success.
-4. `GET /home/{id}` — verify `last_synced_at` and `shopify_id`.
+4. `GET /home/{id}` — verify `sections_json` (13 types), `last_synced_at`, and `shopify_id`.
 
 ## Sync Model
 

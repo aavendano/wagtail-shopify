@@ -136,9 +136,16 @@ INSTALLED_APPS = [
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
-    'bigquery_gsc',
     'django_celery_beat',
 ]
+
+# Optional: editable package at ../services/bigquery_gsc (missing → CMS still boots).
+try:
+    import bigquery_gsc  # noqa: F401
+except ModuleNotFoundError:
+    pass
+else:
+    INSTALLED_APPS.insert(-1, 'bigquery_gsc')
 
 MIDDLEWARE = [
     'core.debug_middleware.ShopifyLocalProxyMiddleware',

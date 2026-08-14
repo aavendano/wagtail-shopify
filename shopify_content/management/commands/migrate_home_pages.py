@@ -5,6 +5,8 @@ from django.core.management.base import BaseCommand
 from wagtail.models import Page
 
 from shopify_content.models import HomePage, ShopifyRootPage
+from shopify_content.home_sections_normalization import normalize_sections_json
+from shopify_content.home_serialization import sections_json_to_stream_data
 from shopify_content.sync.import_parents import resolve_shopify_import_parent
 
 
@@ -73,6 +75,8 @@ class Command(BaseCommand):
                 seo_title=legacy.seo_title or '',
                 search_description=legacy.search_description or '',
             )
+            page.sections_json = normalize_sections_json({})
+            page.body = sections_json_to_stream_data(page.sections_json)
             parent.add_child(instance=page)
             migrated += 1
 
