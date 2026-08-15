@@ -28,9 +28,30 @@ from shopify_content.semantic_links.serialization import (
     serialize_semantic_links,
 )
 
+from shopify_content.indexing import (
+    ARTICLE_INDEX_FIELDS,
+    COLLECTION_INDEX_FIELDS,
+    GLOSSARY_INDEX_FIELDS,
+    PRODUCT_INDEX_FIELDS,
+)
+
 logger = logging.getLogger(__name__)
 
 SEMANTIC_LINK_PAGE_TYPES = LINKABLE_PAGE_TYPES
+PAGE_TYPE_KEYS = ('product', 'collection', 'article', 'glossary')
+PAGE_TYPE_QUERY_FIELDS = {
+    'product': PRODUCT_INDEX_FIELDS,
+    'collection': COLLECTION_INDEX_FIELDS,
+    'article': ARTICLE_INDEX_FIELDS,
+    'glossary': GLOSSARY_INDEX_FIELDS,
+}
+SUGGEST_FETCH_CAP = 200
+SUGGEST_LIMIT_PER_TYPE_DEFAULT = 20
+SUGGEST_LIMIT_PER_TYPE_MAX = 100
+
+
+class SemanticSuggestUnavailable(Exception):
+    """Raised when PageIndex / pgvector cannot serve a preview search."""
 
 
 def is_semantic_linkable_page(page) -> bool:
@@ -86,35 +107,176 @@ def extract_page_content(page) -> str:
     return '\n\n'.join(parts)
 
 
+def assemble_preview_query_text(
+    page_type: str,
+    *,
+    text: str | None = None,
+    fields: dict | None = None,
+) -> str:
+    """Build query text from free text and/or index fields for a page type."""
+    parts: list[str] = []
+    if text and str(text).strip():
+        parts.append(str(text).strip())
+    field_names = PAGE_TYPE_QUERY_FIELDS.get(page_type) or ()
+    values = fields or {}
+    for name in field_names:
+        value = values.get(name)
+        if value is None:
+            continue
+        if isinstance(value, list):
+            joined = ', '.join(str(item) for item in value if item)
+            if joined:
+                parts.append(joined)
+            continue
+        rendered = str(value).strip()
+        if rendered:
+            parts.append(rendered)
+    return '\n\n'.join(parts)
+
+
+def is_eligible_semantic_candidate(
+    page,
+    *,
+    locale_id: int,
+    exclude_pks: set[int] | None = None,
+    allowed_types: set[str] | None = None,
+) -> str | None:
+    """Return page type key if the page passes locale/live/ACTIVE filters."""
+    if exclude_pks and page.pk in exclude_pks:
+        return None
+    if not page.live:
+        return None
+    if page.locale_id != locale_id:
+        return None
+    key = page_type_key_for(page)
+    if key is None:
+        return None
+    if allowed_types is not None and key not in allowed_types:
+        return None
+    specific = page.specific
+    if isinstance(specific, ProductPage) and specific.status != 'ACTIVE':
+        return None
+    return key
+
+
 def classify_and_cap(pages, *, source_page, limit_per_type: int) -> dict[str, list[Page]]:
     """Group candidate pages by type and apply per-type caps with locale filtering."""
-    source_locale_id = source_page.locale_id
-    grouped: dict[str, list[Page]] = {
-        'product': [],
-        'collection': [],
-        'article': [],
-        'glossary': [],
-    }
+    grouped: dict[str, list[Page]] = {key: [] for key in PAGE_TYPE_KEYS}
+    exclude = {source_page.pk}
 
     for page in pages:
-        if page.pk == source_page.pk:
-            continue
-        if not page.live:
-            continue
-        if page.locale_id != source_locale_id:
-            continue
-
-        key = page_type_key_for(page)
+        key = is_eligible_semantic_candidate(
+            page,
+            locale_id=source_page.locale_id,
+            exclude_pks=exclude,
+        )
         if key is None:
             continue
-
-        specific = page.specific
-        if isinstance(specific, ProductPage) and specific.status != 'ACTIVE':
-            continue
-
         if len(grouped[key]) >= limit_per_type:
             continue
         grouped[key].append(page)
+
+    return grouped
+
+
+def _page_pk_from_document(document) -> int | None:
+    metadata = getattr(document, 'metadata', None) or {}
+    pk = metadata.get('pk')
+    if pk is not None:
+        try:
+            return int(pk)
+        except (TypeError, ValueError):
+            return None
+    key = str(getattr(document, 'document_key', '') or '')
+    parts = key.split(':')
+    if len(parts) >= 2:
+        try:
+            return int(parts[1])
+        except ValueError:
+            return None
+    return None
+
+
+def _candidate_payload(page, type_key: str, score: float) -> dict:
+    specific = page.specific
+    handle = getattr(specific, 'handle', None) or getattr(specific, 'slug', '') or ''
+    title = getattr(specific, 'term', None) or specific.title
+    return {
+        'id': specific.pk,
+        'type': type_key,
+        'title': title,
+        'handle': handle,
+        'score': score,
+    }
+
+
+def suggest_related_with_scores(
+    *,
+    content: str,
+    locale_id: int,
+    allowed_types: list[str] | None,
+    exclude_pks: list[int],
+    limit_per_type: int,
+) -> dict[str, list[dict]]:
+    """
+    Preview-only nearest neighbors with similarity scores.
+
+    Does not persist FKs. Cap is the request ``limit_per_type``, not
+    SEMANTIC_LINKS_LIMIT_PER_TYPE.
+    """
+    grouped: dict[str, list[dict]] = {key: [] for key in PAGE_TYPE_KEYS}
+    if not (content or '').strip():
+        return grouped
+    if limit_per_type <= 0:
+        return grouped
+    if not getattr(settings, 'WAGTAIL_AI_PGVECTOR', False):
+        raise SemanticSuggestUnavailable(
+            'Vector index is disabled (WAGTAIL_AI_PGVECTOR).'
+        )
+
+    from django_ai_core.contrib.index.base import registry
+
+    if 'PageIndex' not in registry.list():
+        raise SemanticSuggestUnavailable(
+            'PageIndex is not registered. Set GEMINI_API_KEY and WAGTAIL_AI_PGVECTOR.'
+        )
+
+    allowed = set(allowed_types or PAGE_TYPE_KEYS)
+    exclude = set(exclude_pks)
+    overfetch = max(1, int(getattr(settings, 'SEMANTIC_LINKS_TYPE_OVERFETCH', 10)))
+    fetch = min(
+        SUGGEST_FETCH_CAP,
+        max(limit_per_type, limit_per_type * max(len(allowed), 1) * overfetch),
+    )
+
+    index = registry.get('PageIndex')()
+    documents = list(index.search_documents(content)[:fetch])
+    seen_pks: set[int] = set()
+
+    for document in documents:
+        pk = _page_pk_from_document(document)
+        if pk is None or pk in seen_pks:
+            continue
+        seen_pks.add(pk)
+        try:
+            page = Page.objects.get(pk=pk)
+        except Page.DoesNotExist:
+            continue
+        key = is_eligible_semantic_candidate(
+            page,
+            locale_id=locale_id,
+            exclude_pks=exclude,
+            allowed_types=allowed,
+        )
+        if key is None:
+            continue
+        bucket = grouped[key]
+        if len(bucket) >= limit_per_type:
+            if all(len(grouped[type_key]) >= limit_per_type for type_key in allowed):
+                break
+            continue
+        score = float(getattr(document, 'score', 0) or 0)
+        bucket.append(_candidate_payload(page, key, score))
 
     return grouped
 

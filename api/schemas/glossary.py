@@ -174,6 +174,23 @@ class GlossaryTermPatch(LocalePatchFields):
     )
 
 
+class GlossaryTermListOut(Schema):
+    id: int = Field(..., description="Wagtail page ID for /glossary/{page_id}/ endpoints.")
+    shopify_id: str = Field(
+        ...,
+        description="Shopify metaobject GID. Empty if never pushed.",
+    )
+    term: str = Field(..., description="Glossary term text.")
+    handle: str = Field(..., description="Shopify metaobject handle.")
+    slug: str = Field(..., description="Wagtail page slug.")
+    locale_code: str = Field(..., description="Shopify locale pushed on sync (en/es/fr).")
+    live: bool = Field(..., description="True if published in Wagtail.")
+    last_synced_at: Optional[datetime] = Field(
+        None,
+        description="UTC timestamp of last successful push to Shopify metaobject.",
+    )
+
+
 class GlossaryTermOut(StorefrontUrlOutFields, LocaleOutFields):
     id: int = Field(..., description="Wagtail page ID for /glossary/{page_id}/ endpoints.")
     shopify_id: str = Field(

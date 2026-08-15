@@ -722,6 +722,63 @@ class GlossaryApiTests(TestCase):
         terms = [item["term"] for item in response.json()]
         self.assertEqual(terms, ["Spanish Term"])
 
+    def test_list_is_slim_by_default(self):
+        self.client.post(
+            "/glossary/",
+            json={
+                "term": "Vibrator",
+                "locale_code": "en",
+                "definition": "<p>A device that vibrates.</p>",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+
+        response = self.client.get(
+            "/glossary/",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        items = response.json()
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item["term"], "Vibrator")
+        self.assertNotIn("definition", item)
+        self.assertNotIn("related_links", item)
+        self.assertCountEqual(
+            item.keys(),
+            [
+                "id",
+                "shopify_id",
+                "term",
+                "handle",
+                "slug",
+                "locale_code",
+                "live",
+                "last_synced_at",
+            ],
+        )
+
+    def test_list_full_includes_definition(self):
+        self.client.post(
+            "/glossary/",
+            json={
+                "term": "Vibrator",
+                "locale_code": "en",
+                "definition": "<p>A device that vibrates.</p>",
+            },
+            headers=_auth_headers(self.key.key),
+        )
+
+        response = self.client.get(
+            "/glossary/?full=true",
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 200)
+        items = response.json()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["definition"], "<p>A device that vibrates.</p>")
+        self.assertIn("related_links", items[0])
+
     def test_capabilities_includes_glossary(self):
         response = self.client.get(
             "/capabilities/",
@@ -926,11 +983,20 @@ class OpenAPIAgentMetadataTests(TestCase):
         self.assertEqual(operation["x-agent-sync-direction"], "shopify_to_wagtail")
         self.assertIn("list_products", operation["x-agent-next-tools"])
 
+    def test_suggest_related_pages_has_x_agent_fields(self):
+        schema = get_schema(api=api, path_prefix="")
+        operation = schema["paths"]["/semantic-links/suggest"]["post"]
+        self.assertEqual(operation["operationId"], "suggest_related_pages")
+        self.assertEqual(operation["x-agent-capability-type"], "discover")
+        self.assertEqual(operation["x-agent-resource"], "semantic_links")
+        self.assertIn("get_glossary_term", operation["x-agent-next-tools"])
+
     def test_openapi_tags_have_descriptions(self):
         schema = get_schema(api=api, path_prefix="")
         tag_names = {tag["name"] for tag in schema["tags"]}
         self.assertIn("Products", tag_names)
         self.assertIn("Capabilities", tag_names)
+        self.assertIn("Semantic Links", tag_names)
         products_tag = next(t for t in schema["tags"] if t["name"] == "Products")
         self.assertIn("sync_inbound", products_tag["description"])
 

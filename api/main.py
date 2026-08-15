@@ -12,6 +12,7 @@ from .routers.articles import router as articles_router
 from .routers.locations import router as locations_router
 from .routers.glossary import router as glossary_router
 from .routers.home import router as home_router
+from .routers.semantic_links import router as semantic_links_router
 from .routers.capabilities import router as capabilities_router
 
 
@@ -63,6 +64,8 @@ clients in **Django Admin → Django OAuth Toolkit → Applications** and reques
 | Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |
 | Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | — (Wagtail-only) | POST /home/{id}/push |
 
+**Semantic links (preview):** `POST /semantic-links/suggest` — nearest neighbors with similarity scores. Read-only; does not persist related-link FKs. Requires `locale` plus `page_id` or draft `text`/fields. Independent of the 5-per-type production cap.
+
 **Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.
 **Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.
 
@@ -95,7 +98,7 @@ Locations have **no pull** — content is authored in Wagtail and pushed to Shop
 Pull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`, `image_alt_text`) without overwriting existing term text or definitions.
 
 1. `POST /glossary/pull` — import metaobjects; existing pages get image fields only.
-2. `GET /glossary/?locale_code=en` — verify `image_url` populated.
+2. `GET /glossary/?locale_code=en&full=true` — verify `image_url` populated.
 3. Index rebuild runs automatically after pull (`custom.index_listings` on Page handle `glossary`).
 4. `POST /glossary/{id}/push` — push Wagtail-authored content when needed.
 
@@ -109,6 +112,13 @@ Home pages have **no pull** — content is authored via this API (AI agents) and
 2. `PATCH /home/{id}` with typed section fields and `"publish": true` (optional).
 3. `POST /home/{id}/push` — upserts metaobject; `shopify_id` saved on first success.
 4. `GET /home/{id}` — verify `sections_json` (13 types), `last_synced_at`, and `shopify_id`.
+
+### Semantic related preview
+
+1. `POST /semantic-links/suggest` with `locale` and either `page_id` or draft `text`/`title`/`definition` (set `page_type`).
+2. Pass `types: ["collection"]` and a higher `limit_per_type` (default 20) for gap analysis; production publish still caps auto-links at 5.
+
+Note: `WAGTAIL_AI_PGVECTOR` and a populated `PageIndex` are required. HTTP 503 if the vector index is unavailable.
 
 ## Sync Model
 
@@ -185,6 +195,7 @@ api.add_router('/articles/', articles_router, tags=['Articles'])
 api.add_router('/locations/', locations_router, tags=['Locations'])
 api.add_router('/glossary/', glossary_router, tags=['Glossary'])
 api.add_router('/home/', home_router, tags=['Home'])
+api.add_router('/semantic-links/', semantic_links_router, tags=['Semantic Links'])
 api.add_router('/capabilities/', capabilities_router, tags=['Capabilities'])
 
 from .mcp import setup_mcp  # noqa: E402

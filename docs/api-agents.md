@@ -109,6 +109,7 @@ La fuente única de verdad es `api/agent_registry.py` — OpenAPI y `/capabiliti
 | Locations | `GET /locations/` | `GET /locations/{id}` | `POST /locations/` | `PATCH /locations/{id}` | `DELETE /locations/{id}` | — | `POST /locations/{id}/push` |
 | Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | `POST /glossary/pull` | `POST /glossary/{id}/push` |
 | Home | `GET /home/` | `GET /home/{id}` | `POST /home/` | `PATCH /home/{id}` | `DELETE /home/{id}` | — | `POST /home/{id}/push` |
+| Semantic links | `POST /semantic-links/suggest` (preview only; no persist) | — | — | — | — | — | — |
 
 ---
 
@@ -332,6 +333,36 @@ curl -H "Authorization: Bearer $API_KEY" "$BASE/glossary/12"
 ```
 
 Filtrar por locale Shopify del metaobject: `GET /glossary/?locale_code=es` (distinto de `?locale=` que filtra Wagtail locale).
+El listado es compacto por defecto (sin `definition`). Pasar `?full=true` para `GlossaryTermOut` completo, o usar `GET /glossary/{id}`.
+
+### Preview semántico (related links)
+
+`POST /semantic-links/suggest` (`suggest_related_pages`) es **solo lectura**: no escribe FK ni llama a `refresh_semantic_links`. El auto-link de publish sigue capado a 5 por tipo.
+
+```bash
+# Draft que aún no existe
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "locale": "en-US",
+    "page_type": "glossary",
+    "title": "Chastity Belt",
+    "definition": "<p>A locking device worn to restrict genital access.</p>",
+    "types": ["collection"],
+    "limit_per_type": 20
+  }' \
+  "$BASE/semantic-links/suggest"
+
+# Página existente (el servidor extrae el texto)
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"locale": "en-US", "page_id": 12, "limit_per_type": 20}' \
+  "$BASE/semantic-links/suggest"
+```
+
+Requisitos: `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, `PageIndex` poblado (`index_pages_batch`). Sin índice: HTTP 503.
+
+Cada candidato incluye `score` (similitud coseno, más alto = más cercano).
 
 ---
 

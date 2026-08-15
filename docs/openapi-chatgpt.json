@@ -3,7 +3,7 @@
   "info": {
     "title": "Wagtail-Shopify Content API",
     "version": "1.1.0",
-    "description": "\n# Wagtail-Shopify Content API (AI Agent Tool Registry)\n\nAutonomous content management across Wagtail CMS and Shopify. Every endpoint runs **synchronously**\nand returns final results in the HTTP response — no Celery jobs, no polling.\n\nOpenAPI spec: `/api/v1/openapi.json` · Agent catalog: `GET /api/v1/capabilities/` · Interactive docs: `/api/v1/docs/`\n\n## Authentication\n\nAll endpoints require a bearer token. Existing API keys and OAuth access tokens issued\nfor MCP clients are both accepted:\n\n```\nAuthorization: Bearer <api_key_or_oauth_access_token>\n```\n\nCreate API keys in **Django Admin → API → API Keys** (`/admin-django/`). Create OAuth\nclients in **Django Admin → Django OAuth Toolkit → Applications** and request the\n`mcp` scope through `/o/authorize/` and `/o/token/`. Missing or invalid tokens return **401**.\n\n## Tool Matrix\n\n| Resource | List | Get | Create | Update | Delete | Pull (Shopify→Wagtail) | Push (Wagtail→Shopify) |\n|----------|------|-----|--------|--------|--------|------------------------|------------------------|\n| Products | GET /products/ | GET /products/{id} | POST /products/ | PATCH /products/{id} | DELETE /products/{id} | POST /products/pull | POST /products/{id}/push |\n| Collections | GET /collections/ | GET /collections/{id} | POST /collections/ | PATCH /collections/{id} | DELETE /collections/{id} | POST /collections/pull | POST /collections/{id}/push |\n| Blogs | GET /blogs/ | GET /blogs/{id} | POST /blogs/ | PATCH /blogs/{id} | DELETE /blogs/{id} | POST /blogs/pull | POST /blogs/{id}/push |\n| Articles | GET /articles/ | GET /articles/{id} | POST /articles/ | PATCH /articles/{id} | DELETE /articles/{id} | POST /articles/pull | POST /articles/{id}/push |\n| Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | — (Wagtail-only) | POST /locations/{id}/push |\n| Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |\n| Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | — (Wagtail-only) | POST /home/{id}/push |\n\n**Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.\n**Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.\n\n## Agent Workflows\n\n### Products / Collections (existing Shopify catalog)\n\n1. `POST /products/pull` — import all products; read stats in response body.\n2. `GET /products/?locale=en-US` — list pages; note `id` and `shopify_id`.\n3. `PATCH /products/{id}` with content + `\"publish\": true` — save and sync if `sync_enabled=true`.\n4. `GET /products/{id}` — verify `last_synced_at` updated.\n\n### Blogs and Articles\n\n1. `POST /blogs/pull` — imports blogs **and** articles in one call.\n2. `GET /articles/?blog_id={blog_page_id}` — filter articles by parent blog.\n3. `PATCH /articles/{id}` with `\"publish\": true` — parent BlogPage must have `shopify_id`.\n\n### Locations (Wagtail-origin metaobjects)\n\nLocations have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `local_page`.\n\n1. `POST /locations/` with `titulo` and content fields.\n2. `PATCH /locations/{id}` with `\"publish\": true` (optional).\n3. `POST /locations/{id}/push` — upserts metaobject; `shopify_id` saved on first success.\n4. `GET /locations/{id}` — verify `last_synced_at` and `shopify_id`.\n\n### Glossary (Shopify metaobjects)\n\nPull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`, `image_alt_text`) without overwriting existing term text or definitions.\n\n1. `POST /glossary/pull` — import metaobjects; existing pages get image fields only.\n2. `GET /glossary/?locale_code=en` — verify `image_url` populated.\n3. Index rebuild runs automatically after pull (`custom.index_listings` on Page handle `glossary`).\n4. `POST /glossary/{id}/push` — push Wagtail-authored content when needed.\n\nNote: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from Wagtail `locale`.\n\n### Home (Wagtail-origin metaobjects)\n\nHome pages have **no pull** — content is authored via this API (AI agents) and pushed to Shopify metaobject type `home_page` (one metaobject per locale). `sections_json` is always normalized to 13 section types; send one typed field (e.g. `editorial_intro`) or a partial envelope.\n\n1. `POST /home/` with `hero_heading` and locale (section skeleton is filled automatically).\n2. `PATCH /home/{id}` with typed section fields and `\"publish\": true` (optional).\n3. `POST /home/{id}/push` — upserts metaobject; `shopify_id` saved on first success.\n4. `GET /home/{id}` — verify `sections_json` (13 types), `last_synced_at`, and `shopify_id`.\n\n## Sync Model\n\n- `shopify_id` — Shopify GID linking Wagtail page to Shopify resource.\n- `sync_enabled` — when true, `publish=true` triggers outbound sync via Wagtail publish hook.\n- `last_synced_at` — UTC timestamp of last successful push; null if never synced.\n- `translation_of` / `translation_page_ids` — link locale variants; shared `shopify_id` on translations.\n\n## Localization\n\nMarkets: `en-US` (primary), `es-US`, `en-CA`, `fr-CA`. Filter lists with `?locale=es-US`.\nSet `locale` on create; use `translation_of` (Wagtail page ID) to link variants.\n\n## Common Errors\n\n| Status | Meaning |\n|--------|---------|\n| 401 | Missing or invalid bearer token |\n| 400 | ShopConfig/token missing, validation error, or sync failure detail |\n| 404 | Page ID not found |\n\n## Notes\n\n- API operations are **synchronous only**. Wagtail admin and embedded app UI may still use background Celery jobs.\n- DELETE removes Wagtail pages only — Shopify resources are not deleted.\n- Use `operation_id` values in OpenAPI for stable AI tool names.\n"
+    "description": "\n# Wagtail-Shopify Content API (AI Agent Tool Registry)\n\nAutonomous content management across Wagtail CMS and Shopify. Every endpoint runs **synchronously**\nand returns final results in the HTTP response — no Celery jobs, no polling.\n\nOpenAPI spec: `/api/v1/openapi.json` · Agent catalog: `GET /api/v1/capabilities/` · Interactive docs: `/api/v1/docs/`\n\n## Authentication\n\nAll endpoints require a bearer token. Existing API keys and OAuth access tokens issued\nfor MCP clients are both accepted:\n\n```\nAuthorization: Bearer <api_key_or_oauth_access_token>\n```\n\nCreate API keys in **Django Admin → API → API Keys** (`/admin-django/`). Create OAuth\nclients in **Django Admin → Django OAuth Toolkit → Applications** and request the\n`mcp` scope through `/o/authorize/` and `/o/token/`. Missing or invalid tokens return **401**.\n\n## Tool Matrix\n\n| Resource | List | Get | Create | Update | Delete | Pull (Shopify→Wagtail) | Push (Wagtail→Shopify) |\n|----------|------|-----|--------|--------|--------|------------------------|------------------------|\n| Products | GET /products/ | GET /products/{id} | POST /products/ | PATCH /products/{id} | DELETE /products/{id} | POST /products/pull | POST /products/{id}/push |\n| Collections | GET /collections/ | GET /collections/{id} | POST /collections/ | PATCH /collections/{id} | DELETE /collections/{id} | POST /collections/pull | POST /collections/{id}/push |\n| Blogs | GET /blogs/ | GET /blogs/{id} | POST /blogs/ | PATCH /blogs/{id} | DELETE /blogs/{id} | POST /blogs/pull | POST /blogs/{id}/push |\n| Articles | GET /articles/ | GET /articles/{id} | POST /articles/ | PATCH /articles/{id} | DELETE /articles/{id} | POST /articles/pull | POST /articles/{id}/push |\n| Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | — (Wagtail-only) | POST /locations/{id}/push |\n| Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |\n| Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | — (Wagtail-only) | POST /home/{id}/push |\n\n**Semantic links (preview):** `POST /semantic-links/suggest` — nearest neighbors with similarity scores. Read-only; does not persist related-link FKs. Requires `locale` plus `page_id` or draft `text`/fields. Independent of the 5-per-type production cap.\n\n**Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.\n**Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.\n\n## Agent Workflows\n\n### Products / Collections (existing Shopify catalog)\n\n1. `POST /products/pull` — import all products; read stats in response body.\n2. `GET /products/?locale=en-US` — list pages; note `id` and `shopify_id`.\n3. `PATCH /products/{id}` with content + `\"publish\": true` — save and sync if `sync_enabled=true`.\n4. `GET /products/{id}` — verify `last_synced_at` updated.\n\n### Blogs and Articles\n\n1. `POST /blogs/pull` — imports blogs **and** articles in one call.\n2. `GET /articles/?blog_id={blog_page_id}` — filter articles by parent blog.\n3. `PATCH /articles/{id}` with `\"publish\": true` — parent BlogPage must have `shopify_id`.\n\n### Locations (Wagtail-origin metaobjects)\n\nLocations have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `local_page`.\n\n1. `POST /locations/` with `titulo` and content fields.\n2. `PATCH /locations/{id}` with `\"publish\": true` (optional).\n3. `POST /locations/{id}/push` — upserts metaobject; `shopify_id` saved on first success.\n4. `GET /locations/{id}` — verify `last_synced_at` and `shopify_id`.\n\n### Glossary (Shopify metaobjects)\n\nPull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`, `image_alt_text`) without overwriting existing term text or definitions.\n\n1. `POST /glossary/pull` — import metaobjects; existing pages get image fields only.\n2. `GET /glossary/?locale_code=en&full=true` — verify `image_url` populated.\n3. Index rebuild runs automatically after pull (`custom.index_listings` on Page handle `glossary`).\n4. `POST /glossary/{id}/push` — push Wagtail-authored content when needed.\n\nNote: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from Wagtail `locale`.\n\n### Home (Wagtail-origin metaobjects)\n\nHome pages have **no pull** — content is authored via this API (AI agents) and pushed to Shopify metaobject type `home_page` (one metaobject per locale). `sections_json` is always normalized to 13 section types; send one typed field (e.g. `editorial_intro`) or a partial envelope.\n\n1. `POST /home/` with `hero_heading` and locale (section skeleton is filled automatically).\n2. `PATCH /home/{id}` with typed section fields and `\"publish\": true` (optional).\n3. `POST /home/{id}/push` — upserts metaobject; `shopify_id` saved on first success.\n4. `GET /home/{id}` — verify `sections_json` (13 types), `last_synced_at`, and `shopify_id`.\n\n### Semantic related preview\n\n1. `POST /semantic-links/suggest` with `locale` and either `page_id` or draft `text`/`title`/`definition` (set `page_type`).\n2. Pass `types: [\"collection\"]` and a higher `limit_per_type` (default 20) for gap analysis; production publish still caps auto-links at 5.\n\nNote: `WAGTAIL_AI_PGVECTOR` and a populated `PageIndex` are required. HTTP 503 if the vector index is unavailable.\n\n## Sync Model\n\n- `shopify_id` — Shopify GID linking Wagtail page to Shopify resource.\n- `sync_enabled` — when true, `publish=true` triggers outbound sync via Wagtail publish hook.\n- `last_synced_at` — UTC timestamp of last successful push; null if never synced.\n- `translation_of` / `translation_page_ids` — link locale variants; shared `shopify_id` on translations.\n\n## Localization\n\nMarkets: `en-US` (primary), `es-US`, `en-CA`, `fr-CA`. Filter lists with `?locale=es-US`.\nSet `locale` on create; use `translation_of` (Wagtail page ID) to link variants.\n\n## Common Errors\n\n| Status | Meaning |\n|--------|---------|\n| 401 | Missing or invalid bearer token |\n| 400 | ShopConfig/token missing, validation error, or sync failure detail |\n| 404 | Page ID not found |\n\n## Notes\n\n- API operations are **synchronous only**. Wagtail admin and embedded app UI may still use background Celery jobs.\n- DELETE removes Wagtail pages only — Shopify resources are not deleted.\n- Use `operation_id` values in OpenAPI for stable AI tool names.\n"
   },
   "paths": {
     "/api/v1/products/": {
@@ -2257,6 +2257,17 @@
               "type": "integer"
             },
             "required": false
+          },
+          {
+            "in": "query",
+            "name": "full",
+            "schema": {
+              "default": false,
+              "title": "Full",
+              "type": "boolean"
+            },
+            "description": "When false (default), return a compact list of terms (id, term, handle, slug, shopify_id, locale_code, live, last_synced_at). When true, return full GlossaryTermOut including definition HTML, links, and SEO. Prefer false; use get_glossary_term for a single full record.",
+            "required": false
           }
         ],
         "responses": {
@@ -2265,17 +2276,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GlossaryTermOut"
-                  },
                   "title": "Response",
-                  "type": "array"
+                  "oneOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/GlossaryTermListOut"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/GlossaryTermOut"
+                      },
+                      "type": "array"
+                    }
+                  ]
                 }
               }
             }
           }
         },
-        "description": "Capability: discover — glossary\nWhen to use: Discover glossary terms before pull or push to Shopify metaobjects.\nReturns: List[GlossaryTermOut]\nNext tools: get_glossary_term, pull_glossary_sync, create_glossary_term",
+        "description": "Capability: discover — glossary\nWhen to use: Discover glossary terms before pull or push. Default is a compact list (id, term, handle, slug, shopify_id, locale_code, live, last_synced_at). Pass full=true for GlossaryTermOut (definition HTML, links, SEO), or use get_glossary_term for a single full record.\nReturns: List[GlossaryTermListOut] | List[GlossaryTermOut]\nNext tools: get_glossary_term, pull_glossary_sync, create_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -3052,6 +3073,86 @@
           "list_products"
         ],
         "x-agent-prerequisites": []
+      }
+    },
+    "/api/v1/semantic-links/suggest": {
+      "post": {
+        "operationId": "suggest_related_pages",
+        "summary": "Suggest related pages (preview)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestRelatedOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "description": "Capability: discover — semantic_links\nWhen to use: Preview nearest neighbors for draft text or an existing page_id before publish. Returns similarity scores grouped by type and does not persist links. Use for gap analysis and clustering; production auto-links still cap at 5 per type on publish.\nPrerequisites: WAGTAIL_AI_PGVECTOR=true; PageIndex registered (GEMINI_API_KEY); index populated via index_pages_batch\nReturns: SuggestRelatedOut\nNext tools: get_collection, get_glossary_term, get_product, get_article, create_glossary_term",
+        "tags": [
+          "Semantic Links"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestRelatedIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "x-agent-capability-type": "discover",
+        "x-agent-resource": "semantic_links",
+        "x-agent-next-tools": [
+          "get_collection",
+          "get_glossary_term",
+          "get_product",
+          "get_article",
+          "create_glossary_term"
+        ],
+        "x-agent-prerequisites": [
+          "WAGTAIL_AI_PGVECTOR=true; PageIndex registered (GEMINI_API_KEY); index populated via index_pages_batch"
+        ]
       }
     }
   },
@@ -6441,6 +6542,69 @@
         "title": "ExternalLinkSchema",
         "type": "object"
       },
+      "GlossaryTermListOut": {
+        "properties": {
+          "id": {
+            "description": "Wagtail page ID for /glossary/{page_id}/ endpoints.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "shopify_id": {
+            "description": "Shopify metaobject GID. Empty if never pushed.",
+            "title": "Shopify Id",
+            "type": "string"
+          },
+          "term": {
+            "description": "Glossary term text.",
+            "title": "Term",
+            "type": "string"
+          },
+          "handle": {
+            "description": "Shopify metaobject handle.",
+            "title": "Handle",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Wagtail page slug.",
+            "title": "Slug",
+            "type": "string"
+          },
+          "locale_code": {
+            "description": "Shopify locale pushed on sync (en/es/fr).",
+            "title": "Locale Code",
+            "type": "string"
+          },
+          "live": {
+            "description": "True if published in Wagtail.",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTC timestamp of last successful push to Shopify metaobject.",
+            "title": "Last Synced At"
+          }
+        },
+        "required": [
+          "id",
+          "shopify_id",
+          "term",
+          "handle",
+          "slug",
+          "locale_code",
+          "live"
+        ],
+        "title": "GlossaryTermListOut",
+        "type": "object"
+      },
       "GlossaryTermOut": {
         "properties": {
           "translation_page_ids": {
@@ -9371,6 +9535,353 @@
         ],
         "title": "AgentToolSchema",
         "type": "object"
+      },
+      "SuggestRelatedIn": {
+        "properties": {
+          "locale": {
+            "description": "Wagtail locale code for this page variant. Allowed: 'en-US' (English, US), 'es-US' (Spanish, US), 'en-CA' (English, Canada), 'fr-CA' (French, Canada). Defaults to the site default locale (en-US) when omitted on create.",
+            "title": "Locale",
+            "type": "string"
+          },
+          "page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Existing Wagtail page ID. Query text is extracted like refresh_semantic_links. Do not combine with text or structured fields.",
+            "title": "Page Id"
+          },
+          "page_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "product",
+                  "collection",
+                  "article",
+                  "glossary"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Origin page type. Required when using text/fields (chooses which fields are concatenated). Inferred from page_id when omitted.",
+            "title": "Page Type"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free-text query for a page that does not exist yet.",
+            "title": "Text"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Title / heading used in the query text.",
+            "title": "Title"
+          },
+          "seo_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO title used in the query text.",
+            "title": "Seo Title"
+          },
+          "search_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO meta description used in the query text.",
+            "title": "Search Description"
+          },
+          "definition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Glossary definition HTML/text.",
+            "title": "Definition"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article summary used in the query text.",
+            "title": "Summary"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Product/article body used in the query text.",
+            "title": "Body"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Collection description used in the query text.",
+            "title": "Description"
+          },
+          "synonyms": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Glossary synonyms used in the query text.",
+            "title": "Synonyms"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Product vendor used in the query text.",
+            "title": "Vendor"
+          },
+          "product_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shopify product type used in the query text.",
+            "title": "Product Type"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article author used in the query text.",
+            "title": "Author"
+          },
+          "types": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "product",
+                    "collection",
+                    "article",
+                    "glossary"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Candidate types to search. Defaults to all four linkable types.",
+            "title": "Types"
+          },
+          "exclude_page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Extra page ID to exclude (page_id is always excluded when set).",
+            "title": "Exclude Page Id"
+          },
+          "limit_per_type": {
+            "default": 20,
+            "description": "Max candidates per type for this preview (default 20, max 100). Independent of SEMANTIC_LINKS_LIMIT_PER_TYPE used on publish.",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit Per Type",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "SuggestRelatedIn",
+        "type": "object"
+      },
+      "SuggestRelatedOut": {
+        "properties": {
+          "locale": {
+            "description": "Wagtail locale used to filter candidates.",
+            "title": "Locale",
+            "type": "string"
+          },
+          "page_type": {
+            "description": "Origin page type used to assemble query text.",
+            "enum": [
+              "product",
+              "collection",
+              "article",
+              "glossary"
+            ],
+            "title": "Page Type",
+            "type": "string"
+          },
+          "limit_per_type": {
+            "description": "Per-type cap applied to this preview.",
+            "title": "Limit Per Type",
+            "type": "integer"
+          },
+          "candidates": {
+            "$ref": "#/components/schemas/SuggestRelatedCandidatesOut",
+            "description": "Neighbors grouped by type, each ordered by score descending."
+          }
+        },
+        "required": [
+          "locale",
+          "page_type",
+          "limit_per_type",
+          "candidates"
+        ],
+        "title": "SuggestRelatedOut",
+        "type": "object"
+      },
+      "SuggestRelatedCandidateOut": {
+        "properties": {
+          "id": {
+            "description": "Wagtail page ID of the candidate.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "type": {
+            "description": "Linkable page type of the candidate.",
+            "enum": [
+              "product",
+              "collection",
+              "article",
+              "glossary"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "description": "Display title (glossary term when applicable).",
+            "title": "Title",
+            "type": "string"
+          },
+          "handle": {
+            "description": "Shopify/Wagtail handle or slug.",
+            "title": "Handle",
+            "type": "string"
+          },
+          "score": {
+            "description": "Cosine similarity (1 - distance) from pgvector; higher is closer.",
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "handle",
+          "score"
+        ],
+        "title": "SuggestRelatedCandidateOut",
+        "type": "object"
+      },
+      "SuggestRelatedCandidatesOut": {
+        "properties": {
+          "product": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Product",
+            "type": "array"
+          },
+          "collection": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Collection",
+            "type": "array"
+          },
+          "article": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Article",
+            "type": "array"
+          },
+          "glossary": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Glossary",
+            "type": "array"
+          }
+        },
+        "title": "SuggestRelatedCandidatesOut",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -9419,6 +9930,10 @@
     {
       "name": "Capabilities",
       "description": "Meta capability group: machine-readable agent tool catalog and predefined workflows."
+    },
+    {
+      "name": "Semantic Links",
+      "description": "Read-only semantic neighbor preview against PageIndex. Does not persist related-link FKs; production auto-links still materialize on publish."
     }
   ]
 }
