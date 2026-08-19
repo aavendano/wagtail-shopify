@@ -108,6 +108,8 @@ La fuente única de verdad es `api/agent_registry.py` — OpenAPI y `/capabiliti
 | Articles | `GET /articles/` | `GET /articles/{id}` | `POST /articles/` | `PATCH /articles/{id}` | `DELETE /articles/{id}` | `POST /articles/pull` | `POST /articles/{id}/push` |
 | Locations | `GET /locations/` | `GET /locations/{id}` | `POST /locations/` | `PATCH /locations/{id}` | `DELETE /locations/{id}` | — | `POST /locations/{id}/push` |
 | Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | `POST /glossary/pull` | `POST /glossary/{id}/push` |
+| Home | `GET /home/` | `GET /home/{id}` | `POST /home/` | `PATCH /home/{id}` | `DELETE /home/{id}` | — | `POST /home/{id}/push` |
+| Semantic links | `POST /semantic-links/suggest` (preview only; no persist) | — | — | — | — | — | — |
 
 ---
 
@@ -202,6 +204,69 @@ curl -H "Authorization: Bearer $API_KEY" "$BASE/locations/7"
 
 Campos rich text (`intro`, `content_2`, etc.) se envían y reciben como **HTML string**.
 
+### Home (solo Wagtail → Shopify)
+
+Home pages **no tienen pull**. Un metaobject `home_page` por locale (`home-en-us`, …). El hero va en campos top-level; las 13 secciones se editan por campos tipados (recomendado) o `sections_json` parcial. El servidor siempre normaliza a `{version: 1, sections: [13 types]}`.
+
+```bash
+# 1. Crear (esqueleto de 13 secciones automático)
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"hero_heading": "Adult Toys for Every Body", "locale": "en-US"}' \
+  "$BASE/home/"
+
+# 2. PATCH de una sección (merge por type; no borra el resto)
+curl -X PATCH -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "editorial_intro": {
+      "heading": "Pleasure, made clear",
+      "body": "<p>Guides and body-safe picks.</p>"
+    },
+    "publish": true
+  }' \
+  "$BASE/home/42"
+
+# 3. Push a Shopify
+curl -X POST -H "Authorization: Bearer $API_KEY" "$BASE/home/42/push"
+
+# 4. Verificar sections_json (siempre 13 types), shopify_id, last_synced_at
+curl -H "Authorization: Bearer $API_KEY" "$BASE/home/42"
+```
+
+Campos de sección de primer nivel: `promo_gateway`, `nav_collection_pills`, `trust_bar`, `featured_collections`, `editorial_intro`, `best_sellers`, `shop_by_need`, `educational_hub`, `brand_values`, `market_block`, `faq`, `internal_links`, `seo_schema`. Referencias usan `page_id` (Wagtail FK).
+
+#### Rellenar contenido por locale (agentes)
+
+No hay auto-copia `en-US` → otros locales. Cada `HomePage` (`home-en-us`, `home-es-us`, `home-en-ca`, `home-fr-ca`) se edita aparte. El servidor solo garantiza el sobre canónico de 13 tipos.
+
+| Locale | Source of truth | `market_block.market_code` | Copy |
+|--------|-----------------|----------------------------|------|
+| `en-US` | Baseline editorial (seed / live) | `US` | Inglés US |
+| `es-US` | Adaptar desde `en-US` | `US` | Español US |
+| `en-CA` | Adaptar desde `en-US` | `CA` | Inglés Canadá |
+| `fr-CA` | Adaptar desde `en-CA` (o `en-US` + market CA) | `CA` | Francés Canadá |
+
+**Refs**
+
+- `CollectionPage` / `ProductPage`: mismos `page_id` en todos los locales (catálogo compartido).
+- `ArticlePage`: solo si existe en el mismo locale Wagtail del Home; si no hay traducción, omitir el ítem (p. ej. grupo Guides).
+- `GlossaryTermPage`: remapear por `locale_code` (`en-US`/`en-CA` → `en`, `es-US` → `es`, `fr-CA` → `fr`).
+
+**Workflow**
+
+1. `GET /home/` → mapear `locale` → `id`.
+2. `GET /home/{en_us_id}` → baseline (hero + `sections_json`).
+3. Resolver collections por handle; articles/glossary del locale destino.
+4. `PATCH /home/{id}` por lotes (merge tipado; omitidos se conservan):
+   - Lote A (refs): `promo_gateway`, `nav_collection_pills`, `featured_collections`, `best_sellers`, `shop_by_need`
+   - Lote B (copy): `trust_bar`, `editorial_intro`, `brand_values`, `market_block`, `faq`
+   - Lote C (discovery + SEO): `educational_hub`, `internal_links`, `seo_schema` + hero/`seo_title`/`search_description`
+5. `publish: true` en el PATCH y/o `POST /home/{id}/push`.
+6. Verificar: `GET` con 13 types; listas con ≥1 ítem donde el diseño lo espera; `market_code` correcto; `shopify_id` / `last_synced_at` actualizados.
+
+Criterio “locale completo”: hero (`hero_eyebrow`, heading, CTAs, SEO) + las 13 secciones con copy no vacío en headings y listas mínimas (promo cards, trust, FAQ, nav pills, etc.). Refs sin equivalente de locale se omiten a propósito.
+
 ### Glossary (Wagtail ↔ Shopify)
 
 El contenido editorial (`term`, `definition`, SEO, links) se crea y edita en Wagtail y se empuja a metaobject Shopify `glossary_term`. Las **imágenes** se cargan en Shopify Admin; el pull inbound sincroniza solo campos de imagen en términos existentes y crea páginas nuevas si faltan en Wagtail.
@@ -268,6 +333,36 @@ curl -H "Authorization: Bearer $API_KEY" "$BASE/glossary/12"
 ```
 
 Filtrar por locale Shopify del metaobject: `GET /glossary/?locale_code=es` (distinto de `?locale=` que filtra Wagtail locale).
+El listado es compacto por defecto (sin `definition`). Pasar `?full=true` para `GlossaryTermOut` completo, o usar `GET /glossary/{id}`.
+
+### Preview semántico (related links)
+
+`POST /semantic-links/suggest` (`suggest_related_pages`) es **solo lectura**: no escribe FK ni llama a `refresh_semantic_links`. El auto-link de publish sigue capado a 5 por tipo.
+
+```bash
+# Draft que aún no existe
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "locale": "en-US",
+    "page_type": "glossary",
+    "title": "Chastity Belt",
+    "definition": "<p>A locking device worn to restrict genital access.</p>",
+    "types": ["collection"],
+    "limit_per_type": 20
+  }' \
+  "$BASE/semantic-links/suggest"
+
+# Página existente (el servidor extrae el texto)
+curl -X POST -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"locale": "en-US", "page_id": 12, "limit_per_type": 20}' \
+  "$BASE/semantic-links/suggest"
+```
+
+Requisitos: `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, `PageIndex` poblado (`index_pages_batch`). Sin índice: HTTP 503.
+
+Cada candidato incluye `score` (similitud coseno, más alto = más cercano).
 
 ---
 

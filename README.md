@@ -112,7 +112,7 @@ python manage.py refresh_semantic_links_batch --only-missing  # backfill manual 
 python manage.py sync_semantic_links_revisions  # si links existen en BD pero no en admin
 ```
 
-En el admin Wagtail, cada página linkable muestra cuatro paneles: **Related products**, **Related collections**, **Related articles** y **Related glossary terms**. El backfill nocturno (Celery Beat, 04:00) y el encolado post-`index_pages_batch` usan `only_missing=true` por defecto.
+En el admin Wagtail, cada página linkable muestra cuatro paneles: **Related products**, **Related collections**, **Related articles** y **Related glossary terms**. El backfill nocturno (Celery Beat, 04:00) y el encolado post-`index_pages_batch` usan `only_missing=true` por defecto. Con `model=all`, el orden es article → collection → glossary → product. En **ProductPage**, articles/collections/glossary se rellenan por reverse ORM (quién apunta al producto); `related_products` usa una sola búsqueda vectorial.
 
 ---
 

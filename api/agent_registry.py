@@ -10,7 +10,17 @@ CapabilityType = Literal[
     "sync_inbound",
     "sync_outbound",
 ]
-Resource = Literal["products", "collections", "blogs", "articles", "locations", "glossary", "home", "capabilities"]
+Resource = Literal[
+    "products",
+    "collections",
+    "blogs",
+    "articles",
+    "locations",
+    "glossary",
+    "home",
+    "semantic_links",
+    "capabilities",
+]
 SyncDirection = Literal["shopify_to_wagtail", "wagtail_to_shopify"] | None
 
 SHOP_CONFIG_PREREQ = "ShopConfig with valid offline access token"
@@ -388,8 +398,13 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "list_glossary_terms", "GET", "/glossary/",
         "discover", "glossary",
         "List Glossary term pages from Wagtail",
-        "Discover glossary terms before pull or push to Shopify metaobjects.",
-        "List[GlossaryTermOut]",
+        (
+            "Discover glossary terms before pull or push. Default is a compact list "
+            "(id, term, handle, slug, shopify_id, locale_code, live, last_synced_at). "
+            "Pass full=true for GlossaryTermOut (definition HTML, links, SEO), or use "
+            "get_glossary_term for a single full record."
+        ),
+        "List[GlossaryTermListOut] | List[GlossaryTermOut]",
         ("get_glossary_term", "pull_glossary_sync", "create_glossary_term"),
     ),
     "pull_glossary_sync": _cap(
@@ -461,7 +476,8 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "create_home_page", "POST", "/home/",
         "create", "home",
         "Create a Home page in Wagtail",
-        "Author home content in Wagtail; push to Shopify metaobject type home_page.",
+        "Author home content via API (hero + typed section fields). "
+        "Partial sections are merged; required keys and the 13-type envelope are filled server-side.",
         "HomeOut",
         ("update_home_page", "push_home_page"),
         (HOME_ROOT_PREREQ,),
@@ -478,7 +494,8 @@ CAPABILITIES: dict[str, AgentCapability] = {
         "update_home_page", "PATCH", "/home/{page_id}",
         "update", "home",
         "Update a Home page",
-        "Edit home fields; publish=true optional before push.",
+        "Patch hero and/or individual sections (editorial_intro, faq, …). "
+        "Omitted section fields are kept; required keys are normalized. publish=true optional before push.",
         "HomeOut",
         ("push_home_page", "get_home_page"),
     ),
@@ -499,6 +516,26 @@ CAPABILITIES: dict[str, AgentCapability] = {
         ("get_home_page",),
         (SHOP_CONFIG_PREREQ,),
         sync_direction="wagtail_to_shopify",
+    ),
+    # Semantic related-link preview
+    "suggest_related_pages": _cap(
+        "suggest_related_pages", "POST", "/semantic-links/suggest",
+        "discover", "semantic_links",
+        "Preview semantically related pages",
+        (
+            "Preview nearest neighbors for draft text or an existing page_id before publish. "
+            "Returns similarity scores grouped by type and does not persist links. "
+            "Use for gap analysis and clustering; production auto-links still cap at 5 per type on publish."
+        ),
+        "SuggestRelatedOut",
+        (
+            "get_collection",
+            "get_glossary_term",
+            "get_product",
+            "get_article",
+            "create_glossary_term",
+        ),
+        ("WAGTAIL_AI_PGVECTOR=true; PageIndex registered (GEMINI_API_KEY); index populated via index_pages_batch",),
     ),
     # Capabilities catalog
     "list_agent_capabilities": _cap(
@@ -585,6 +622,10 @@ TAG_DESCRIPTIONS: dict[str, str] = {
     "Home": (
         "Capability group: Wagtail-origin Home pages pushed to Shopify metaobjects "
         "(type home_page). One page per locale; no pull endpoint."
+    ),
+    "Semantic Links": (
+        "Read-only semantic neighbor preview against PageIndex. Does not persist "
+        "related-link FKs; production auto-links still materialize on publish."
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."

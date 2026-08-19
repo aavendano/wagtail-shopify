@@ -32,4 +32,3 @@ wagtail-ai
 llm-gemini
 pgvector
 any-llm-sdk[gemini]
--e ../services/bigquery_gsc[celery,postgres]

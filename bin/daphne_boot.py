@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""Import bigframes before daphne/twisted starts (zope.interface conflict)."""
+"""Thin launcher for Daphne ASGI (no eager bigframes import)."""
 from __future__ import annotations
 
 import sys
 
 
 def main() -> None:
-    import bigframes.pandas as bpd  # noqa: F401
-
     from daphne.cli import CommandLineInterface
 
     args = sys.argv[1:] if len(sys.argv) > 1 else []

@@ -3,7 +3,7 @@
   "info": {
     "title": "Wagtail-Shopify Content API",
     "version": "1.1.0",
-    "description": "\n# Wagtail-Shopify Content API (AI Agent Tool Registry)\n\nAutonomous content management across Wagtail CMS and Shopify. Every endpoint runs **synchronously**\nand returns final results in the HTTP response \u2014 no Celery jobs, no polling.\n\nOpenAPI spec: `/api/v1/openapi.json` \u00b7 Agent catalog: `GET /api/v1/capabilities/` \u00b7 Interactive docs: `/api/v1/docs/`\n\n## Authentication\n\nAll endpoints require a bearer token. Existing API keys and OAuth access tokens issued\nfor MCP clients are both accepted:\n\n```\nAuthorization: Bearer <api_key_or_oauth_access_token>\n```\n\nCreate API keys in **Django Admin \u2192 API \u2192 API Keys** (`/admin-django/`). Create OAuth\nclients in **Django Admin \u2192 Django OAuth Toolkit \u2192 Applications** and request the\n`mcp` scope through `/o/authorize/` and `/o/token/`. Missing or invalid tokens return **401**.\n\n## Tool Matrix\n\n| Resource | List | Get | Create | Update | Delete | Pull (Shopify\u2192Wagtail) | Push (Wagtail\u2192Shopify) |\n|----------|------|-----|--------|--------|--------|------------------------|------------------------|\n| Products | GET /products/ | GET /products/{id} | POST /products/ | PATCH /products/{id} | DELETE /products/{id} | POST /products/pull | POST /products/{id}/push |\n| Collections | GET /collections/ | GET /collections/{id} | POST /collections/ | PATCH /collections/{id} | DELETE /collections/{id} | POST /collections/pull | POST /collections/{id}/push |\n| Blogs | GET /blogs/ | GET /blogs/{id} | POST /blogs/ | PATCH /blogs/{id} | DELETE /blogs/{id} | POST /blogs/pull | POST /blogs/{id}/push |\n| Articles | GET /articles/ | GET /articles/{id} | POST /articles/ | PATCH /articles/{id} | DELETE /articles/{id} | POST /articles/pull | POST /articles/{id}/push |\n| Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | \u2014 (Wagtail-only) | POST /locations/{id}/push |\n| Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |\n| Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | \u2014 (Wagtail-only) | POST /home/{id}/push |\n\n**Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.\n**Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.\n\n## Agent Workflows\n\n### Products / Collections (existing Shopify catalog)\n\n1. `POST /products/pull` \u2014 import all products; read stats in response body.\n2. `GET /products/?locale=en-US` \u2014 list pages; note `id` and `shopify_id`.\n3. `PATCH /products/{id}` with content + `\"publish\": true` \u2014 save and sync if `sync_enabled=true`.\n4. `GET /products/{id}` \u2014 verify `last_synced_at` updated.\n\n### Blogs and Articles\n\n1. `POST /blogs/pull` \u2014 imports blogs **and** articles in one call.\n2. `GET /articles/?blog_id={blog_page_id}` \u2014 filter articles by parent blog.\n3. `PATCH /articles/{id}` with `\"publish\": true` \u2014 parent BlogPage must have `shopify_id`.\n\n### Locations (Wagtail-origin metaobjects)\n\nLocations have **no pull** \u2014 content is authored in Wagtail and pushed to Shopify metaobject type `local_page`.\n\n1. `POST /locations/` with `titulo` and content fields.\n2. `PATCH /locations/{id}` with `\"publish\": true` (optional).\n3. `POST /locations/{id}/push` \u2014 upserts metaobject; `shopify_id` saved on first success.\n4. `GET /locations/{id}` \u2014 verify `last_synced_at` and `shopify_id`.\n\n### Glossary (Shopify metaobjects)\n\nPull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`, `image_alt_text`) without overwriting existing term text or definitions.\n\n1. `POST /glossary/pull` \u2014 import metaobjects; existing pages get image fields only.\n2. `GET /glossary/?locale_code=en` \u2014 verify `image_url` populated.\n3. Index rebuild runs automatically after pull (`custom.index_listings` on Page handle `glossary`).\n4. `POST /glossary/{id}/push` \u2014 push Wagtail-authored content when needed.\n\nNote: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from Wagtail `locale`.\n\n### Home (Wagtail-origin metaobjects)\n\nHome pages have **no pull** \u2014 content is authored in Wagtail and pushed to Shopify metaobject type `home_page` (one metaobject per locale).\n\n1. `POST /home/` with `hero_heading` and locale.\n2. `PATCH /home/{id}` with `\"publish\": true` (optional).\n3. `POST /home/{id}/push` \u2014 upserts metaobject; `shopify_id` saved on first success.\n4. `GET /home/{id}` \u2014 verify `last_synced_at` and `shopify_id`.\n\n## Sync Model\n\n- `shopify_id` \u2014 Shopify GID linking Wagtail page to Shopify resource.\n- `sync_enabled` \u2014 when true, `publish=true` triggers outbound sync via Wagtail publish hook.\n- `last_synced_at` \u2014 UTC timestamp of last successful push; null if never synced.\n- `translation_of` / `translation_page_ids` \u2014 link locale variants; shared `shopify_id` on translations.\n\n## Localization\n\nMarkets: `en-US` (primary), `es-US`, `en-CA`, `fr-CA`. Filter lists with `?locale=es-US`.\nSet `locale` on create; use `translation_of` (Wagtail page ID) to link variants.\n\n## Common Errors\n\n| Status | Meaning |\n|--------|---------|\n| 401 | Missing or invalid bearer token |\n| 400 | ShopConfig/token missing, validation error, or sync failure detail |\n| 404 | Page ID not found |\n\n## Notes\n\n- API operations are **synchronous only**. Wagtail admin and embedded app UI may still use background Celery jobs.\n- DELETE removes Wagtail pages only \u2014 Shopify resources are not deleted.\n- Use `operation_id` values in OpenAPI for stable AI tool names.\n"
+    "description": "\n# Wagtail-Shopify Content API (AI Agent Tool Registry)\n\nAutonomous content management across Wagtail CMS and Shopify. Every endpoint runs **synchronously**\nand returns final results in the HTTP response — no Celery jobs, no polling.\n\nOpenAPI spec: `/api/v1/openapi.json` · Agent catalog: `GET /api/v1/capabilities/` · Interactive docs: `/api/v1/docs/`\n\n## Authentication\n\nAll endpoints require a bearer token. Existing API keys and OAuth access tokens issued\nfor MCP clients are both accepted:\n\n```\nAuthorization: Bearer <api_key_or_oauth_access_token>\n```\n\nCreate API keys in **Django Admin → API → API Keys** (`/admin-django/`). Create OAuth\nclients in **Django Admin → Django OAuth Toolkit → Applications** and request the\n`mcp` scope through `/o/authorize/` and `/o/token/`. Missing or invalid tokens return **401**.\n\n## Tool Matrix\n\n| Resource | List | Get | Create | Update | Delete | Pull (Shopify→Wagtail) | Push (Wagtail→Shopify) |\n|----------|------|-----|--------|--------|--------|------------------------|------------------------|\n| Products | GET /products/ | GET /products/{id} | POST /products/ | PATCH /products/{id} | DELETE /products/{id} | POST /products/pull | POST /products/{id}/push |\n| Collections | GET /collections/ | GET /collections/{id} | POST /collections/ | PATCH /collections/{id} | DELETE /collections/{id} | POST /collections/pull | POST /collections/{id}/push |\n| Blogs | GET /blogs/ | GET /blogs/{id} | POST /blogs/ | PATCH /blogs/{id} | DELETE /blogs/{id} | POST /blogs/pull | POST /blogs/{id}/push |\n| Articles | GET /articles/ | GET /articles/{id} | POST /articles/ | PATCH /articles/{id} | DELETE /articles/{id} | POST /articles/pull | POST /articles/{id}/push |\n| Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | — (Wagtail-only) | POST /locations/{id}/push |\n| Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |\n| Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | — (Wagtail-only) | POST /home/{id}/push |\n\n**Semantic links (preview):** `POST /semantic-links/suggest` — nearest neighbors with similarity scores. Read-only; does not persist related-link FKs. Requires `locale` plus `page_id` or draft `text`/fields. Independent of the 5-per-type production cap.\n\n**Pull** returns HTTP 200 with `{created, updated, skipped, errors, message}` immediately.\n**Push** returns HTTP 200 with `{success, message, shopify_id}` immediately.\n\n## Agent Workflows\n\n### Products / Collections (existing Shopify catalog)\n\n1. `POST /products/pull` — import all products; read stats in response body.\n2. `GET /products/?locale=en-US` — list pages; note `id` and `shopify_id`.\n3. `PATCH /products/{id}` with content + `\"publish\": true` — save and sync if `sync_enabled=true`.\n4. `GET /products/{id}` — verify `last_synced_at` updated.\n\n### Blogs and Articles\n\n1. `POST /blogs/pull` — imports blogs **and** articles in one call.\n2. `GET /articles/?blog_id={blog_page_id}` — filter articles by parent blog.\n3. `PATCH /articles/{id}` with `\"publish\": true` — parent BlogPage must have `shopify_id`.\n\n### Locations (Wagtail-origin metaobjects)\n\nLocations have **no pull** — content is authored in Wagtail and pushed to Shopify metaobject type `local_page`.\n\n1. `POST /locations/` with `titulo` and content fields.\n2. `PATCH /locations/{id}` with `\"publish\": true` (optional).\n3. `POST /locations/{id}/push` — upserts metaobject; `shopify_id` saved on first success.\n4. `GET /locations/{id}` — verify `last_synced_at` and `shopify_id`.\n\n### Glossary (Shopify metaobjects)\n\nPull syncs **images from Shopify** into Wagtail (`image_url`, `shopify_image_id`, `image_alt_text`) without overwriting existing term text or definitions.\n\n1. `POST /glossary/pull` — import metaobjects; existing pages get image fields only.\n2. `GET /glossary/?locale_code=en&full=true` — verify `image_url` populated.\n3. Index rebuild runs automatically after pull (`custom.index_listings` on Page handle `glossary`).\n4. `POST /glossary/{id}/push` — push Wagtail-authored content when needed.\n\nNote: `locale_code` (en/es/fr) is the Shopify metaobject locale, distinct from Wagtail `locale`.\n\n### Home (Wagtail-origin metaobjects)\n\nHome pages have **no pull** — content is authored via this API (AI agents) and pushed to Shopify metaobject type `home_page` (one metaobject per locale). `sections_json` is always normalized to 13 section types; send one typed field (e.g. `editorial_intro`) or a partial envelope.\n\n1. `POST /home/` with `hero_heading` and locale (section skeleton is filled automatically).\n2. `PATCH /home/{id}` with typed section fields and `\"publish\": true` (optional).\n3. `POST /home/{id}/push` — upserts metaobject; `shopify_id` saved on first success.\n4. `GET /home/{id}` — verify `sections_json` (13 types), `last_synced_at`, and `shopify_id`.\n\n### Semantic related preview\n\n1. `POST /semantic-links/suggest` with `locale` and either `page_id` or draft `text`/`title`/`definition` (set `page_type`).\n2. Pass `types: [\"collection\"]` and a higher `limit_per_type` (default 20) for gap analysis; production publish still caps auto-links at 5.\n\nNote: `WAGTAIL_AI_PGVECTOR` and a populated `PageIndex` are required. HTTP 503 if the vector index is unavailable.\n\n## Sync Model\n\n- `shopify_id` — Shopify GID linking Wagtail page to Shopify resource.\n- `sync_enabled` — when true, `publish=true` triggers outbound sync via Wagtail publish hook.\n- `last_synced_at` — UTC timestamp of last successful push; null if never synced.\n- `translation_of` / `translation_page_ids` — link locale variants; shared `shopify_id` on translations.\n\n## Localization\n\nMarkets: `en-US` (primary), `es-US`, `en-CA`, `fr-CA`. Filter lists with `?locale=es-US`.\nSet `locale` on create; use `translation_of` (Wagtail page ID) to link variants.\n\n## Common Errors\n\n| Status | Meaning |\n|--------|---------|\n| 401 | Missing or invalid bearer token |\n| 400 | ShopConfig/token missing, validation error, or sync failure detail |\n| 404 | Page ID not found |\n\n## Notes\n\n- API operations are **synchronous only**. Wagtail admin and embedded app UI may still use background Celery jobs.\n- DELETE removes Wagtail pages only — Shopify resources are not deleted.\n- Use `operation_id` values in OpenAPI for stable AI tool names.\n"
   },
   "paths": {
     "/api/v1/products/": {
@@ -90,7 +90,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 products\nWhen to use: Discover products, check sync status, or filter by locale before editing.\nReturns: List[ProductOut]\nNext tools: get_product, update_product",
+        "description": "Capability: discover — products\nWhen to use: Discover products, check sync status, or filter by locale before editing.\nReturns: List[ProductOut]\nNext tools: get_product, update_product",
         "tags": [
           "Products"
         ],
@@ -133,7 +133,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 products\nWhen to use: Create a Wagtail page manually when not using pull; set shopify_id or pull first.\nPrerequisites: ShopifyRootPage with slug=root under Wagtail site\nReturns: ProductOut\nNext tools: update_product, push_product",
+        "description": "Capability: create — products\nWhen to use: Create a Wagtail page manually when not using pull; set shopify_id or pull first.\nPrerequisites: ShopifyRootPage with slug=root under Wagtail site\nReturns: ProductOut\nNext tools: update_product, push_product",
         "tags": [
           "Products"
         ],
@@ -190,7 +190,7 @@
             }
           }
         },
-        "description": "Capability: sync_inbound \u2014 products\nWhen to use: Same as POST pull \u2014 import Shopify catalog into Wagtail synchronously.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_products, get_product",
+        "description": "Capability: sync_inbound — products\nWhen to use: Same as POST pull — import Shopify catalog into Wagtail synchronously.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_products, get_product",
         "tags": [
           "Products"
         ],
@@ -237,7 +237,7 @@
             }
           }
         },
-        "description": "Capability: sync_inbound \u2014 products\nWhen to use: First step for existing Shopify catalogs \u2014 imports all products into Wagtail.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_products, get_product, update_product",
+        "description": "Capability: sync_inbound — products\nWhen to use: First step for existing Shopify catalogs — imports all products into Wagtail.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_products, get_product, update_product",
         "tags": [
           "Products"
         ],
@@ -297,7 +297,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 products\nWhen to use: Inspect full product content, shopify_id, and last_synced_at after pull or update.\nReturns: ProductOut\nNext tools: update_product, push_product",
+        "description": "Capability: read — products\nWhen to use: Inspect full product content, shopify_id, and last_synced_at after pull or update.\nReturns: ProductOut\nNext tools: update_product, push_product",
         "tags": [
           "Products"
         ],
@@ -360,7 +360,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 products\nWhen to use: Edit content; set publish=true to publish and auto-sync when sync_enabled=true.\nReturns: ProductOut\nNext tools: get_product, push_product",
+        "description": "Capability: update — products\nWhen to use: Edit content; set publish=true to publish and auto-sync when sync_enabled=true.\nReturns: ProductOut\nNext tools: get_product, push_product",
         "tags": [
           "Products"
         ],
@@ -416,7 +416,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 products\nWhen to use: Remove Wagtail page only \u2014 does not delete the Shopify product.\nReturns: None\nNext tools: list_products",
+        "description": "Capability: delete — products\nWhen to use: Remove Wagtail page only — does not delete the Shopify product.\nReturns: None\nNext tools: list_products",
         "tags": [
           "Products"
         ],
@@ -480,7 +480,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 products\nWhen to use: Explicit outbound sync; requires shopify_id on the page.\nPrerequisites: ShopConfig with valid offline access token; Page must have shopify_id\nReturns: SyncResultSchema\nNext tools: get_product",
+        "description": "Capability: sync_outbound — products\nWhen to use: Explicit outbound sync; requires shopify_id on the page.\nPrerequisites: ShopConfig with valid offline access token; Page must have shopify_id\nReturns: SyncResultSchema\nNext tools: get_product",
         "tags": [
           "Products"
         ],
@@ -569,7 +569,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 collections\nWhen to use: Discover collections and sync status before editing.\nReturns: List[CollectionOut]\nNext tools: get_collection, update_collection",
+        "description": "Capability: discover — collections\nWhen to use: Discover collections and sync status before editing.\nReturns: List[CollectionOut]\nNext tools: get_collection, update_collection",
         "tags": [
           "Collections"
         ],
@@ -612,7 +612,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 collections\nWhen to use: Create Wagtail page manually; link shopify_id or pull from Shopify first.\nPrerequisites: ShopifyRootPage with slug=root under Wagtail site\nReturns: CollectionOut\nNext tools: update_collection, push_collection",
+        "description": "Capability: create — collections\nWhen to use: Create Wagtail page manually; link shopify_id or pull from Shopify first.\nPrerequisites: ShopifyRootPage with slug=root under Wagtail site\nReturns: CollectionOut\nNext tools: update_collection, push_collection",
         "tags": [
           "Collections"
         ],
@@ -669,7 +669,7 @@
             }
           }
         },
-        "description": "Capability: sync_inbound \u2014 collections\nWhen to use: Import all Shopify collections into Wagtail synchronously.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_collections, get_collection",
+        "description": "Capability: sync_inbound — collections\nWhen to use: Import all Shopify collections into Wagtail synchronously.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_collections, get_collection",
         "tags": [
           "Collections"
         ],
@@ -728,7 +728,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 collections\nWhen to use: Inspect collection content and sync state.\nReturns: CollectionOut\nNext tools: update_collection, push_collection",
+        "description": "Capability: read — collections\nWhen to use: Inspect collection content and sync state.\nReturns: CollectionOut\nNext tools: update_collection, push_collection",
         "tags": [
           "Collections"
         ],
@@ -791,7 +791,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 collections\nWhen to use: Edit content; publish=true triggers sync when sync_enabled=true.\nReturns: CollectionOut\nNext tools: get_collection, push_collection",
+        "description": "Capability: update — collections\nWhen to use: Edit content; publish=true triggers sync when sync_enabled=true.\nReturns: CollectionOut\nNext tools: get_collection, push_collection",
         "tags": [
           "Collections"
         ],
@@ -847,7 +847,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 collections\nWhen to use: Removes Wagtail page only \u2014 Shopify collection is untouched.\nReturns: None\nNext tools: list_collections",
+        "description": "Capability: delete — collections\nWhen to use: Removes Wagtail page only — Shopify collection is untouched.\nReturns: None\nNext tools: list_collections",
         "tags": [
           "Collections"
         ],
@@ -911,7 +911,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 collections\nWhen to use: Explicit outbound sync; requires shopify_id.\nPrerequisites: ShopConfig with valid offline access token; Page must have shopify_id\nReturns: SyncResultSchema\nNext tools: get_collection",
+        "description": "Capability: sync_outbound — collections\nWhen to use: Explicit outbound sync; requires shopify_id.\nPrerequisites: ShopConfig with valid offline access token; Page must have shopify_id\nReturns: SyncResultSchema\nNext tools: get_collection",
         "tags": [
           "Collections"
         ],
@@ -1000,7 +1000,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 blogs\nWhen to use: Discover blogs and article counts before managing articles.\nReturns: List[BlogOut]\nNext tools: get_blog, list_articles",
+        "description": "Capability: discover — blogs\nWhen to use: Discover blogs and article counts before managing articles.\nReturns: List[BlogOut]\nNext tools: get_blog, list_articles",
         "tags": [
           "Blogs"
         ],
@@ -1043,7 +1043,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 blogs\nWhen to use: Create blog container; push to Shopify to obtain shopify_id for articles.\nPrerequisites: ShopifyRootPage with slug=root under Wagtail site\nReturns: BlogOut\nNext tools: update_blog, push_blog",
+        "description": "Capability: create — blogs\nWhen to use: Create blog container; push to Shopify to obtain shopify_id for articles.\nPrerequisites: ShopifyRootPage with slug=root under Wagtail site\nReturns: BlogOut\nNext tools: update_blog, push_blog",
         "tags": [
           "Blogs"
         ],
@@ -1100,7 +1100,7 @@
             }
           }
         },
-        "description": "Capability: sync_inbound \u2014 blogs\nWhen to use: Imports blogs and nested articles in one synchronous call.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_blogs, list_articles",
+        "description": "Capability: sync_inbound — blogs\nWhen to use: Imports blogs and nested articles in one synchronous call.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_blogs, list_articles",
         "tags": [
           "Blogs"
         ],
@@ -1159,7 +1159,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 blogs\nWhen to use: Inspect blog metadata and article_count.\nReturns: BlogOut\nNext tools: update_blog, list_articles",
+        "description": "Capability: read — blogs\nWhen to use: Inspect blog metadata and article_count.\nReturns: BlogOut\nNext tools: update_blog, list_articles",
         "tags": [
           "Blogs"
         ],
@@ -1222,7 +1222,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 blogs\nWhen to use: Edit blog settings; publish=true may create blog in Shopify if no shopify_id.\nReturns: BlogOut\nNext tools: get_blog, push_blog",
+        "description": "Capability: update — blogs\nWhen to use: Edit blog settings; publish=true may create blog in Shopify if no shopify_id.\nReturns: BlogOut\nNext tools: get_blog, push_blog",
         "tags": [
           "Blogs"
         ],
@@ -1278,7 +1278,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 blogs\nWhen to use: Cascades to child Article pages in Wagtail; Shopify content untouched.\nReturns: None\nNext tools: list_blogs",
+        "description": "Capability: delete — blogs\nWhen to use: Cascades to child Article pages in Wagtail; Shopify content untouched.\nReturns: None\nNext tools: list_blogs",
         "tags": [
           "Blogs"
         ],
@@ -1342,7 +1342,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 blogs\nWhen to use: Creates blog in Shopify if shopify_id is empty; required before pushing articles.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_blog, create_article",
+        "description": "Capability: sync_outbound — blogs\nWhen to use: Creates blog in Shopify if shopify_id is empty; required before pushing articles.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_blog, create_article",
         "tags": [
           "Blogs"
         ],
@@ -1447,7 +1447,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 articles\nWhen to use: Discover articles; filter by blog_id to scope to one blog.\nReturns: List[ArticleOut]\nNext tools: get_article, update_article",
+        "description": "Capability: discover — articles\nWhen to use: Discover articles; filter by blog_id to scope to one blog.\nReturns: List[ArticleOut]\nNext tools: get_article, update_article",
         "tags": [
           "Articles"
         ],
@@ -1490,7 +1490,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 articles\nWhen to use: Add article content; parent BlogPage should have shopify_id before sync.\nPrerequisites: Valid blog_id (parent BlogPage)\nReturns: ArticleOut\nNext tools: update_article, push_article",
+        "description": "Capability: create — articles\nWhen to use: Add article content; parent BlogPage should have shopify_id before sync.\nPrerequisites: Valid blog_id (parent BlogPage)\nReturns: ArticleOut\nNext tools: update_article, push_article",
         "tags": [
           "Articles"
         ],
@@ -1547,7 +1547,7 @@
             }
           }
         },
-        "description": "Capability: sync_inbound \u2014 articles\nWhen to use: Alias for blogs pull \u2014 imports blogs and articles together.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_articles, get_article",
+        "description": "Capability: sync_inbound — articles\nWhen to use: Alias for blogs pull — imports blogs and articles together.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=root under Wagtail site\nReturns: ImportResultSchema\nNext tools: list_articles, get_article",
         "tags": [
           "Articles"
         ],
@@ -1606,7 +1606,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 articles\nWhen to use: Inspect article body, parent blog_id, and sync state.\nReturns: ArticleOut\nNext tools: update_article, push_article",
+        "description": "Capability: read — articles\nWhen to use: Inspect article body, parent blog_id, and sync state.\nReturns: ArticleOut\nNext tools: update_article, push_article",
         "tags": [
           "Articles"
         ],
@@ -1669,7 +1669,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 articles\nWhen to use: Edit content; publish=true syncs when sync_enabled and parent blog has shopify_id.\nReturns: ArticleOut\nNext tools: get_article, push_article",
+        "description": "Capability: update — articles\nWhen to use: Edit content; publish=true syncs when sync_enabled and parent blog has shopify_id.\nReturns: ArticleOut\nNext tools: get_article, push_article",
         "tags": [
           "Articles"
         ],
@@ -1725,7 +1725,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 articles\nWhen to use: Removes Wagtail page only \u2014 Shopify article is untouched.\nReturns: None\nNext tools: list_articles",
+        "description": "Capability: delete — articles\nWhen to use: Removes Wagtail page only — Shopify article is untouched.\nReturns: None\nNext tools: list_articles",
         "tags": [
           "Articles"
         ],
@@ -1789,7 +1789,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 articles\nWhen to use: Creates article in Shopify; parent BlogPage must have shopify_id.\nPrerequisites: ShopConfig with valid offline access token; Parent BlogPage must have shopify_id\nReturns: SyncResultSchema\nNext tools: get_article",
+        "description": "Capability: sync_outbound — articles\nWhen to use: Creates article in Shopify; parent BlogPage must have shopify_id.\nPrerequisites: ShopConfig with valid offline access token; Parent BlogPage must have shopify_id\nReturns: SyncResultSchema\nNext tools: get_article",
         "tags": [
           "Articles"
         ],
@@ -1878,7 +1878,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 locations\nWhen to use: Discover Wagtail-origin location pages before push to Shopify metaobjects.\nReturns: List[LocationOut]\nNext tools: get_location, create_location",
+        "description": "Capability: discover — locations\nWhen to use: Discover Wagtail-origin location pages before push to Shopify metaobjects.\nReturns: List[LocationOut]\nNext tools: get_location, create_location",
         "tags": [
           "Locations"
         ],
@@ -1921,7 +1921,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 locations\nWhen to use: Author location content in Wagtail; push to Shopify metaobject type local_page.\nPrerequisites: ShopifyRootPage with slug=local-us under Wagtail site (optional parent_page_id on create_location; env LOCATIONS_PARENT_PAGE_ID)\nReturns: LocationOut\nNext tools: update_location, push_location",
+        "description": "Capability: create — locations\nWhen to use: Author location content in Wagtail; push to Shopify metaobject type local_page.\nPrerequisites: ShopifyRootPage with slug=local-us under Wagtail site (optional parent_page_id on create_location; env LOCATIONS_PARENT_PAGE_ID)\nReturns: LocationOut\nNext tools: update_location, push_location",
         "tags": [
           "Locations"
         ],
@@ -1988,7 +1988,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 locations\nWhen to use: Verify shopify_id and last_synced_at after push.\nReturns: LocationOut\nNext tools: update_location, push_location",
+        "description": "Capability: read — locations\nWhen to use: Verify shopify_id and last_synced_at after push.\nReturns: LocationOut\nNext tools: update_location, push_location",
         "tags": [
           "Locations"
         ],
@@ -2051,7 +2051,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 locations\nWhen to use: Edit location fields; publish=true optional before push.\nReturns: LocationOut\nNext tools: push_location, get_location",
+        "description": "Capability: update — locations\nWhen to use: Edit location fields; publish=true optional before push.\nReturns: LocationOut\nNext tools: push_location, get_location",
         "tags": [
           "Locations"
         ],
@@ -2107,7 +2107,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 locations\nWhen to use: Removes Wagtail page only \u2014 Shopify metaobject is untouched.\nReturns: None\nNext tools: list_locations",
+        "description": "Capability: delete — locations\nWhen to use: Removes Wagtail page only — Shopify metaobject is untouched.\nReturns: None\nNext tools: list_locations",
         "tags": [
           "Locations"
         ],
@@ -2171,7 +2171,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 locations\nWhen to use: Upserts metaobject local_page; saves shopify_id on first success.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_location",
+        "description": "Capability: sync_outbound — locations\nWhen to use: Upserts metaobject local_page; saves shopify_id on first success.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_location",
         "tags": [
           "Locations"
         ],
@@ -2257,6 +2257,17 @@
               "type": "integer"
             },
             "required": false
+          },
+          {
+            "in": "query",
+            "name": "full",
+            "schema": {
+              "default": false,
+              "title": "Full",
+              "type": "boolean"
+            },
+            "description": "When false (default), return a compact list of terms (id, term, handle, slug, shopify_id, locale_code, live, last_synced_at). When true, return full GlossaryTermOut including definition HTML, links, and SEO. Prefer false; use get_glossary_term for a single full record.",
+            "required": false
           }
         ],
         "responses": {
@@ -2265,17 +2276,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GlossaryTermOut"
-                  },
                   "title": "Response",
-                  "type": "array"
+                  "oneOf": [
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/GlossaryTermListOut"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "$ref": "#/components/schemas/GlossaryTermOut"
+                      },
+                      "type": "array"
+                    }
+                  ]
                 }
               }
             }
           }
         },
-        "description": "Capability: discover \u2014 glossary\nWhen to use: Discover glossary terms before pull or push to Shopify metaobjects.\nReturns: List[GlossaryTermOut]\nNext tools: get_glossary_term, pull_glossary_sync, create_glossary_term",
+        "description": "Capability: discover — glossary\nWhen to use: Discover glossary terms before pull or push. Default is a compact list (id, term, handle, slug, shopify_id, locale_code, live, last_synced_at). Pass full=true for GlossaryTermOut (definition HTML, links, SEO), or use get_glossary_term for a single full record.\nReturns: List[GlossaryTermListOut] | List[GlossaryTermOut]\nNext tools: get_glossary_term, pull_glossary_sync, create_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -2319,7 +2340,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 glossary\nWhen to use: Author glossary term content in Wagtail; push to Shopify metaobject type glossary_term.\nPrerequisites: ShopifyRootPage with slug=glossary under Wagtail site (optional parent_page_id on create_glossary_term)\nReturns: GlossaryTermOut\nNext tools: update_glossary_term, push_glossary_term",
+        "description": "Capability: create — glossary\nWhen to use: Author glossary term content in Wagtail; push to Shopify metaobject type glossary_term.\nPrerequisites: ShopifyRootPage with slug=glossary under Wagtail site (optional parent_page_id on create_glossary_term)\nReturns: GlossaryTermOut\nNext tools: update_glossary_term, push_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -2376,7 +2397,7 @@
             }
           }
         },
-        "description": "Capability: sync_inbound \u2014 glossary\nWhen to use: Import glossary_term metaobjects from Shopify. Updates image fields on existing Wagtail pages without overwriting definition or term text.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=glossary under Wagtail site (optional parent_page_id on create_glossary_term)\nReturns: ImportResultSchema\nNext tools: list_glossary_terms, get_glossary_term",
+        "description": "Capability: sync_inbound — glossary\nWhen to use: Import glossary_term metaobjects from Shopify. Updates image fields on existing Wagtail pages without overwriting definition or term text.\nPrerequisites: ShopConfig with valid offline access token; ShopifyRootPage with slug=glossary under Wagtail site (optional parent_page_id on create_glossary_term)\nReturns: ImportResultSchema\nNext tools: list_glossary_terms, get_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -2435,7 +2456,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 glossary\nWhen to use: Verify shopify_id and last_synced_at after push.\nReturns: GlossaryTermOut\nNext tools: update_glossary_term, push_glossary_term",
+        "description": "Capability: read — glossary\nWhen to use: Verify shopify_id and last_synced_at after push.\nReturns: GlossaryTermOut\nNext tools: update_glossary_term, push_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -2498,7 +2519,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 glossary\nWhen to use: Edit term fields; related_links writes manual typed FKs; publish=true optional before push.\nReturns: GlossaryTermOut\nNext tools: push_glossary_term, get_glossary_term",
+        "description": "Capability: update — glossary\nWhen to use: Edit term fields; related_links writes manual typed FKs; publish=true optional before push.\nReturns: GlossaryTermOut\nNext tools: push_glossary_term, get_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -2554,7 +2575,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 glossary\nWhen to use: Removes Wagtail page only \u2014 Shopify metaobject is untouched.\nReturns: None\nNext tools: list_glossary_terms",
+        "description": "Capability: delete — glossary\nWhen to use: Removes Wagtail page only — Shopify metaobject is untouched.\nReturns: None\nNext tools: list_glossary_terms",
         "tags": [
           "Glossary"
         ],
@@ -2618,7 +2639,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 glossary\nWhen to use: Upserts metaobject glossary_term; saves shopify_id on first success.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_glossary_term",
+        "description": "Capability: sync_outbound — glossary\nWhen to use: Upserts metaobject glossary_term; saves shopify_id on first success.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_glossary_term",
         "tags": [
           "Glossary"
         ],
@@ -2706,7 +2727,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 home\nWhen to use: Discover Wagtail-origin home pages (one per locale) before push to Shopify metaobjects.\nReturns: List[HomeOut]\nNext tools: get_home_page, create_home_page",
+        "description": "Capability: discover — home\nWhen to use: Discover Wagtail-origin home pages (one per locale) before push to Shopify metaobjects.\nReturns: List[HomeOut]\nNext tools: get_home_page, create_home_page",
         "tags": [
           "Home"
         ],
@@ -2749,7 +2770,7 @@
             }
           }
         },
-        "description": "Capability: create \u2014 home\nWhen to use: Author home content in Wagtail; push to Shopify metaobject type home_page.\nPrerequisites: ShopifyRootPage with slug=cms-home under Wagtail site (optional parent_page_id on create_home_page)\nReturns: HomeOut\nNext tools: update_home_page, push_home_page",
+        "description": "Capability: create — home\nWhen to use: Author home content via API (hero + typed section fields). Partial sections are merged; required keys and the 13-type envelope are filled server-side.\nPrerequisites: ShopifyRootPage with slug=cms-home under Wagtail site (optional parent_page_id on create_home_page)\nReturns: HomeOut\nNext tools: update_home_page, push_home_page",
         "tags": [
           "Home"
         ],
@@ -2816,7 +2837,7 @@
             }
           }
         },
-        "description": "Capability: read \u2014 home\nWhen to use: Verify shopify_id and last_synced_at after push.\nReturns: HomeOut\nNext tools: update_home_page, push_home_page",
+        "description": "Capability: read — home\nWhen to use: Verify shopify_id and last_synced_at after push.\nReturns: HomeOut\nNext tools: update_home_page, push_home_page",
         "tags": [
           "Home"
         ],
@@ -2879,7 +2900,7 @@
             }
           }
         },
-        "description": "Capability: update \u2014 home\nWhen to use: Edit home fields; publish=true optional before push.\nReturns: HomeOut\nNext tools: push_home_page, get_home_page",
+        "description": "Capability: update — home\nWhen to use: Patch hero and/or individual sections (editorial_intro, faq, …). Omitted section fields are kept; required keys are normalized. publish=true optional before push.\nReturns: HomeOut\nNext tools: push_home_page, get_home_page",
         "tags": [
           "Home"
         ],
@@ -2935,7 +2956,7 @@
             }
           }
         },
-        "description": "Capability: delete \u2014 home\nWhen to use: Removes Wagtail page only \u2014 Shopify metaobject is untouched.\nReturns: None\nNext tools: list_home_pages",
+        "description": "Capability: delete — home\nWhen to use: Removes Wagtail page only — Shopify metaobject is untouched.\nReturns: None\nNext tools: list_home_pages",
         "tags": [
           "Home"
         ],
@@ -2999,7 +3020,7 @@
             }
           }
         },
-        "description": "Capability: sync_outbound \u2014 home\nWhen to use: Upserts metaobject home_page; saves shopify_id on first success.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_home_page",
+        "description": "Capability: sync_outbound — home\nWhen to use: Upserts metaobject home_page; saves shopify_id on first success.\nPrerequisites: ShopConfig with valid offline access token\nReturns: SyncResultSchema\nNext tools: get_home_page",
         "tags": [
           "Home"
         ],
@@ -3036,7 +3057,7 @@
             }
           }
         },
-        "description": "Capability: discover \u2014 capabilities\nWhen to use: Entry point for agents \u2014 machine-readable tool catalog with prerequisites and next tools.\nReturns: AgentCapabilitiesOut\nNext tools: pull_products_sync_post, list_products",
+        "description": "Capability: discover — capabilities\nWhen to use: Entry point for agents — machine-readable tool catalog with prerequisites and next tools.\nReturns: AgentCapabilitiesOut\nNext tools: pull_products_sync_post, list_products",
         "tags": [
           "Capabilities"
         ],
@@ -3052,6 +3073,86 @@
           "list_products"
         ],
         "x-agent-prerequisites": []
+      }
+    },
+    "/api/v1/semantic-links/suggest": {
+      "post": {
+        "operationId": "suggest_related_pages",
+        "summary": "Suggest related pages (preview)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestRelatedOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorSchema"
+                }
+              }
+            }
+          }
+        },
+        "description": "Capability: discover — semantic_links\nWhen to use: Preview nearest neighbors for draft text or an existing page_id before publish. Returns similarity scores grouped by type and does not persist links. Use for gap analysis and clustering; production auto-links still cap at 5 per type on publish.\nPrerequisites: WAGTAIL_AI_PGVECTOR=true; PageIndex registered (GEMINI_API_KEY); index populated via index_pages_batch\nReturns: SuggestRelatedOut\nNext tools: get_collection, get_glossary_term, get_product, get_article, create_glossary_term",
+        "tags": [
+          "Semantic Links"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestRelatedIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "x-agent-capability-type": "discover",
+        "x-agent-resource": "semantic_links",
+        "x-agent-next-tools": [
+          "get_collection",
+          "get_glossary_term",
+          "get_product",
+          "get_article",
+          "create_glossary_term"
+        ],
+        "x-agent-prerequisites": [
+          "WAGTAIL_AI_PGVECTOR=true; PageIndex registered (GEMINI_API_KEY); index populated via index_pages_batch"
+        ]
       }
     }
   },
@@ -3388,7 +3489,7 @@
         "properties": {
           "namespace": {
             "default": "custom",
-            "description": "Shopify metafield namespace grouping. Standard namespaces: 'custom' \u2014 store-specific data (default); 'global' \u2014 SEO overrides (keys: title_tag, description_tag); 'seo' \u2014 hreflang alternate locale URLs. Use your own prefix for app-owned data.",
+            "description": "Shopify metafield namespace grouping. Standard namespaces: 'custom' — store-specific data (default); 'global' — SEO overrides (keys: title_tag, description_tag); 'seo' — hreflang alternate locale URLs. Use your own prefix for app-owned data.",
             "maxLength": 255,
             "title": "Namespace",
             "type": "string"
@@ -3401,7 +3502,7 @@
           },
           "type": {
             "default": "single_line_text_field",
-            "description": "Shopify metafield type controlling validation and display. 'single_line_text_field' \u2014 plain text \u2264255 chars; 'rich_text_field' \u2014 long text; 'json' \u2014 structured JSON (pass a JSON string as value); 'url' \u2014 fully-qualified URL; 'number_integer' \u2014 whole number as string; 'number_decimal' \u2014 decimal as string; 'boolean' \u2014 'true' or 'false' as string; 'date' \u2014 ISO 8601 date string; 'date_time' \u2014 ISO 8601 datetime string.",
+            "description": "Shopify metafield type controlling validation and display. 'single_line_text_field' — plain text ≤255 chars; 'rich_text_field' — long text; 'json' — structured JSON (pass a JSON string as value); 'url' — fully-qualified URL; 'number_integer' — whole number as string; 'number_decimal' — decimal as string; 'boolean' — 'true' or 'false' as string; 'date' — ISO 8601 date string; 'date_time' — ISO 8601 datetime string.",
             "title": "Type",
             "type": "string"
           },
@@ -3484,7 +3585,7 @@
               }
             ],
             "default": "ACTIVE",
-            "description": "Shopify product status controlling storefront visibility. 'ACTIVE' \u2014 live and purchasable (default); 'DRAFT' \u2014 hidden from storefront, visible in admin; 'ARCHIVED' \u2014 removed from storefront and collections.",
+            "description": "Shopify product status controlling storefront visibility. 'ACTIVE' — live and purchasable (default); 'DRAFT' — hidden from storefront, visible in admin; 'ARCHIVED' — removed from storefront and collections.",
             "title": "Status"
           },
           "vendor": {
@@ -3552,7 +3653,7 @@
                 "type": "null"
               }
             ],
-            "description": "SEO page title override. Maps to Shopify seo.title. Appears in browser tabs and search engine results. Recommended length: 50\u201360 characters. Falls back to product title if blank.",
+            "description": "SEO page title override. Maps to Shopify seo.title. Appears in browser tabs and search engine results. Recommended length: 50–60 characters. Falls back to product title if blank.",
             "title": "Seo Title"
           },
           "search_description": {
@@ -3564,7 +3665,7 @@
                 "type": "null"
               }
             ],
-            "description": "SEO meta description. Maps to Shopify seo.description. Appears in search engine result snippets. Recommended length: 120\u2013160 characters.",
+            "description": "SEO meta description. Maps to Shopify seo.description. Appears in search engine result snippets. Recommended length: 120–160 characters.",
             "title": "Search Description"
           },
           "metafields": {
@@ -3712,7 +3813,7 @@
                 "type": "null"
               }
             ],
-            "description": "Update Shopify product status. 'ACTIVE' \u2014 live; 'DRAFT' \u2014 hidden; 'ARCHIVED' \u2014 removed. Omit to leave unchanged.",
+            "description": "Update Shopify product status. 'ACTIVE' — live; 'DRAFT' — hidden; 'ARCHIVED' — removed. Omit to leave unchanged.",
             "title": "Status"
           },
           "vendor": {
@@ -4124,7 +4225,7 @@
               }
             ],
             "default": "MANUAL",
-            "description": "Shopify collection sort order controlling default product display sequence. 'ALPHA_ASC' \u2014 alphabetical A\u2013Z; 'ALPHA_DESC' \u2014 alphabetical Z\u2013A; 'BEST_SELLING' \u2014 by sales volume descending; 'CREATED' \u2014 oldest products first; 'CREATED_DESC' \u2014 newest products first (default for new collections); 'MANUAL' \u2014 drag-and-drop ordering in Shopify admin (default); 'PRICE_ASC' \u2014 lowest price first; 'PRICE_DESC' \u2014 highest price first.",
+            "description": "Shopify collection sort order controlling default product display sequence. 'ALPHA_ASC' — alphabetical A–Z; 'ALPHA_DESC' — alphabetical Z–A; 'BEST_SELLING' — by sales volume descending; 'CREATED' — oldest products first; 'CREATED_DESC' — newest products first (default for new collections); 'MANUAL' — drag-and-drop ordering in Shopify admin (default); 'PRICE_ASC' — lowest price first; 'PRICE_DESC' — highest price first.",
             "title": "Sort Order"
           },
           "description": {
@@ -4153,7 +4254,7 @@
                 "type": "null"
               }
             ],
-            "description": "SEO page title override. Maps to Shopify seo.title. Appears in browser tabs and search engine results. Recommended length: 50\u201360 characters. Falls back to collection title if blank.",
+            "description": "SEO page title override. Maps to Shopify seo.title. Appears in browser tabs and search engine results. Recommended length: 50–60 characters. Falls back to collection title if blank.",
             "title": "Seo Title"
           },
           "search_description": {
@@ -4165,7 +4266,7 @@
                 "type": "null"
               }
             ],
-            "description": "SEO meta description. Maps to Shopify seo.description. Appears in search engine result snippets. Recommended length: 120\u2013160 characters.",
+            "description": "SEO meta description. Maps to Shopify seo.description. Appears in search engine result snippets. Recommended length: 120–160 characters.",
             "title": "Search Description"
           },
           "metafields": {
@@ -4275,7 +4376,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify collection sort order controlling default product display sequence. 'ALPHA_ASC' \u2014 alphabetical A\u2013Z; 'ALPHA_DESC' \u2014 alphabetical Z\u2013A; 'BEST_SELLING' \u2014 by sales volume descending; 'CREATED' \u2014 oldest products first; 'CREATED_DESC' \u2014 newest products first (default for new collections); 'MANUAL' \u2014 drag-and-drop ordering in Shopify admin (default); 'PRICE_ASC' \u2014 lowest price first; 'PRICE_DESC' \u2014 highest price first. Omit to leave unchanged.",
+            "description": "Shopify collection sort order controlling default product display sequence. 'ALPHA_ASC' — alphabetical A–Z; 'ALPHA_DESC' — alphabetical Z–A; 'BEST_SELLING' — by sales volume descending; 'CREATED' — oldest products first; 'CREATED_DESC' — newest products first (default for new collections); 'MANUAL' — drag-and-drop ordering in Shopify admin (default); 'PRICE_ASC' — lowest price first; 'PRICE_DESC' — highest price first. Omit to leave unchanged.",
             "title": "Sort Order"
           },
           "description": {
@@ -4553,7 +4654,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify GID linking this Wagtail page to a Shopify Blog. Format: 'gid://shopify/Blog/12345678'. Leave null when creating a new blog \u2014 Shopify will create it on first /push and the ID will be saved automatically.",
+            "description": "Shopify GID linking this Wagtail page to a Shopify Blog. Format: 'gid://shopify/Blog/12345678'. Leave null when creating a new blog — Shopify will create it on first /push and the ID will be saved automatically.",
             "title": "Shopify Id"
           },
           "handle": {
@@ -4578,7 +4679,7 @@
               }
             ],
             "default": "CLOSED",
-            "description": "Shopify Blog comment policy controlling visitor comment permissions. 'AUTO_PUBLISHED' \u2014 comments appear immediately without moderation; 'CLOSED' \u2014 comments disabled entirely (default); 'MODERATED' \u2014 comments require staff approval before appearing.",
+            "description": "Shopify Blog comment policy controlling visitor comment permissions. 'AUTO_PUBLISHED' — comments appear immediately without moderation; 'CLOSED' — comments disabled entirely (default); 'MODERATED' — comments require staff approval before appearing.",
             "title": "Comment Policy"
           },
           "sync_enabled": {
@@ -4688,7 +4789,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify Blog comment policy controlling visitor comment permissions. 'AUTO_PUBLISHED' \u2014 comments appear immediately without moderation; 'CLOSED' \u2014 comments disabled entirely (default); 'MODERATED' \u2014 comments require staff approval before appearing. Omit to leave unchanged.",
+            "description": "Shopify Blog comment policy controlling visitor comment permissions. 'AUTO_PUBLISHED' — comments appear immediately without moderation; 'CLOSED' — comments disabled entirely (default); 'MODERATED' — comments require staff approval before appearing. Omit to leave unchanged.",
             "title": "Comment Policy"
           },
           "sync_enabled": {
@@ -5040,7 +5141,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify GID linking this Wagtail page to a Shopify Article. Format: 'gid://shopify/Article/12345678'. Leave null when creating a new article \u2014 Shopify will create it on first /push and the ID will be saved automatically. The parent BlogPage must have a shopify_id set before articles can be pushed.",
+            "description": "Shopify GID linking this Wagtail page to a Shopify Article. Format: 'gid://shopify/Article/12345678'. Leave null when creating a new article — Shopify will create it on first /push and the ID will be saved automatically. The parent BlogPage must have a shopify_id set before articles can be pushed.",
             "title": "Shopify Id"
           },
           "handle": {
@@ -5146,7 +5247,7 @@
                 "type": "null"
               }
             ],
-            "description": "SEO page title override. For articles, pushed as Shopify metafield global.title_tag (Shopify Articles have no native SEO field in Admin GraphQL API). Recommended length: 50\u201360 characters.",
+            "description": "SEO page title override. For articles, pushed as Shopify metafield global.title_tag (Shopify Articles have no native SEO field in Admin GraphQL API). Recommended length: 50–60 characters.",
             "title": "Seo Title"
           },
           "search_description": {
@@ -5158,7 +5259,7 @@
                 "type": "null"
               }
             ],
-            "description": "SEO meta description. For articles, pushed as Shopify metafield global.description_tag. Recommended length: 120\u2013160 characters.",
+            "description": "SEO meta description. For articles, pushed as Shopify metafield global.description_tag. Recommended length: 120–160 characters.",
             "title": "Search Description"
           },
           "metafields": {
@@ -5765,7 +5866,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify metaobject GID after first push. Format: 'gid://shopify/Metaobject/12345678'. Leave null for new pages \u2014 populated automatically after POST /locations/{id}/push.",
+            "description": "Shopify metaobject GID after first push. Format: 'gid://shopify/Metaobject/12345678'. Leave null for new pages — populated automatically after POST /locations/{id}/push.",
             "title": "Shopify Id"
           },
           "handle": {
@@ -6441,6 +6542,69 @@
         "title": "ExternalLinkSchema",
         "type": "object"
       },
+      "GlossaryTermListOut": {
+        "properties": {
+          "id": {
+            "description": "Wagtail page ID for /glossary/{page_id}/ endpoints.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "shopify_id": {
+            "description": "Shopify metaobject GID. Empty if never pushed.",
+            "title": "Shopify Id",
+            "type": "string"
+          },
+          "term": {
+            "description": "Glossary term text.",
+            "title": "Term",
+            "type": "string"
+          },
+          "handle": {
+            "description": "Shopify metaobject handle.",
+            "title": "Handle",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Wagtail page slug.",
+            "title": "Slug",
+            "type": "string"
+          },
+          "locale_code": {
+            "description": "Shopify locale pushed on sync (en/es/fr).",
+            "title": "Locale Code",
+            "type": "string"
+          },
+          "live": {
+            "description": "True if published in Wagtail.",
+            "title": "Live",
+            "type": "boolean"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UTC timestamp of last successful push to Shopify metaobject.",
+            "title": "Last Synced At"
+          }
+        },
+        "required": [
+          "id",
+          "shopify_id",
+          "term",
+          "handle",
+          "slug",
+          "locale_code",
+          "live"
+        ],
+        "title": "GlossaryTermListOut",
+        "type": "object"
+      },
       "GlossaryTermOut": {
         "properties": {
           "translation_page_ids": {
@@ -6716,7 +6880,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify metaobject GID after first push. Format: 'gid://shopify/Metaobject/12345678'. Leave null for new pages \u2014 populated automatically after POST /glossary/{id}/push.",
+            "description": "Shopify metaobject GID after first push. Format: 'gid://shopify/Metaobject/12345678'. Leave null for new pages — populated automatically after POST /glossary/{id}/push.",
             "title": "Shopify Id"
           },
           "handle": {
@@ -7253,7 +7417,7 @@
           },
           "sections_json": {
             "additionalProperties": true,
-            "description": "Extensible sections JSON.",
+            "description": "Normalized home sections JSON: always `{version: 1, sections: [13 types]}`. References use page_id (Wagtail FK). Synced to Shopify sections_json + native refs.",
             "title": "Sections Json",
             "type": "object"
           },
@@ -7363,8 +7527,665 @@
         "title": "HomeOut",
         "type": "object"
       },
+      "BestSellersValueSchema": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "collection_page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CollectionPage Wagtail ID. Required for the carousel to render products.",
+            "title": "Collection Page Id"
+          },
+          "product_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default 8. Clamped to 4–12.",
+            "title": "Product Limit"
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge"
+          },
+          "background": {
+            "anyOf": [
+              {
+                "enum": [
+                  "default",
+                  "contrast"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: contrast.",
+            "title": "Background"
+          }
+        },
+        "title": "BestSellersValueSchema",
+        "type": "object"
+      },
+      "BrandValueItemSchema": {
+        "properties": {
+          "icon": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "title": "BrandValueItemSchema",
+        "type": "object"
+      },
+      "BrandValuesValueSchema": {
+        "properties": {
+          "eyebrow": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eyebrow"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Heading"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HTML rich text.",
+            "title": "Body"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "media_position": {
+            "anyOf": [
+              {
+                "enum": [
+                  "left",
+                  "right"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: left.",
+            "title": "Media Position"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BrandValueItemSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Max 4 value chips.",
+            "title": "Values"
+          },
+          "cta_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cta Label"
+          },
+          "cta_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cta Url"
+          }
+        },
+        "title": "BrandValuesValueSchema",
+        "type": "object"
+      },
+      "ContentReferenceSchema": {
+        "description": "Wagtail page reference used in HomePage sections_json.",
+        "properties": {
+          "page_id": {
+            "description": "Wagtail Page ID (CollectionPage, ProductPage, etc.).",
+            "title": "Page Id",
+            "type": "integer"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "override_title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Title"
+          },
+          "override_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Label"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Inferred on read from Wagtail page model (product, collection, article, etc.).",
+            "title": "Type"
+          },
+          "shopify_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resolved Shopify GID on read when available.",
+            "title": "Shopify Id"
+          }
+        },
+        "required": [
+          "page_id"
+        ],
+        "title": "ContentReferenceSchema",
+        "type": "object"
+      },
+      "EditorialIntroValueSchema": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Heading"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HTML rich text. Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Body"
+          },
+          "alignment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "left",
+                  "center"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: left.",
+            "title": "Alignment"
+          }
+        },
+        "title": "EditorialIntroValueSchema",
+        "type": "object"
+      },
+      "EducationalHubValueSchema": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "intro": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intro"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ContentReferenceSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "page_id required per link. Min 3 / max 6 when populated.",
+            "title": "Links"
+          }
+        },
+        "title": "EducationalHubValueSchema",
+        "type": "object"
+      },
+      "FaqValueSchema": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: 'Frequently asked questions'.",
+            "title": "Heading"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HomeFaqItemSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Q&A pairs. Schema min 4 / max 6 when populated.",
+            "title": "Items"
+          }
+        },
+        "title": "FaqValueSchema",
+        "type": "object"
+      },
+      "FeaturedCollectionsValueSchema": {
+        "properties": {
+          "badge": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "intro": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intro"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ContentReferenceSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CollectionPage references (page_id required per item). Max 6.",
+            "title": "Items"
+          }
+        },
+        "title": "FeaturedCollectionsValueSchema",
+        "type": "object"
+      },
+      "HomeFaqItemSchema": {
+        "properties": {
+          "question": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Question"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HTML rich text. Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Answer"
+          }
+        },
+        "title": "HomeFaqItemSchema",
+        "type": "object"
+      },
       "HomeIn": {
         "properties": {
+          "promo_gateway": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromoGatewayValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Promo mosaic (4 cards). Merged by type into sections_json."
+          },
+          "nav_collection_pills": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NavCollectionPillsValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Header collection pills. Merged by type into sections_json."
+          },
+          "trust_bar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrustBarValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "featured_collections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeaturedCollectionsValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editorial_intro": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditorialIntroValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "best_sellers": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BestSellersValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shop_by_need": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShopByNeedValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "educational_hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EducationalHubValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brand_values": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandValuesValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "market_block": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketBlockValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "faq": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaqValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "internal_links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InternalLinksValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seo_schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SeoSchemaValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "locale": {
             "anyOf": [
               {
@@ -7404,7 +8225,7 @@
                 "type": "null"
               }
             ],
-            "description": "Shopify metaobject GID after first push. Leave null for new pages \u2014 populated after POST /home/{id}/push.",
+            "description": "Shopify metaobject GID after first push. Leave null for new pages — populated after POST /home/{id}/push.",
             "title": "Shopify Id"
           },
           "handle": {
@@ -7528,7 +8349,7 @@
                 "type": "null"
               }
             ],
-            "description": "Home sections JSON (version 1). References use page_id (Wagtail FK). Synced to Shopify metaobject sections_json + native reference fields.",
+            "description": "Canonical home sections envelope (version 1, 13 types). Agents may send a partial `sections` list or a dict keyed by type (e.g. `{editorial_intro: {heading, body}}`). The API merges by type, fills required keys (ids, defaults), and stores all 13 sections. Prefer the first-class section fields (editorial_intro, faq, …) for single-section edits.",
             "title": "Sections Json"
           },
           "shopify_locale": {
@@ -7599,8 +8420,737 @@
         "title": "HomeIn",
         "type": "object"
       },
+      "InternalLinkGroupSchema": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "links": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InternalLinkItemSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "page_id required per link. Min 3 / max 12 when populated.",
+            "title": "Links"
+          }
+        },
+        "title": "InternalLinkGroupSchema",
+        "type": "object"
+      },
+      "InternalLinkItemSchema": {
+        "properties": {
+          "page_id": {
+            "description": "Wagtail page ID.",
+            "title": "Page Id",
+            "type": "integer"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "page_id"
+        ],
+        "title": "InternalLinkItemSchema",
+        "type": "object"
+      },
+      "InternalLinksValueSchema": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InternalLinkGroupSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Min 2 / max 6 groups when populated.",
+            "title": "Groups"
+          }
+        },
+        "title": "InternalLinksValueSchema",
+        "type": "object"
+      },
+      "MarketBlockValueSchema": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Heading"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "HTML rich text. Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Body"
+          },
+          "highlights": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Max 4 short strings.",
+            "title": "Highlights"
+          },
+          "cta_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cta Label"
+          },
+          "cta_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cta Url"
+          },
+          "market_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "US",
+                  "CA"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "US or CA.",
+            "title": "Market Code"
+          }
+        },
+        "title": "MarketBlockValueSchema",
+        "type": "object"
+      },
+      "NavCollectionPillItemSchema": {
+        "properties": {
+          "page_id": {
+            "description": "CollectionPage Wagtail ID.",
+            "title": "Page Id",
+            "type": "integer"
+          },
+          "override_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Label"
+          }
+        },
+        "required": [
+          "page_id"
+        ],
+        "title": "NavCollectionPillItemSchema",
+        "type": "object"
+      },
+      "NavCollectionPillsValueSchema": {
+        "properties": {
+          "source_collection_page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional CollectionPage used to seed pills when items is empty.",
+            "title": "Source Collection Page Id"
+          },
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/NavCollectionPillItemSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Max 8 pills.",
+            "title": "Items"
+          }
+        },
+        "title": "NavCollectionPillsValueSchema",
+        "type": "object"
+      },
+      "PromoGatewayCardSchema": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Badge"
+          },
+          "media_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "collection_products",
+                  "collection_list"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: collection_products.",
+            "title": "Media Source"
+          },
+          "primary_collection_page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Collection Page Id"
+          },
+          "category_page_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Max 4 CollectionPage IDs.",
+            "title": "Category Page Ids"
+          },
+          "cta_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: 'Shop trending'.",
+            "title": "Cta Label"
+          },
+          "cta_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cta Url"
+          },
+          "column_span": {
+            "anyOf": [
+              {
+                "enum": [
+                  "1",
+                  "2"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: '1'.",
+            "title": "Column Span"
+          }
+        },
+        "title": "PromoGatewayCardSchema",
+        "type": "object"
+      },
+      "PromoGatewayValueSchema": {
+        "properties": {
+          "cards": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PromoGatewayCardSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exactly 4 cards when the section is populated.",
+            "title": "Cards"
+          }
+        },
+        "title": "PromoGatewayValueSchema",
+        "type": "object"
+      },
+      "SeoSchemaValueSchema": {
+        "properties": {
+          "include_faq_schema": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: true.",
+            "title": "Include Faq Schema"
+          },
+          "include_organization": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: true.",
+            "title": "Include Organization"
+          }
+        },
+        "title": "SeoSchemaValueSchema",
+        "type": "object"
+      },
+      "ShopByNeedCardSchema": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "target_page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CollectionPage or ProductPage ID.",
+            "title": "Target Page Id"
+          },
+          "cta_label": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Default: 'Shop'.",
+            "title": "Cta Label"
+          },
+          "cta_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Used when target_page_id is omitted.",
+            "title": "Cta Url"
+          },
+          "image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Url"
+          },
+          "intent_tag": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent Tag"
+          }
+        },
+        "title": "ShopByNeedCardSchema",
+        "type": "object"
+      },
+      "ShopByNeedValueSchema": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "cards": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ShopByNeedCardSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Intent cards. Schema min 4 / max 8 when populated.",
+            "title": "Cards"
+          }
+        },
+        "title": "ShopByNeedValueSchema",
+        "type": "object"
+      },
+      "TrustBarItemSchema": {
+        "properties": {
+          "icon": {
+            "anyOf": [
+              {
+                "enum": [
+                  "local_shipping",
+                  "verified",
+                  "lock",
+                  "favorite",
+                  "shield",
+                  "support_agent"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Material icon key.",
+            "title": "Icon"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required for this section to render; omitted keys keep the stored value or the API default.",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "title": "TrustBarItemSchema",
+        "type": "object"
+      },
+      "TrustBarValueSchema": {
+        "properties": {
+          "items": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TrustBarItemSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trust chips. Schema min 2 / max 6 when the section is populated.",
+            "title": "Items"
+          }
+        },
+        "title": "TrustBarValueSchema",
+        "type": "object"
+      },
       "HomePatch": {
         "properties": {
+          "promo_gateway": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromoGatewayValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Promo mosaic (4 cards). Merged by type into sections_json."
+          },
+          "nav_collection_pills": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NavCollectionPillsValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Header collection pills. Merged by type into sections_json."
+          },
+          "trust_bar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrustBarValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "featured_collections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeaturedCollectionsValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "editorial_intro": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditorialIntroValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "best_sellers": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BestSellersValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shop_by_need": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShopByNeedValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "educational_hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EducationalHubValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brand_values": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrandValuesValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "market_block": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketBlockValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "faq": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaqValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "internal_links": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InternalLinksValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seo_schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SeoSchemaValueSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "locale": {
             "anyOf": [
               {
@@ -7760,6 +9310,7 @@
                 "type": "null"
               }
             ],
+            "description": "Canonical home sections envelope (version 1, 13 types). Agents may send a partial `sections` list or a dict keyed by type (e.g. `{editorial_intro: {heading, body}}`). The API merges by type, fills required keys (ids, defaults), and stores all 13 sections. Prefer the first-class section fields (editorial_intro, faq, …) for single-section edits. Omit to leave sections unchanged.",
             "title": "Sections Json"
           },
           "shopify_locale": {
@@ -7896,7 +9447,7 @@
             "type": "string"
           },
           "capability_type": {
-            "description": "Type of capability: discover, read, create, update, delete, sync_inbound (Shopify\u2192Wagtail), sync_outbound (Wagtail\u2192Shopify).",
+            "description": "Type of capability: discover, read, create, update, delete, sync_inbound (Shopify→Wagtail), sync_outbound (Wagtail→Shopify).",
             "enum": [
               "discover",
               "read",
@@ -7984,6 +9535,353 @@
         ],
         "title": "AgentToolSchema",
         "type": "object"
+      },
+      "SuggestRelatedIn": {
+        "properties": {
+          "locale": {
+            "description": "Wagtail locale code for this page variant. Allowed: 'en-US' (English, US), 'es-US' (Spanish, US), 'en-CA' (English, Canada), 'fr-CA' (French, Canada). Defaults to the site default locale (en-US) when omitted on create.",
+            "title": "Locale",
+            "type": "string"
+          },
+          "page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Existing Wagtail page ID. Query text is extracted like refresh_semantic_links. Do not combine with text or structured fields.",
+            "title": "Page Id"
+          },
+          "page_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "product",
+                  "collection",
+                  "article",
+                  "glossary"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Origin page type. Required when using text/fields (chooses which fields are concatenated). Inferred from page_id when omitted.",
+            "title": "Page Type"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Free-text query for a page that does not exist yet.",
+            "title": "Text"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Title / heading used in the query text.",
+            "title": "Title"
+          },
+          "seo_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO title used in the query text.",
+            "title": "Seo Title"
+          },
+          "search_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SEO meta description used in the query text.",
+            "title": "Search Description"
+          },
+          "definition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Glossary definition HTML/text.",
+            "title": "Definition"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article summary used in the query text.",
+            "title": "Summary"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Product/article body used in the query text.",
+            "title": "Body"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Collection description used in the query text.",
+            "title": "Description"
+          },
+          "synonyms": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Glossary synonyms used in the query text.",
+            "title": "Synonyms"
+          },
+          "vendor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Product vendor used in the query text.",
+            "title": "Vendor"
+          },
+          "product_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shopify product type used in the query text.",
+            "title": "Product Type"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Article author used in the query text.",
+            "title": "Author"
+          },
+          "types": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "product",
+                    "collection",
+                    "article",
+                    "glossary"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Candidate types to search. Defaults to all four linkable types.",
+            "title": "Types"
+          },
+          "exclude_page_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Extra page ID to exclude (page_id is always excluded when set).",
+            "title": "Exclude Page Id"
+          },
+          "limit_per_type": {
+            "default": 20,
+            "description": "Max candidates per type for this preview (default 20, max 100). Independent of SEMANTIC_LINKS_LIMIT_PER_TYPE used on publish.",
+            "maximum": 100,
+            "minimum": 1,
+            "title": "Limit Per Type",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "locale"
+        ],
+        "title": "SuggestRelatedIn",
+        "type": "object"
+      },
+      "SuggestRelatedOut": {
+        "properties": {
+          "locale": {
+            "description": "Wagtail locale used to filter candidates.",
+            "title": "Locale",
+            "type": "string"
+          },
+          "page_type": {
+            "description": "Origin page type used to assemble query text.",
+            "enum": [
+              "product",
+              "collection",
+              "article",
+              "glossary"
+            ],
+            "title": "Page Type",
+            "type": "string"
+          },
+          "limit_per_type": {
+            "description": "Per-type cap applied to this preview.",
+            "title": "Limit Per Type",
+            "type": "integer"
+          },
+          "candidates": {
+            "$ref": "#/components/schemas/SuggestRelatedCandidatesOut",
+            "description": "Neighbors grouped by type, each ordered by score descending."
+          }
+        },
+        "required": [
+          "locale",
+          "page_type",
+          "limit_per_type",
+          "candidates"
+        ],
+        "title": "SuggestRelatedOut",
+        "type": "object"
+      },
+      "SuggestRelatedCandidateOut": {
+        "properties": {
+          "id": {
+            "description": "Wagtail page ID of the candidate.",
+            "title": "Id",
+            "type": "integer"
+          },
+          "type": {
+            "description": "Linkable page type of the candidate.",
+            "enum": [
+              "product",
+              "collection",
+              "article",
+              "glossary"
+            ],
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "description": "Display title (glossary term when applicable).",
+            "title": "Title",
+            "type": "string"
+          },
+          "handle": {
+            "description": "Shopify/Wagtail handle or slug.",
+            "title": "Handle",
+            "type": "string"
+          },
+          "score": {
+            "description": "Cosine similarity (1 - distance) from pgvector; higher is closer.",
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "title",
+          "handle",
+          "score"
+        ],
+        "title": "SuggestRelatedCandidateOut",
+        "type": "object"
+      },
+      "SuggestRelatedCandidatesOut": {
+        "properties": {
+          "product": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Product",
+            "type": "array"
+          },
+          "collection": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Collection",
+            "type": "array"
+          },
+          "article": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Article",
+            "type": "array"
+          },
+          "glossary": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestRelatedCandidateOut"
+            },
+            "title": "Glossary",
+            "type": "array"
+          }
+        },
+        "title": "SuggestRelatedCandidatesOut",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -7996,7 +9894,7 @@
   },
   "servers": [
     {
-      "url": "https://wagtail-dev.aadigitalbusiness.com",
+      "url": "https://cms.aadigitalbusiness.com",
       "description": "Public CMS host"
     }
   ],
@@ -8019,7 +9917,7 @@
     },
     {
       "name": "Locations",
-      "description": "Capability group: Wagtail-origin Location pages pushed to Shopify metaobjects (type local_page). No pull endpoint \u2014 content is authored in Wagtail."
+      "description": "Capability group: Wagtail-origin Location pages pushed to Shopify metaobjects (type local_page). No pull endpoint — content is authored in Wagtail."
     },
     {
       "name": "Glossary",
@@ -8032,6 +9930,10 @@
     {
       "name": "Capabilities",
       "description": "Meta capability group: machine-readable agent tool catalog and predefined workflows."
+    },
+    {
+      "name": "Semantic Links",
+      "description": "Read-only semantic neighbor preview against PageIndex. Does not persist related-link FKs; production auto-links still materialize on publish."
     }
   ]
 }

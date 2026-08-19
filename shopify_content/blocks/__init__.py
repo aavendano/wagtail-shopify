@@ -65,9 +65,10 @@ ARTICLE_BODY_BLOCKS = ArticleBodyStreamBlock()
 
 
 class HomeBodyStreamBlock(StreamBlock):
+    promo_gateway = PromoGatewayBlock()
+    nav_collection_pills = NavCollectionPillsBlock()
     trust_bar = TrustBarBlock()
     featured_collections = FeaturedCollectionsBlock()
-    nav_collection_pills = NavCollectionPillsBlock()
     editorial_intro = EditorialIntroBlock()
     best_sellers = BestSellersBlock()
     shop_by_need = ShopByNeedBlock()
@@ -76,11 +77,28 @@ class HomeBodyStreamBlock(StreamBlock):
     market_block = MarketBlock()
     faq = FAQBlock()
     internal_links = InternalLinksBlock()
-    promo_gateway = PromoGatewayBlock()
     seo_schema = SEOSchemaBlock()
 
     class Meta:
         label = 'Home Sections'
+        # max_num only: min_num breaks admin save when the StreamField POST is
+        # incomplete (preview/middleware). HomePage.clean() always restores the
+        # canonical 13-block envelope.
+        block_counts = {
+            'promo_gateway': {'max_num': 1},
+            'nav_collection_pills': {'max_num': 1},
+            'trust_bar': {'max_num': 1},
+            'featured_collections': {'max_num': 1},
+            'editorial_intro': {'max_num': 1},
+            'best_sellers': {'max_num': 1},
+            'shop_by_need': {'max_num': 1},
+            'educational_hub': {'max_num': 1},
+            'brand_values': {'max_num': 1},
+            'market_block': {'max_num': 1},
+            'faq': {'max_num': 1},
+            'internal_links': {'max_num': 1},
+            'seo_schema': {'max_num': 1},
+        }
 
 
 HOME_BODY_BLOCKS = HomeBodyStreamBlock()

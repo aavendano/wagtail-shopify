@@ -136,9 +136,16 @@ INSTALLED_APPS = [
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
-    'bigquery_gsc',
     'django_celery_beat',
 ]
+
+# Optional: editable package at ../services/bigquery_gsc (missing → CMS still boots).
+try:
+    import bigquery_gsc  # noqa: F401
+except ModuleNotFoundError:
+    pass
+else:
+    INSTALLED_APPS.insert(-1, 'bigquery_gsc')
 
 MIDDLEWARE = [
     'core.debug_middleware.ShopifyLocalProxyMiddleware',
@@ -357,6 +364,11 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'false').lower() == 'true'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 CELERY_TASK_DEFAULT_QUEUE = os.environ.get('CELERY_TASK_DEFAULT_QUEUE', 'wagtail_shopify')
+CELERY_WORKER_CONCURRENCY = int(os.environ.get('CELERY_WORKER_CONCURRENCY', '1'))
+CELERY_GSC_QUEUE = os.environ.get('CELERY_GSC_QUEUE', 'gsc_bigquery')
+CELERY_TASK_ROUTES = {
+    'bigquery_gsc.*': {'queue': CELERY_GSC_QUEUE},
+}
 
 # BigQuery GSC (Google Search Console analytics)
 _BQ_PROJECT = os.environ.get('BIGQUERY_PROJECT_ID', 'YOUR_PROJECT_ID')

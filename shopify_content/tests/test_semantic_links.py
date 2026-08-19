@@ -141,8 +141,17 @@ class RefreshSemanticLinksTests(TestCase):
         article = ArticlePage(title='A', slug='a', handle='a', locale=self.source.locale)
         blog_page.add_child(instance=article)
         article.save_revision().publish()
+        # Product hybrid fills articles via reverse inbound links (DB rows, not cluster cache).
+        from shopify_content.models.semantic_links import ArticleRelatedProductLink
 
-        mock_search.return_value = [article]
+        ArticleRelatedProductLink.objects.create(
+            page_id=article.pk,
+            related_page=self.source,
+            is_auto=True,
+            sort_order=0,
+        )
+
+        mock_search.return_value = []
 
         refresh_semantic_links(self.source)
 
@@ -156,6 +165,8 @@ class RefreshSemanticLinksTests(TestCase):
                 is_auto=False,
             ).exists()
         )
+        mock_search.assert_called_once()
+        self.assertEqual(mock_search.call_args.kwargs.get('allowed_types'), ['product'])
 
     @override_settings(SEMANTIC_LINKS_ENABLED=True)
     @patch('shopify_content.semantic_links.service.search_similar_pages')
@@ -181,8 +192,16 @@ class RefreshSemanticLinksTests(TestCase):
         article = ArticlePage(title='A2', slug='a2', handle='a2', locale=self.source.locale)
         blog_page.add_child(instance=article)
         article.save_revision().publish()
+        from shopify_content.models.semantic_links import ArticleRelatedProductLink
 
-        mock_search.return_value = [article]
+        ArticleRelatedProductLink.objects.create(
+            page_id=article.pk,
+            related_page=self.source,
+            is_auto=True,
+            sort_order=0,
+        )
+
+        mock_search.return_value = []
 
         refresh_semantic_links(self.source)
 
@@ -208,13 +227,21 @@ class RefreshSemanticLinksTests(TestCase):
 
     @override_settings(SEMANTIC_LINKS_ENABLED=True, SEMANTIC_LINKS_LIMIT_PER_TYPE=2)
     @patch('shopify_content.semantic_links.service.search_similar_pages')
-    def test_refresh_searches_per_type_and_skips_prior_autos_in_excludes(self, mock_search):
+    def test_product_hybrid_one_vector_search_for_products(self, mock_search):
         blog_page = BlogPage(title='B3', slug='b3', handle='b3', locale=self.source.locale)
         self.root.add_child(instance=blog_page)
         blog_page.save_revision().publish()
         article = ArticlePage(title='A3', slug='a3', handle='a3', locale=self.source.locale)
         blog_page.add_child(instance=article)
         article.save_revision().publish()
+        from shopify_content.models.semantic_links import ArticleRelatedProductLink
+
+        ArticleRelatedProductLink.objects.create(
+            page_id=article.pk,
+            related_page=self.source,
+            is_auto=True,
+            sort_order=0,
+        )
 
         prior_auto = ProductPage(
             title='Prior Auto',
@@ -230,32 +257,16 @@ class RefreshSemanticLinksTests(TestCase):
             sort_order=0,
         )
 
-        search_calls = {'n': 0}
-
         def _search(content, *, exclude_pks, limit, allowed_types=None):
-            search_calls['n'] += 1
+            self.assertEqual(allowed_types, ['product'])
             self.assertIn(self.source.pk, exclude_pks)
-            # First call must not exclude prior autos (only self + manuals).
-            if search_calls['n'] == 1:
-                self.assertNotIn(prior_auto.pk, exclude_pks)
-            if allowed_types == ['article']:
-                return [article]
-            if allowed_types == ['product']:
-                return [prior_auto]
-            return []
+            self.assertNotIn(prior_auto.pk, exclude_pks)
+            return [prior_auto]
 
         mock_search.side_effect = _search
         refresh_semantic_links(self.source)
 
-        self.assertEqual(mock_search.call_count, 4)
-        called_types = [
-            call.kwargs.get('allowed_types')
-            for call in mock_search.call_args_list
-        ]
-        self.assertEqual(
-            called_types,
-            [['product'], ['collection'], ['article'], ['glossary']],
-        )
+        self.assertEqual(mock_search.call_count, 1)
         self.assertTrue(
             self.source.related_articles.filter(
                 related_page=article,
@@ -273,6 +284,79 @@ class RefreshSemanticLinksTests(TestCase):
                 related_page=self.target,
                 is_auto=False,
             ).exists()
+        )
+
+    @override_settings(SEMANTIC_LINKS_ENABLED=True, SEMANTIC_LINKS_LIMIT_PER_TYPE=2)
+    @patch('shopify_content.semantic_links.service.search_similar_pages')
+    def test_product_hybrid_reverse_respects_manual_excludes(self, mock_search):
+        blog_page = BlogPage(title='B4', slug='b4', handle='b4', locale=self.source.locale)
+        self.root.add_child(instance=blog_page)
+        blog_page.save_revision().publish()
+        article = ArticlePage(title='A4', slug='a4', handle='a4', locale=self.source.locale)
+        blog_page.add_child(instance=article)
+        article.save_revision().publish()
+        from shopify_content.models.semantic_links import ArticleRelatedProductLink
+
+        ArticleRelatedProductLink.objects.create(
+            page_id=article.pk,
+            related_page=self.source,
+            is_auto=True,
+            sort_order=0,
+        )
+        self.source.related_articles.create(
+            related_page=article,
+            is_auto=False,
+            sort_order=0,
+        )
+        mock_search.return_value = []
+
+        refresh_semantic_links(self.source)
+
+        self.assertEqual(
+            self.source.related_articles.filter(related_page=article, is_auto=False).count(),
+            1,
+        )
+        self.assertFalse(
+            self.source.related_articles.filter(related_page=article, is_auto=True).exists()
+        )
+
+    @override_settings(SEMANTIC_LINKS_ENABLED=True, SEMANTIC_LINKS_LIMIT_PER_TYPE=2)
+    @patch('shopify_content.semantic_links.service.search_similar_pages')
+    def test_non_product_searches_per_type(self, mock_search):
+        term = GlossaryTermPage(
+            title='Term Hybrid',
+            term='Term Hybrid',
+            slug='term-hybrid',
+            handle='term-hybrid',
+            locale=self.source.locale,
+        )
+        self.root.add_child(instance=term)
+        term.save_revision().publish()
+
+        def _search(content, *, exclude_pks, limit, allowed_types=None):
+            if allowed_types == ['product']:
+                return [self.source]
+            if allowed_types == ['collection']:
+                return [self.target]
+            return []
+
+        mock_search.side_effect = _search
+        refresh_semantic_links(term)
+
+        self.assertEqual(mock_search.call_count, 4)
+        called_types = [
+            call.kwargs.get('allowed_types')
+            for call in mock_search.call_args_list
+        ]
+        self.assertEqual(
+            called_types,
+            [['product'], ['collection'], ['article'], ['glossary']],
+        )
+        self.assertTrue(
+            term.related_products.filter(related_page=self.source, is_auto=True).exists()
+        )
+        self.assertTrue(
+            term.related_collections.filter(related_page=self.target, is_auto=True).exists()
         )
 
 
@@ -566,6 +650,59 @@ class BackfillSemanticLinksTaskTests(TestCase):
         self.assertEqual(result['pages_processed'], 1)
         mock_refresh.assert_called_once()
 
+    @patch('shopify_content.semantic_links.backfill.refresh_semantic_links')
+    def test_backfill_all_processes_non_products_before_products(self, mock_refresh):
+        mock_refresh.return_value = {'created': 0, 'removed': 0, 'manual_kept': 0}
+
+        blog = BlogPage(title='News', slug='news-order', handle='news-order', locale=self.product.locale)
+        self.root.add_child(instance=blog)
+        blog.save_revision().publish()
+        article = ArticlePage(
+            title='Order Article',
+            slug='order-article',
+            handle='order-article',
+            locale=self.product.locale,
+        )
+        blog.add_child(instance=article)
+        article.save_revision().publish()
+
+        collection = CollectionPage(
+            title='Order Collection',
+            slug='order-collection',
+            handle='order-collection',
+            locale=self.product.locale,
+        )
+        self.root.add_child(instance=collection)
+        collection.save_revision().publish()
+
+        term = GlossaryTermPage(
+            title='Order Term',
+            term='Order Term',
+            slug='order-term',
+            handle='order-term',
+            locale=self.product.locale,
+        )
+        self.root.add_child(instance=term)
+        term.save_revision().publish()
+
+        order: list[str] = []
+
+        def _track(page, **kwargs):
+            specific = page.specific
+            if isinstance(specific, ArticlePage):
+                order.append('article')
+            elif isinstance(specific, CollectionPage):
+                order.append('collection')
+            elif isinstance(specific, GlossaryTermPage):
+                order.append('glossary')
+            elif isinstance(specific, ProductPage):
+                order.append('product')
+            return {'created': 0, 'removed': 0, 'manual_kept': 0}
+
+        mock_refresh.side_effect = _track
+        run_semantic_links_backfill(model='all', only_missing=False)
+
+        self.assertEqual(order, ['article', 'collection', 'glossary', 'product'])
 
 @override_settings(SEMANTIC_LINKS_NATIVE_REFS_ENABLED=True)
 class NativeReferencePushIntegrationTests(TestCase):

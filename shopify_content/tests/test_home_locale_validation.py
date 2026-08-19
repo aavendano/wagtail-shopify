@@ -193,7 +193,10 @@ class HomeLocaleValidationTests(TestCase):
         self.assertTrue(errors)
 
     def test_home_page_clean_rejects_wrong_article(self):
-        self.home_en.sections_json = {
+        from shopify_content.home_sections_normalization import normalize_sections_json
+        from shopify_content.home_serialization import sections_json_to_stream_data
+
+        payload = {
             'version': 1,
             'sections': [
                 {
@@ -206,5 +209,7 @@ class HomeLocaleValidationTests(TestCase):
                 }
             ],
         }
+        self.home_en.sections_json = normalize_sections_json(payload)
+        self.home_en.body = sections_json_to_stream_data(self.home_en.sections_json)
         with self.assertRaises(ValidationError):
             self.home_en.full_clean()

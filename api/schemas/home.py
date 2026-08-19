@@ -6,6 +6,7 @@ from pydantic import Field
 from wagtail.rich_text import expand_db_html
 
 from .common import LocaleCreateFields, LocalePatchFields, LocaleOutFields, StorefrontUrlOutFields
+from .home_sections import HomeSectionFields
 
 RICH_TEXT_DESCRIPTION = (
     "Rich text content as HTML string. On read, internal Wagtail references are expanded to URLs. "
@@ -18,7 +19,15 @@ SHOPIFY_LOCALE_DESCRIPTION = (
 )
 
 
-class HomeIn(LocaleCreateFields):
+SECTIONS_JSON_WRITE_DESCRIPTION = (
+    "Canonical home sections envelope (version 1, 13 types). Agents may send a "
+    "partial `sections` list or a dict keyed by type (e.g. `{editorial_intro: {heading, body}}`). "
+    "The API merges by type, fills required keys (ids, defaults), and stores all 13 sections. "
+    "Prefer the first-class section fields (editorial_intro, faq, …) for single-section edits."
+)
+
+
+class HomeIn(LocaleCreateFields, HomeSectionFields):
     hero_heading: str = Field(
         ...,
         description="Primary hero headline. Also used as Wagtail Page.title when creating.",
@@ -49,10 +58,7 @@ class HomeIn(LocaleCreateFields):
     )
     sections_json: Optional[Dict[str, Any]] = Field(
         None,
-        description=(
-            "Home sections JSON (version 1). References use page_id (Wagtail FK). "
-            "Synced to Shopify metaobject sections_json + native reference fields."
-        ),
+        description=SECTIONS_JSON_WRITE_DESCRIPTION,
     )
     shopify_locale: Optional[str] = Field(None, description=SHOPIFY_LOCALE_DESCRIPTION, max_length=20)
     seo_title: Optional[str] = Field(None, max_length=255)
@@ -70,7 +76,7 @@ class HomeIn(LocaleCreateFields):
     )
 
 
-class HomePatch(LocalePatchFields):
+class HomePatch(LocalePatchFields, HomeSectionFields):
     hero_heading: Optional[str] = Field(None, max_length=255)
     shopify_id: Optional[str] = Field(None)
     handle: Optional[str] = Field(
@@ -85,7 +91,10 @@ class HomePatch(LocalePatchFields):
     hero_secondary_cta_label: Optional[str] = Field(None)
     hero_secondary_cta_url: Optional[str] = Field(None)
     hero_image_url: Optional[str] = Field(None)
-    sections_json: Optional[Dict[str, Any]] = Field(None)
+    sections_json: Optional[Dict[str, Any]] = Field(
+        None,
+        description=SECTIONS_JSON_WRITE_DESCRIPTION + ' Omit to leave sections unchanged.',
+    )
     shopify_locale: Optional[str] = Field(None, description=SHOPIFY_LOCALE_DESCRIPTION)
     seo_title: Optional[str] = Field(None, max_length=255)
     search_description: Optional[str] = Field(None)
@@ -111,7 +120,13 @@ class HomeOut(StorefrontUrlOutFields, LocaleOutFields):
     hero_secondary_cta_label: str = Field(..., description="Secondary CTA label.")
     hero_secondary_cta_url: str = Field(..., description="Secondary CTA URL.")
     hero_image_url: str = Field(..., description="Hero image URL pushed to Shopify.")
-    sections_json: Dict[str, Any] = Field(default_factory=dict, description="Extensible sections JSON.")
+    sections_json: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Normalized home sections JSON: always `{version: 1, sections: [13 types]}`. "
+            "References use page_id (Wagtail FK). Synced to Shopify sections_json + native refs."
+        ),
+    )
     shopify_locale: str = Field(..., description="Shopify locale pushed on sync.")
     seo_title: str = Field(..., description="SEO meta title.")
     search_description: str = Field(..., description="SEO meta description.")
@@ -155,4 +170,6 @@ class HomeOut(StorefrontUrlOutFields, LocaleOutFields):
 
     @staticmethod
     def resolve_sections_json(obj):
-        return obj.sections_json or {}
+        from shopify_content.home_sections_normalization import normalize_sections_json
+
+        return normalize_sections_json(obj.sections_json)

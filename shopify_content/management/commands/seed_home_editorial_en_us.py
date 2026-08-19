@@ -6,6 +6,8 @@ from wagtail.models import Locale
 
 from core.models import ShopConfig
 from shopify_content.models import CollectionPage, HomePage
+from shopify_content.home_sections_normalization import normalize_sections_json
+from shopify_content.home_serialization import sections_json_to_stream_data
 from shopify_content.sync.outbound import sync_home_page
 
 
@@ -524,13 +526,16 @@ class Command(BaseCommand):
         for field, value in hero_updates.items():
             setattr(page, field, value)
 
+        page.sections_json = normalize_sections_json(page.sections_json)
+        page.body = sections_json_to_stream_data(page.sections_json)
+
         page.save()
         revision = page.save_revision()
         revision.publish()
         page.refresh_from_db()
 
         self.stdout.write(self.style.SUCCESS(
-            f'Updated HomePage pk={page.pk} with hero + {len(hero_updates["sections_json"]["sections"])} sections.'
+            f'Updated HomePage pk={page.pk} with hero + {len(page.sections_json["sections"])} sections.'
         ))
 
         if push:

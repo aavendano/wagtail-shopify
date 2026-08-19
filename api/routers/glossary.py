@@ -1,8 +1,9 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from django.core.exceptions import ValidationError
 from django.utils.text import slugify
-from ninja import Router
+from ninja import Query, Router
+from ninja.responses import Response
 
 from shopify_content.models import GlossaryTermPage, ShopifyRootPage
 from shopify_content.sync.outbound import sync_glossary_term_page
@@ -10,7 +11,12 @@ from shopify_content.sync.import_parents import resolve_shopify_import_parent
 from shopify_content.glossary_locale_utils import wagtail_locale_code_for_glossary
 
 from ..sync import execute_pull
-from ..schemas.glossary import GlossaryTermIn, GlossaryTermPatch, GlossaryTermOut
+from ..schemas.glossary import (
+    GlossaryTermIn,
+    GlossaryTermListOut,
+    GlossaryTermOut,
+    GlossaryTermPatch,
+)
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
 from ..openapi_agent import agent_openapi_extra, capability_docstring
 from ..locale_utils import (
@@ -111,9 +117,17 @@ def _apply_glossary_fields(page: GlossaryTermPage, data, *, is_create: bool = Fa
             page.search_description = data.search_description
 
 
+FULL_LIST_QUERY_DESCRIPTION = (
+    "When false (default), return a compact list of terms "
+    "(id, term, handle, slug, shopify_id, locale_code, live, last_synced_at). "
+    "When true, return full GlossaryTermOut including definition HTML, links, and SEO. "
+    "Prefer false; use get_glossary_term for a single full record."
+)
+
+
 @router.get(
     '/',
-    response=List[GlossaryTermOut],
+    response=Union[List[GlossaryTermListOut], List[GlossaryTermOut]],
     summary="List Glossary Terms",
     operation_id="list_glossary_terms",
     description=capability_docstring("list_glossary_terms"),
@@ -126,6 +140,7 @@ def list_glossary_terms(
     locale_code: Optional[str] = None,
     limit: int = 50,
     offset: int = 0,
+    full: bool = Query(False, description=FULL_LIST_QUERY_DESCRIPTION),
 ):
     """Discover Wagtail glossary terms before push."""
     qs = GlossaryTermPage.objects.select_related('locale', 'image')
@@ -134,7 +149,10 @@ def list_glossary_terms(
     qs = filter_queryset_by_locale(qs, locale)
     if locale_code:
         qs = qs.filter(locale_code=locale_code)
-    return list(qs[offset:offset + limit])
+    pages = list(qs[offset:offset + limit])
+    schema_cls = GlossaryTermOut if full else GlossaryTermListOut
+    # Return JsonResponse so Ninja does not coerce the Union to the first schema.
+    return Response([schema_cls.from_orm(page) for page in pages])
 
 
 @router.post(

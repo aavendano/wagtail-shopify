@@ -127,6 +127,19 @@ Todos los modelos de página (excepto `ShopifyRootPage`) heredan de `ShopifyPage
 | `metafields` | `metafields` | InlinePanel → `metafieldsSet` (solo outbound / edición manual) |
 | `faqs` | metafield `custom.faqs` | InlinePanel → JSON |
 
+**Outbound multi-locale:** el primary (`en-US`) alimenta `productUpdate` + `metafieldsSet` (vendor, tags, status, SEO nativo, FAQs, metafields, links, theme). Las variantes live no-primary se registran vía `translationsRegister`:
+
+| Key Shopify | Fuente Wagtail (variante) |
+|-------------|---------------------------|
+| `title` | `title` |
+| `body_html` | `body` (HTML renderizado) |
+| `meta_title` | `seo_title` / `get_seo_title()` |
+| `meta_description` | `search_description` / `get_seo_description()` |
+| `metafields.custom.faqs` | InlinePanel `faqs` (JSON) |
+| `metafields.{namespace}.{key}` | InlinePanel `metafields` + MetafieldBlocks del `body` (keys del primary) |
+
+No se traducen por locale: `vendor`, `product_type`, `tags`, `status`, `handle`, semantic links, `theme_config`, imágenes.
+
 ---
 
 ## CollectionPage — `models/collection.py`
@@ -758,9 +771,11 @@ Claves opcionales en `export_config` de roots `root` / `collections` para planti
 ProductPage, CollectionPage, ArticlePage y GlossaryTermPage usan **cuatro relaciones tipadas** (`related_products`, `related_collections`, `related_articles`, `related_glossary_terms`) con FK a `Page` y flag `is_auto`.
 
 - **Manual:** cuatro paneles en Wagtail admin bajo *Internal Links* (`AIMultipleChooserPanel` por tipo cuando `WAGTAIL_AI_PGVECTOR=true`; suggest filtrado por tipo). API glossary `POST`/`PATCH` con `related_links` escribe las mismas FKs (`is_auto=False`).
-- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True` en cada relación; no pisa manuales). La búsqueda vectorial es **por tipo** (product / collection / article / glossary), con overfetch (`SEMANTIC_LINKS_TYPE_OVERFETCH`, default 10) para llenar hasta `SEMANTIC_LINKS_LIMIT_PER_TYPE` (default 5) por bucket. Solo se excluyen self + links manuales; los autos previos pueden re-seleccionarse.
+- **Auto:** al publicar, Celery ejecuta `refresh_semantic_links` **antes** del sync Shopify (solo reemplaza filas `is_auto=True` en cada relación; no pisa manuales).
+  - **Article / Collection / Glossary:** búsqueda vectorial **por tipo** (product / collection / article / glossary), con overfetch (`SEMANTIC_LINKS_TYPE_OVERFETCH`, default 10) para llenar hasta `SEMANTIC_LINKS_LIMIT_PER_TYPE` (default 5) por bucket. Solo se excluyen self + links manuales; los autos previos pueden re-seleccionarse.
+  - **Product (híbrido):** `related_articles` / `related_collections` / `related_glossary_terms` se rellenan por **reverse ORM** (páginas que ya apuntan al producto vía `related_products`); `related_products` usa **una** búsqueda vectorial. No hay cascade al publicar un article: el producto se actualiza en su publish o en la fase product del backfill.
 - **Glosario JSON:** `GlossaryTermPage.related_links` es cache reescrito desde FKs en apply API y en refresh; no es fuente de verdad frente a enrich.
-- **Backfill:** Celery Beat diario a las 04:00 (`backfill_semantic_links_task`) y encolado al terminar `index_pages_batch` (omitir con `--skip-semantic-backfill`). Por defecto en Beat `only_missing=true` (páginas con ≥1 auto link se saltan). Para regenerar buckets incompletos: `python manage.py refresh_semantic_links_batch` **sin** `--only-missing`.
+- **Backfill:** Celery Beat diario a las 04:00 (`backfill_semantic_links_task`) y encolado al terminar `index_pages_batch` (omitir con `--skip-semantic-backfill`). Por defecto en Beat `only_missing=true` (páginas con ≥1 auto link se saltan). Orden cuando `model=all`: **article → collection → glossary → product** (así el reverse de productos ve outbound fresco). Con `--model product` el híbrido usa el grafo actual en BD. Para regenerar buckets incompletos: `python manage.py refresh_semantic_links_batch` **sin** `--only-missing`.
 - **Shopify:** productos, colecciones y artículos reciben metafield `custom.internal_links` (JSON) **y**, en paralelo, metafields nativos `custom.related_products`, `custom.related_collections`, `custom.related_articles` y `custom.related_glossary_terms` (`list.*_reference` con GIDs). Glosario usa el campo metaobject `related_links` (JSON) **más** los campos nativos homónimos en la definición `glossary_term`.
 - **Requisitos:** `CREATE EXTENSION vector`, `WAGTAIL_AI_PGVECTOR=true`, `GEMINI_API_KEY`, índice poblado con `index_pages_batch`.
 
@@ -928,6 +943,8 @@ Mapa de locales Wagtail → Shopify:
 | `es-US` | `es` |
 | `en-CA` | `en-CA` |
 | `fr-CA` | `fr-CA` |
+
+**ProductPage** registra por variante: `title`, `body_html`, `meta_title`, `meta_description`, `metafields.custom.faqs` y `metafields.{namespace}.{key}` (ver tabla en la sección ProductPage).
 
 ### hreflang para el tema Liquid
 
