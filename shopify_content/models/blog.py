@@ -17,6 +17,7 @@ from shopify_content.available_locales import (
     default_available_locales_for_page,
     validate_available_locales,
 )
+from shopify_content.content_store.domain import EditorialMixin
 from shopify_content.forms import ArticlePageForm, BlogPageForm
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
@@ -66,7 +67,7 @@ class AvailableLocalesMixin(models.Model):
 # Blog (index / container page)
 # ---------------------------------------------------------------------------
 
-class BlogPage(AvailableLocalesMixin, Page):
+class BlogPage(EditorialMixin, AvailableLocalesMixin, Page):
     """
     Mirrors a Shopify Blog (the container object).
 

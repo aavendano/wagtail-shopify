@@ -876,14 +876,13 @@ def sync_blog_page(page):
             page.shopify_id = new_id
 
     # Blog has no native description or seo fields — push as metafields.
-    # Read editorial `description` through the domain accessor so publication
-    # never depends on the storage backend (INV-PERSIST-002). DB is authoritative
-    # in Phase B, so the pushed value is identical.
+    # Read editorial `description` through the canonical domain accessor so
+    # publication consumes the authoritative source (INV-PERSIST-002) without
+    # knowing the backend. Under git_authoritative this is the Git-backed value;
+    # it never silently falls back to page.description.
     if page.shopify_id:
-        from shopify_content.content_store.accessors import read_editorial_value
-
         blog_metafields = []
-        description_value = read_editorial_value(primary, 'description')
+        description_value = primary.editorial.description
         if description_value:
             blog_metafields.append({
                 'ownerId': page.shopify_id,
