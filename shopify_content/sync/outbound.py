@@ -875,16 +875,22 @@ def sync_blog_page(page):
             )
             page.shopify_id = new_id
 
-    # Blog has no native description or seo fields — push as metafields
+    # Blog has no native description or seo fields — push as metafields.
+    # Read editorial `description` through the domain accessor so publication
+    # never depends on the storage backend (INV-PERSIST-002). DB is authoritative
+    # in Phase B, so the pushed value is identical.
     if page.shopify_id:
+        from shopify_content.content_store.accessors import read_editorial_value
+
         blog_metafields = []
-        if primary.description:
+        description_value = read_editorial_value(primary, 'description')
+        if description_value:
             blog_metafields.append({
                 'ownerId': page.shopify_id,
                 'namespace': 'custom',
                 'key': 'description',
                 'type': 'multi_line_text_field',
-                'value': primary.description,
+                'value': description_value,
             })
         _push_metafields(shop, blog_metafields)
         _push_faq_metafield(shop, page.shopify_id, primary.faqs)
