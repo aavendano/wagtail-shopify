@@ -186,6 +186,26 @@ def get_location(request, page_id: int):
         return 404, {"detail": f"Location page {page_id} not found."}
 
 
+
+
+@router.get(
+    '/{page_id}/preview',
+    response={404: ErrorSchema},
+    summary="Preview Location page HTML",
+    operation_id="preview_location",
+    description=capability_docstring("preview_location"),
+    openapi_extra=agent_openapi_extra("preview_location"),
+)
+def preview_location(request, page_id: int):
+    """Render Wagtail template for the latest location draft/revision."""
+    from ..preview import render_page_preview
+
+    try:
+        page = LocationPage.objects.get(pk=page_id)
+    except LocationPage.DoesNotExist:
+        return 404, {"detail": f"Location page {page_id} not found."}
+    return render_page_preview(request, page)
+
 @router.patch(
     '/{page_id}',
     response={200: LocationOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -222,6 +242,7 @@ def update_location(request, page_id: int, data: LocationPatch):
         revision.publish()
     else:
         page.save()
+        page.save_revision()
 
     page.refresh_from_db()
     return page

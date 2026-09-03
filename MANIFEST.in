@@ -1,0 +1,4 @@
+include cms_ui/static/cms_ui/*
+include cms_ui/frontend/package.json
+recursive-include django_react_ui_editor/templates *
+recursive-include cms_ui/templates *

@@ -2,9 +2,9 @@
 
 ## Plan activo
 
-- **Archivo:** [`.cursor/plans/theme-index-pages.plan.md`](.cursor/plans/theme-index-pages.plan.md) (copia en `active.plan.md`)
-- **Última fase completada:** theme-index-pages Fases 4–5 — detalle `glossary_term` + `local_page` (synonyms, DefinedTerm, related_links fallback, LocalBusiness JSON-LD) (2026-07-11)
-- **Siguiente:** Fase 7 — QA theme check / Lighthouse + docs theme (Fase 6 nav/hreflang índices ya en producción)
+- **Archivo:** [`plan.md`](plan.md) (Puck CMS Headless)
+- **Última fase completada:** Fases 0–4 — SPA `/cms/`, auth sesión, CRUD recursos, preview HTML, restricción Wagtail Admin + docs (2026-09-03)
+- **Siguiente:** QA manual en tienda conectada (`ensure_cms_spa`, build frontend, smoke `/cms/#/glossary`)
 
 ## Convención de planes (2026-07-06)
 
@@ -22,12 +22,13 @@ python manage.py rebuild_location_index
 python manage.py rebuild_blog_index
 ```
 
-Ver troubleshooting en [`theme-index-pages.plan.md`](theme-index-pages.plan.md) y [`docs/shopify_content.md`](docs/shopify_content.md).
+Ver troubleshooting en [`theme-index-pages.plan.md`](.cursor/plans/theme-index-pages.plan.md) y [`docs/shopify_content.md`](docs/shopify_content.md).
 
 ## Planes relacionados (no activos)
 
 | Archivo | Estado | Notas |
 |---------|--------|-------|
+| [`theme-index-pages.plan.md`](.cursor/plans/theme-index-pages.plan.md) | Pausado (QA theme pendiente) | Fase 7 Lighthouse/docs theme |
 | [`root-export-config-admin.plan.md`](.cursor/plans/root-export-config-admin.plan.md) | Estratégico, pendiente | UI tipada + pickers Shopify sobre `export_config` |
 | [`wagtail-root-index-section.plan.md`](.cursor/plans/wagtail-root-index-section.plan.md) | Completado | Section unificada + SEO hreflang vía metafields |
 
@@ -35,13 +36,8 @@ Ver troubleshooting en [`theme-index-pages.plan.md`](theme-index-pages.plan.md) 
 
 | Fecha | Plan | Fase | Notas |
 |-------|------|------|-------|
+| 2026-09-03 | puck-cms-headless | 0–4 | `django_react_ui_editor` + `/cms/` SPA, session auth, preview endpoints, docs roles |
 | 2026-07-11 | theme-index-pages | 4–5 | Detalle glossary/local: synonyms, DefinedTerm, related_links fallback, LocalBusiness; FAQs CMS en PDP/PLP; batch 65 ciudades COMPLETED; home gates A/B closed |
 | 2026-07-06 | planes-genéricos-tienda | — | Convención agnóstica de tienda en plans/README, plans-convention, theme-index-pages |
-| 2026-07-05 | root-export-platform | 1 | Migración 0021 aplicada; rollout glosario verificado (`rebuild_glossary_index --dry-run`) |
-| 2026-07-05 | root-export-platform | 2 | Paquete `export_config/` + registry; glossary refactorizado |
-| 2026-07-05 | root-export-platform | 3 | `location_index` builder/sync/signals/comando + tests |
-| 2026-07-05 | root-export-platform | 4 | `theme_config` Product/Collection + migración 0022 + sync metafields |
-| 2026-07-05 | root-export-platform | 5 | Docs plataforma export_config; `make test` 170 passed |
+| 2026-07-05 | root-export-platform | 1–5 | export_config platform + tests |
 | 2026-07-05 | glossary-index-sync | 1–3 | v1 base (root_page, glossary index, tests) |
-| 2026-07-05 | root-export-config-admin | — | Plan estratégico UI export_config |
-| 2026-07-05 | theme-index-pages | 1–3 | Índices glosario/locations vía `wagtail-root-index` |

@@ -37,6 +37,8 @@ Shopify Storefront → Cliente final
 | `shopify_content` | Páginas Wagtail sincronizadas a Shopify; ver [`docs/shopify_content.md`](docs/shopify_content.md) |
 | `webhooks` | Receptores de webhooks Shopify |
 | `api` | API interna django-ninja para agentes AI — ver [`docs/api-agents.md`](docs/api-agents.md) |
+| `cms_ui` | SPA Puck (`/cms/`) para merchants/editores — ver [`docs/cms-spa.md`](docs/cms-spa.md) |
+| `django_react_ui_editor` | Contenedor SPA (SpaMount, register_spa, SpaShellView) |
 | `bigquery_gsc` | Analytics GSC vía BigQuery — ver [`docs/api-gsc.md`](docs/api-gsc.md) |
 
 ---

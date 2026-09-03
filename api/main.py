@@ -3,7 +3,7 @@ import api.ninja_compat  # noqa: F401 — patch URL converters before ninja impo
 from django.conf import settings
 from ninja import NinjaAPI
 
-from .auth import ApiKeyAuth
+from .auth import API_AUTH
 from .openapi_agent import build_openapi_tags
 from .routers.products import router as products_router
 from .routers.collections import router as collections_router
@@ -41,8 +41,9 @@ OpenAPI spec: `/api/v1/openapi.json` · Agent catalog: `GET /api/v1/capabilities
 
 ## Authentication
 
-All endpoints require a bearer token. Existing API keys and OAuth access tokens issued
-for MCP clients are both accepted:
+Endpoints accept **either**:
+
+1. **Bearer token** (API keys / OAuth for agents and MCP):
 
 ```
 Authorization: Bearer <api_key_or_oauth_access_token>
@@ -50,7 +51,12 @@ Authorization: Bearer <api_key_or_oauth_access_token>
 
 Create API keys in **Django Admin → API → API Keys** (`/admin-django/`). Create OAuth
 clients in **Django Admin → Django OAuth Toolkit → Applications** and request the
-`mcp` scope through `/o/authorize/` and `/o/token/`. Missing or invalid tokens return **401**.
+`mcp` scope through `/o/authorize/` and `/o/token/`.
+
+2. **Django session** (merchant CMS SPA at `/cms/`): logged-in **staff** or members of
+the **cms_editors** group, same-origin with CSRF for unsafe methods.
+
+Missing or invalid credentials return **401**.
 
 ## Tool Matrix
 
@@ -63,6 +69,8 @@ clients in **Django Admin → Django OAuth Toolkit → Applications** and reques
 | Locations | GET /locations/ | GET /locations/{id} | POST /locations/ | PATCH /locations/{id} | DELETE /locations/{id} | — (Wagtail-only) | POST /locations/{id}/push |
 | Glossary | GET /glossary/ | GET /glossary/{id} | POST /glossary/ | PATCH /glossary/{id} | DELETE /glossary/{id} | POST /glossary/pull | POST /glossary/{id}/push |
 | Home | GET /home/ | GET /home/{id} | POST /home/ | PATCH /home/{id} | DELETE /home/{id} | — (Wagtail-only) | POST /home/{id}/push |
+
+**HTML preview (CMS SPA):** `GET /{resource}/{id}/preview` for products, collections, blogs, articles, locations, glossary — renders the Wagtail template from the latest revision (draft-friendly).
 
 **Semantic links (preview):** `POST /semantic-links/suggest` — nearest neighbors with similarity scores. Read-only; does not persist related-link FKs. Requires `locale` plus `page_id` or draft `text`/fields. Independent of the 5-per-type production cap.
 
@@ -181,7 +189,7 @@ api = NinjaAPI(
     version="1.1.0",
     urls_namespace="wagtail_shopify_api",
     description=API_DESCRIPTION,
-    auth=ApiKeyAuth(),
+    auth=API_AUTH,
     docs_url="/docs/",
     openapi_url="/openapi.json",
     servers=_OPENAPI_SERVERS,

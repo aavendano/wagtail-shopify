@@ -1,0 +1,17 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ spa_title }}</title>
+  <link rel="stylesheet" href="{% static spa_public_css %}">
+  <script>
+    window.__CMS_BOOTSTRAP__ = {{ spa_bootstrap_json|safe }};
+  </script>
+</head>
+<body>
+  <div id="cms-spa-root"></div>
+  <script type="module" src="{% static spa_public_js %}"></script>
+</body>
+</html>

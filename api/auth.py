@@ -1,9 +1,33 @@
 import hashlib
 
-from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.utils import timezone
-from ninja.security import HttpBearer
+from ninja.security import HttpBearer, SessionAuth as NinjaSessionAuth
+
+
+def user_is_cms_editor(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_superuser or user.is_staff:
+        return True
+    return user.groups.filter(name="cms_editors").exists()
+
+
+class SessionEditorAuth(NinjaSessionAuth):
+    """Allow authenticated staff / cms_editors via Django session (SPA same-origin)."""
+
+    openapi_description = (
+        "Django session authentication for the merchant CMS SPA at /cms/. "
+        "Requires a logged-in staff user or membership in the cms_editors group. "
+        "Same-origin requests send the session cookie; include the CSRF token for "
+        "unsafe methods."
+    )
+
+    def authenticate(self, request, key=None):
+        user = getattr(request, "user", None)
+        if user_is_cms_editor(user):
+            return user
+        return None
 
 
 class ApiKeyAuth(HttpBearer):
@@ -14,10 +38,7 @@ class ApiKeyAuth(HttpBearer):
         "Django OAuth Toolkit and require the configured MCP scope."
     )
 
-    async def authenticate(self, request, token):
-        return await sync_to_async(self._authenticate_token, thread_sensitive=True)(token)
-
-    def _authenticate_token(self, token):
+    def authenticate(self, request, token):
         api_key = self._authenticate_api_key(token)
         if api_key:
             return api_key
@@ -54,12 +75,6 @@ class ApiKeyAuth(HttpBearer):
             return None
         return access_token
 
-    async def __call__(self, request):
-        auth_value = request.headers.get(self.header)
-        if not auth_value:
-            return None
-        parts = auth_value.split(" ")
-        if parts[0].lower() != self.openapi_scheme:
-            return None
-        token = " ".join(parts[1:])
-        return await self.authenticate(request, token)
+
+# Combined auth for /api/v1/: session editors (SPA) OR bearer API key / OAuth.
+API_AUTH = [SessionEditorAuth(), ApiKeyAuth()]
