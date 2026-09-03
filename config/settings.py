@@ -136,6 +136,8 @@ INSTALLED_APPS = [
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
+    'django_react_ui_editor',
+    'cms_ui.apps.CmsUiConfig',
     'django_celery_beat',
 ]
 
@@ -157,6 +159,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     #'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'cms_ui.middleware.RestrictWagtailAdminMiddleware',
     'wagtail.contrib.redirects.middleware.RedirectMiddleware',
 ]
 
@@ -333,6 +336,19 @@ OAUTH2_PROVIDER = {
 
 # OAuth authorize flow and Django admin login (not Wagtail admin at /admin/).
 LOGIN_URL = '/admin-django/login/'
+
+# Puck / CMS SPA (django-react-ui-editor)
+VISUAL_EDITOR = {
+    'SPA_PUBLIC_JS': 'cms_ui/spa-public.js',
+    'SPA_PUBLIC_CSS': 'cms_ui/spa-public.css',
+    'EDITOR_JS': 'cms_ui/editor.js',
+    'EDITOR_CSS': 'cms_ui/editor.css',
+}
+
+# When True, only superusers (or users in cms_ops group) may access Wagtail Admin.
+CMS_RESTRICT_WAGTAIL_ADMIN = (
+    os.environ.get('CMS_RESTRICT_WAGTAIL_ADMIN', 'false').lower() == 'true'
+)
 
 # Hostnames allowed for app_home_parent_redirect targets (comma-separated). Always includes
 # admin.shopify.com plus SHOPIFY_APP_URL / SHOPIFY_APP_DOMAIN hosts via embedded_redirects.parent_redirect_allowed_hosts.

@@ -156,6 +156,26 @@ def get_product(request, page_id: int):
         return 404, {"detail": f"Product page {page_id} not found."}
 
 
+
+
+@router.get(
+    '/{page_id}/preview',
+    response={404: ErrorSchema},
+    summary="Preview Product page HTML",
+    operation_id="preview_product",
+    description=capability_docstring("preview_product"),
+    openapi_extra=agent_openapi_extra("preview_product"),
+)
+def preview_product(request, page_id: int):
+    """Render Wagtail template for the latest product draft/revision."""
+    from ..preview import render_page_preview
+
+    try:
+        page = ProductPage.objects.get(pk=page_id)
+    except ProductPage.DoesNotExist:
+        return 404, {"detail": f"Product page {page_id} not found."}
+    return render_page_preview(request, page)
+
 @router.patch(
     '/{page_id}',
     response={200: ProductOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -222,6 +242,7 @@ def update_product(request, page_id: int, data: ProductPatch):
         revision.publish()
     else:
         page.save()
+        page.save_revision()
 
     page.refresh_from_db()
     return page

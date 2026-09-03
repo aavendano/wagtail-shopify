@@ -88,28 +88,29 @@ La fuente única de verdad es `api/agent_registry.py` — OpenAPI y `/capabiliti
 
 ## Autenticación
 
-| Header | Valor |
-|--------|-------|
-| `Authorization` | `Bearer <api_key>` o `Bearer <oauth_access_token>` |
+| Mecanismo | Quién | Cómo |
+|-----------|-------|------|
+| `Authorization: Bearer <api_key_or_oauth>` | Agentes / MCP | API keys en Django Admin; OAuth scope `mcp` |
+| Sesión Django (cookie + CSRF) | SPA `/cms/` | Usuario **staff** o grupo **cms_editors** |
 
 | Respuesta | Causa |
 |-----------|-------|
-| 401 | Sin header, API key inválida/desactivada, token OAuth expirado o sin scope `mcp` |
+| 401 | Sin credenciales válidas (ni Bearer ni sesión de editor) |
 
----
+La SPA editorial (`/cms/`) y la documentación de roles están en [`docs/cms-spa.md`](cms-spa.md).
 
 ## Matriz de herramientas
 
-| Recurso | List | Get | Create | Update | Delete | Pull | Push |
-|---------|------|-----|--------|--------|--------|------|------|
-| Products | `GET /products/` | `GET /products/{id}` | `POST /products/` | `PATCH /products/{id}` | `DELETE /products/{id}` | `POST /products/pull` | `POST /products/{id}/push` |
-| Collections | `GET /collections/` | `GET /collections/{id}` | `POST /collections/` | `PATCH /collections/{id}` | `DELETE /collections/{id}` | `POST /collections/pull` | `POST /collections/{id}/push` |
-| Blogs | `GET /blogs/` | `GET /blogs/{id}` | `POST /blogs/` | `PATCH /blogs/{id}` | `DELETE /blogs/{id}` | `POST /blogs/pull` | `POST /blogs/{id}/push` |
-| Articles | `GET /articles/` | `GET /articles/{id}` | `POST /articles/` | `PATCH /articles/{id}` | `DELETE /articles/{id}` | `POST /articles/pull` | `POST /articles/{id}/push` |
-| Locations | `GET /locations/` | `GET /locations/{id}` | `POST /locations/` | `PATCH /locations/{id}` | `DELETE /locations/{id}` | — | `POST /locations/{id}/push` |
-| Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | `POST /glossary/pull` | `POST /glossary/{id}/push` |
-| Home | `GET /home/` | `GET /home/{id}` | `POST /home/` | `PATCH /home/{id}` | `DELETE /home/{id}` | — | `POST /home/{id}/push` |
-| Semantic links | `POST /semantic-links/suggest` (preview only; no persist) | — | — | — | — | — | — |
+| Recurso | List | Get | Create | Update | Delete | Pull | Push | Preview |
+|---------|------|-----|--------|--------|--------|------|------|---------|
+| Products | `GET /products/` | `GET /products/{id}` | `POST /products/` | `PATCH /products/{id}` | `DELETE /products/{id}` | `POST /products/pull` | `POST /products/{id}/push` | `GET /products/{id}/preview` |
+| Collections | `GET /collections/` | `GET /collections/{id}` | `POST /collections/` | `PATCH /collections/{id}` | `DELETE /collections/{id}` | `POST /collections/pull` | `POST /collections/{id}/push` | `GET /collections/{id}/preview` |
+| Blogs | `GET /blogs/` | `GET /blogs/{id}` | `POST /blogs/` | `PATCH /blogs/{id}` | `DELETE /blogs/{id}` | `POST /blogs/pull` | `POST /blogs/{id}/push` | `GET /blogs/{id}/preview` |
+| Articles | `GET /articles/` | `GET /articles/{id}` | `POST /articles/` | `PATCH /articles/{id}` | `DELETE /articles/{id}` | `POST /articles/pull` | `POST /articles/{id}/push` | `GET /articles/{id}/preview` |
+| Locations | `GET /locations/` | `GET /locations/{id}` | `POST /locations/` | `PATCH /locations/{id}` | `DELETE /locations/{id}` | — | `POST /locations/{id}/push` | `GET /locations/{id}/preview` |
+| Glossary | `GET /glossary/` | `GET /glossary/{id}` | `POST /glossary/` | `PATCH /glossary/{id}` | `DELETE /glossary/{id}` | `POST /glossary/pull` | `POST /glossary/{id}/push` | `GET /glossary/{id}/preview` |
+| Home | `GET /home/` | `GET /home/{id}` | `POST /home/` | `PATCH /home/{id}` | `DELETE /home/{id}` | — | `POST /home/{id}/push` | — |
+| Semantic links | `POST /semantic-links/suggest` (preview only; no persist) | — | — | — | — | — | — | — |
 
 ---
 

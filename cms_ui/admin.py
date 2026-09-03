@@ -8,6 +8,16 @@ from .models import CmsSpaMount
 @admin.register(CmsSpaMount)
 class CmsSpaMountAdmin(VisualEditorAdminMixin, admin.ModelAdmin):
     editor_app = "cms"
-    list_display = ("slug", "url_prefix", "editor_app")
-    search_fields = ("slug", "url_prefix")
-    readonly_fields = ()
+    list_display = ("slug", "title", "url_prefix", "editor_app", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("slug", "title", "url_prefix")
+    fields = (
+        "slug",
+        "title",
+        "url_prefix",
+        "editor_app",
+        "is_active",
+        "layout",
+        "layout_editor",
+    )
+    readonly_fields = ("layout_editor",)

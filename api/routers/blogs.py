@@ -111,6 +111,26 @@ def get_blog(request, page_id: int):
         return 404, {"detail": f"Blog page {page_id} not found."}
 
 
+
+
+@router.get(
+    '/{page_id}/preview',
+    response={404: ErrorSchema},
+    summary="Preview Blog page HTML",
+    operation_id="preview_blog",
+    description=capability_docstring("preview_blog"),
+    openapi_extra=agent_openapi_extra("preview_blog"),
+)
+def preview_blog(request, page_id: int):
+    """Render Wagtail template for the latest blog draft/revision."""
+    from ..preview import render_page_preview
+
+    try:
+        page = BlogPage.objects.get(pk=page_id)
+    except BlogPage.DoesNotExist:
+        return 404, {"detail": f"Blog page {page_id} not found."}
+    return render_page_preview(request, page)
+
 @router.patch(
     '/{page_id}',
     response={200: BlogOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -150,6 +170,7 @@ def update_blog(request, page_id: int, data: BlogPatch):
         revision.publish()
     else:
         page.save()
+        page.save_revision()
 
     page.refresh_from_db()
     return page

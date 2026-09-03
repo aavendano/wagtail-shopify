@@ -132,6 +132,26 @@ def get_collection(request, page_id: int):
         return 404, {"detail": f"Collection page {page_id} not found."}
 
 
+
+
+@router.get(
+    '/{page_id}/preview',
+    response={404: ErrorSchema},
+    summary="Preview Collection page HTML",
+    operation_id="preview_collection",
+    description=capability_docstring("preview_collection"),
+    openapi_extra=agent_openapi_extra("preview_collection"),
+)
+def preview_collection(request, page_id: int):
+    """Render Wagtail template for the latest collection draft/revision."""
+    from ..preview import render_page_preview
+
+    try:
+        page = CollectionPage.objects.get(pk=page_id)
+    except CollectionPage.DoesNotExist:
+        return 404, {"detail": f"Collection page {page_id} not found."}
+    return render_page_preview(request, page)
+
 @router.patch(
     '/{page_id}',
     response={200: CollectionOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -191,6 +211,7 @@ def update_collection(request, page_id: int, data: CollectionPatch):
         revision.publish()
     else:
         page.save()
+        page.save_revision()
 
     page.refresh_from_db()
     return page

@@ -22,6 +22,7 @@ from wagtail.admin import urls as wagtailadmin_urls
 from wagtail.documents import urls as wagtaildocs_urls
 
 from api.main import api
+from django_react_ui_editor.spa_registry import get_spa_urlpatterns
 
 urlpatterns = [
     path("shopify-admin/", HomeView.as_view(), name="home"),
@@ -50,6 +51,8 @@ urlpatterns = [
     path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
 
     path('api/v1/', api.urls),
+
+    *get_spa_urlpatterns(),
 
     path('admin/', include(wagtailadmin_urls)),
     path('documents/', include(wagtaildocs_urls)),

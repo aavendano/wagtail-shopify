@@ -94,6 +94,8 @@ db.sqlite3
 db.session
 
 .venv/
+node_modules/
+cms_ui/frontend/node_modules/
 .ipynb_checkpoints/
 Untitled*.ipynb
 

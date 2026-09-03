@@ -151,6 +151,26 @@ def get_article(request, page_id: int):
         return 404, {"detail": f"Article page {page_id} not found."}
 
 
+
+
+@router.get(
+    '/{page_id}/preview',
+    response={404: ErrorSchema},
+    summary="Preview Article page HTML",
+    operation_id="preview_article",
+    description=capability_docstring("preview_article"),
+    openapi_extra=agent_openapi_extra("preview_article"),
+)
+def preview_article(request, page_id: int):
+    """Render Wagtail template for the latest article draft/revision."""
+    from ..preview import render_page_preview
+
+    try:
+        page = ArticlePage.objects.get(pk=page_id)
+    except ArticlePage.DoesNotExist:
+        return 404, {"detail": f"Article page {page_id} not found."}
+    return render_page_preview(request, page)
+
 @router.patch(
     '/{page_id}',
     response={200: ArticleOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -221,6 +241,7 @@ def update_article(request, page_id: int, data: ArticlePatch):
         revision.publish()
     else:
         page.save()
+        page.save_revision()
 
     page.refresh_from_db()
     return page

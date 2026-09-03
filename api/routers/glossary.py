@@ -230,6 +230,25 @@ def get_glossary_term(request, page_id: int):
         return 404, {"detail": f"Glossary term page {page_id} not found."}
 
 
+@router.get(
+    '/{page_id}/preview',
+    response={404: ErrorSchema},
+    summary="Preview Glossary Term HTML",
+    operation_id="preview_glossary_term",
+    description=capability_docstring("preview_glossary_term"),
+    openapi_extra=agent_openapi_extra("preview_glossary_term"),
+)
+def preview_glossary_term(request, page_id: int):
+    """Render Wagtail template for the latest glossary draft/revision."""
+    from ..preview import render_page_preview
+
+    try:
+        page = GlossaryTermPage.objects.select_related('locale', 'image').get(pk=page_id)
+    except GlossaryTermPage.DoesNotExist:
+        return 404, {"detail": f"Glossary term page {page_id} not found."}
+    return render_page_preview(request, page)
+
+
 @router.patch(
     '/{page_id}',
     response={200: GlossaryTermOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -269,6 +288,7 @@ def update_glossary_term(request, page_id: int, data: GlossaryTermPatch):
                 data,
                 persist_revision=bool(page.live),
             )
+            page.save_revision()
     except ValidationError as exc:
         return 400, {"detail": _validation_detail(exc)}
 
