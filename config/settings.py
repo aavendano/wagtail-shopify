@@ -372,6 +372,14 @@ LOCATIONS_PARENT_PAGE_ID = (
     int(_locations_parent_page_id) if _locations_parent_page_id.isdigit() else None
 )
 
+# Editorial content store (Phase B vertical slice: BlogPage.description mirror).
+# When enabled, saved editorial content is mirrored to flat files under
+# CONTENT_STORE_ROOT. PostgreSQL remains authoritative; the file is a mirror.
+CONTENT_STORE_ENABLED = os.environ.get('CONTENT_STORE_ENABLED', 'false').lower() == 'true'
+CONTENT_STORE_ROOT = os.environ.get(
+    'CONTENT_STORE_ROOT', str(BASE_DIR / 'content_store'),
+)
+
 # Celery
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://127.0.0.1:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', CELERY_BROKER_URL)

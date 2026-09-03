@@ -22,3 +22,9 @@ class ShopifyContentConfig(AppConfig):
         from shopify_content.signals import register_publish_signals
 
         register_publish_signals()
+
+        from shopify_content.content_store.signals import (
+            register_content_store_signals,
+        )
+
+        register_content_store_signals()

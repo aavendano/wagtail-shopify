@@ -93,6 +93,10 @@ secrets/
 db.sqlite3
 db.session
 
+# Editorial content store mirror (Phase B). PostgreSQL is authoritative.
+# Anchored to repo root so the shopify_content/content_store package is tracked.
+/content_store/
+
 .venv/
 node_modules/
 cms_ui/frontend/node_modules/
