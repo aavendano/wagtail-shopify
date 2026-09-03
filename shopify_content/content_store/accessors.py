@@ -26,8 +26,13 @@ from .serializers import checksum
 
 logger = logging.getLogger(__name__)
 
-# Scope guard (HG-003): the migrated editorial field is BlogPage.description only.
-MIRRORED_FIELDS = frozenset({("shopify_content.blogpage", "description")})
+# Migrated editorial fields (scoped, per HumanGate):
+#   BlogPage.description        (HG-003, Phase C)
+#   GlossaryTermPage.definition (HG-004, Phase D)
+MIRRORED_FIELDS = frozenset({
+    ("shopify_content.blogpage", "description"),
+    ("shopify_content.glossarytermpage", "definition"),
+})
 
 MODE_DB = "db"
 MODE_MIRROR = "mirror"
@@ -57,6 +62,20 @@ def _is_mirrored(page, field_key: str) -> bool:
     return (page._meta.label_lower, field_key) in MIRRORED_FIELDS
 
 
+def db_text(page, field_key: str) -> str:
+    """Lossless string form of a field's DB value.
+
+    Wagtail ``RichTextField`` exposes ``.source`` (the stored HTML), which is
+    the lossless representation. Plain text/char fields are already strings.
+    Never renders or transforms the value.
+    """
+    value = getattr(page, field_key, "")
+    source = getattr(value, "source", None)
+    if source is not None:
+        return source
+    return value or ""
+
+
 def get_repository() -> Optional[ContentRepository]:
     root = getattr(settings, "CONTENT_STORE_ROOT", None)
     if not root:
@@ -75,7 +94,7 @@ def resolve_editorial(page, field_key: str) -> str:
     off-by-default compatibility fallback is enabled. PostgreSQL never overrides
     Git; on drift, Git wins.
     """
-    db_value = getattr(page, field_key, "") or ""
+    db_value = db_text(page, field_key)
     mode = get_mode()
 
     if mode == MODE_DB or not _is_mirrored(page, field_key):
@@ -141,7 +160,7 @@ def mirror_editorial_content(page, field_key: str) -> None:
     if repo is None:
         return
     ref = ref_for(page, field_key)
-    value = getattr(page, field_key, "") or ""
+    value = db_text(page, field_key)
     try:
         if not value:
             repo.delete(ref)

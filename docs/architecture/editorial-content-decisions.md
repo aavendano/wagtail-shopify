@@ -404,13 +404,39 @@ Validated properties include:
 - controlled materialization
 - rollback to `mirror` or `db`
 
+### `GlossaryTermPage.definition`
+
+Status: Phase D implemented; HG-004 pending review.
+
+This slice reuses the same domain/content-store architecture for a Wagtail
+`RichTextField` and begins exercising the canonical Markdown (`.md`) format
+(D-013). Validated properties include:
+
+- Git authority via `page.editorial.definition`
+- Git wins over stale PostgreSQL `definition`
+- Shopify metaobject `definition` field consumes the Git value
+- explicit `ContentNotFound` on missing file (opt-in DB fallback only)
+- locale topology and slug-independent identity
+- runtime Git isolation
+- controlled materialization (extended, not duplicated) with verbatim preservation
+
+Interim representation note: the current PostgreSQL value is Wagtail RichText
+HTML (`.source`). To remain lossless (D-013 non-goal: no automatic HTML→Markdown
+conversion), the `.md` body currently contains that HTML verbatim. The file is
+still valid Markdown-with-YAML-frontmatter and Keystatic/Obsidian-readable. A
+semantic migration to pure Markdown is a separate, approval-gated content
+migration (see "Existing HTML content").
+
 ## Next vertical slice
 
-`GlossaryTermPage.definition` is the recommended next slice.
+With two fields migrated (a plain `TextField` and a `RichTextField`), the
+architecture is proven for both simple and rich single-value editorial fields.
 
-The purpose is not to re-prove Git versus PostgreSQL, but to prove reuse of the domain/content-store architecture for a different editorial type (`RichText`) and begin validating the canonical Markdown representation.
-
-A second field/type MUST still be implemented under its own scoped WorkOrder/HumanGate.
+The recommended next targets, each under its own scoped WorkOrder/HumanGate, are
+the remaining single-value RichText fields (e.g. `LocationPage` rich-text
+sections) before any multi-field/structured document such as `ArticlePage.body`
+(`StreamField`), which first requires finalizing the Keystatic-readable
+rich-content/reference schema (open decision 5).
 
 ## Invariants
 

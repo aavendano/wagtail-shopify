@@ -1431,8 +1431,13 @@ def sync_glossary_term_page(page):
         'handle': handle,
         'term': str(_wagtail_field_value(page.term)).strip(),
     }
-    if _has_meaningful_sync_value(page.definition):
-        data['definition'] = _wagtail_field_value(page.definition)
+    # Read editorial `definition` through the canonical domain accessor so
+    # publication consumes the authoritative source (INV-PERSIST-002) without
+    # knowing the backend. Under git_authoritative this is the Git-backed value;
+    # it never silently falls back to page.definition.
+    definition_value = page.editorial.definition
+    if _has_meaningful_sync_value(definition_value):
+        data['definition'] = definition_value
 
     # Media: Shopify is source of truth. Only write `image` after an explicit
     # Wagtail upload (FK set, no shopify_image_id yet). Otherwise omit the field

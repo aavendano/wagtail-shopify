@@ -41,36 +41,56 @@ class AvailableLocalesPageForm(WagtailAdminPageForm):
         return page
 
 
-class BlogPageForm(AvailableLocalesPageForm):
-    """Blog admin form.
+class EditorialReadOnlyFormMixin:
+    """Render migrated editorial fields READ_ONLY under git_authoritative mode.
 
-    Under git_authoritative mode, `description` is READ_ONLY (D-012 / WRITE
-    SEMANTICS): the authoritative value lives in Git and is edited through the
-    Git workflow. The field is displayed disabled from the domain accessor so
-    admin edits never become authoritative content.
+    Reusable across page types (D-012 / WRITE SEMANTICS): the authoritative
+    value lives in Git and is edited through the Git workflow, so the admin
+    field is disabled and displayed from the domain accessor. Admin edits never
+    become authoritative content. Which fields are editorial is derived from the
+    central registry, so no per-field logic is duplicated.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from shopify_content.content_store.accessors import is_git_authoritative
-        from shopify_content.content_store.contracts import ContentNotFound
+        from shopify_content.content_store.accessors import (
+            MIRRORED_FIELDS,
+            is_git_authoritative,
+        )
 
-        field = self.fields.get('description')
-        if field is not None and is_git_authoritative():
+        if not is_git_authoritative():
+            return
+        instance = self.instance
+        label = getattr(getattr(instance, '_meta', None), 'label_lower', None)
+        if not label:
+            return
+        for content_type, field_key in MIRRORED_FIELDS:
+            if content_type != label:
+                continue
+            field = self.fields.get(field_key)
+            if field is None:
+                continue
             field.disabled = True
             field.help_text = (
                 'Read-only: authoritative content is managed in Git '
-                '(content/<locale>/…/description.md). Edit via the Git workflow.'
+                f'(content/<locale>/…/{field_key}.md). Edit via the Git workflow.'
             )
-            instance = self.instance
-            if instance and getattr(instance, 'pk', None):
+            if getattr(instance, 'pk', None):
                 try:
-                    self.initial['description'] = instance.editorial.description
-                except (ContentNotFound, Exception):
-                    # Missing authoritative file: leave DB value as displayed
+                    self.initial[field_key] = getattr(instance.editorial, field_key)
+                except Exception:
+                    # Missing authoritative file: keep DB value as displayed
                     # fallback; authority resolution still raises for consumers.
                     pass
 
 
+class BlogPageForm(EditorialReadOnlyFormMixin, AvailableLocalesPageForm):
+    pass
+
+
 class ArticlePageForm(AvailableLocalesPageForm):
+    pass
+
+
+class GlossaryTermPageForm(EditorialReadOnlyFormMixin, WagtailAdminPageForm):
     pass

@@ -18,6 +18,7 @@ from .locales import to_content_locale
 # fmt drives the file extension chosen by the serializer.
 _FIELD_FORMAT = {
     ("shopify_content.blogpage", "description"): "markdown",
+    ("shopify_content.glossarytermpage", "definition"): "markdown",
 }
 
 _EXT = {"markdown": "md", "json": "json"}
