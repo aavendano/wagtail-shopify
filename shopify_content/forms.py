@@ -42,7 +42,34 @@ class AvailableLocalesPageForm(WagtailAdminPageForm):
 
 
 class BlogPageForm(AvailableLocalesPageForm):
-    pass
+    """Blog admin form.
+
+    Under git_authoritative mode, `description` is READ_ONLY (D-012 / WRITE
+    SEMANTICS): the authoritative value lives in Git and is edited through the
+    Git workflow. The field is displayed disabled from the domain accessor so
+    admin edits never become authoritative content.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from shopify_content.content_store.accessors import is_git_authoritative
+        from shopify_content.content_store.contracts import ContentNotFound
+
+        field = self.fields.get('description')
+        if field is not None and is_git_authoritative():
+            field.disabled = True
+            field.help_text = (
+                'Read-only: authoritative content is managed in Git '
+                '(content/<locale>/…/description.md). Edit via the Git workflow.'
+            )
+            instance = self.instance
+            if instance and getattr(instance, 'pk', None):
+                try:
+                    self.initial['description'] = instance.editorial.description
+                except (ContentNotFound, Exception):
+                    # Missing authoritative file: leave DB value as displayed
+                    # fallback; authority resolution still raises for consumers.
+                    pass
 
 
 class ArticlePageForm(AvailableLocalesPageForm):

@@ -95,8 +95,9 @@ class FilesystemRepositoryTests(TestCase):
         self.assertFalse(self.repo.exists(self.ref))
 
     def test_path_is_keyed_by_pk_not_slug(self):
+        # Phase C topology: locale segment normalized to content form (en-us).
         rel = relative_path(self.ref).as_posix()
-        self.assertEqual(rel, "en-US/shopify_content/blogpage/42/description.md")
+        self.assertEqual(rel, "en-us/shopify_content/blogpage/42/description.md")
 
     def test_optimistic_concurrency_conflict(self):
         self.repo.write(self.ref, "v1")

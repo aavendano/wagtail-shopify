@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 from .contracts import ContentRef
+from .locales import to_content_locale
 
 # Field-format registry for the Phase B slice (BlogPage.description only).
 # fmt drives the file extension chosen by the serializer.
@@ -49,11 +50,17 @@ def _safe(segment: str) -> str:
 
 
 def relative_path(ref: ContentRef) -> Path:
-    """content/<locale>/<app_label>/<model>/<pk>/<field>.<ext> (pk-keyed)."""
+    """<content-locale>/<app_label>/<model>/<pk>/<field>.<ext> (pk-keyed).
+
+    The locale segment is normalized through the centralized locale policy
+    (e.g. ``en-US`` -> ``en-us``); unsupported locales raise UnsupportedLocale.
+    The physical path never uses the slug, so renames never move content.
+    """
     app_label, model = ref.content_type.split(".", 1)
     ext = _EXT.get(field_format(ref), "md")
+    content_locale = to_content_locale(ref.locale)
     return Path(
-        _safe(ref.locale or "und"),
+        _safe(content_locale),
         _safe(app_label),
         _safe(model),
         _safe(ref.object_id),
