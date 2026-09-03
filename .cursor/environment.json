@@ -1,0 +1,13 @@
+{
+  "name": "cms-shop backend",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "daphne",
+      "command": ".venv/bin/daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    }
+  ],
+  "ports": [8000]
+}
