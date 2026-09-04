@@ -258,10 +258,7 @@ class ArticlePage(EditorialMixin, AvailableLocalesMixin, Page):
         ARTICLE_BODY_BLOCKS,
         blank=True,
         use_json_field=True,
-        help_text=(
-            'Legacy Article body used in db/mirror mode. Under git_authoritative '
-            'the production body is Git Markdown and this field is read-only rollback state.'
-        ),
+        help_text='Article body content. Rendered to HTML for Shopify body field.',
     )
 
     # seo_title and search_description are inherited from Page.
