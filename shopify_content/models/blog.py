@@ -190,7 +190,7 @@ class ArticlePageMetafield(ShopifyMetafield):
     )
 
 
-class ArticlePage(AvailableLocalesMixin, Page):
+class ArticlePage(EditorialMixin, AvailableLocalesMixin, Page):
     """
     Mirrors a Shopify Article inside a Blog.
 
@@ -199,11 +199,15 @@ class ArticlePage(AvailableLocalesMixin, Page):
       handle      → handle
       title       → Page.title
       author.name → author (CharField — full name string)
-      body        → body (StreamField, rendered to HTML on outbound)
+      body        → body (legacy StreamField; Git Markdown when git_authoritative)
       publishedAt → published_at
       summary     → summary (HTML text)
       tags        → tags (ClusterTaggableManager)
       image       → featured_image (Wagtail Image FK)
+
+    In git_authoritative mode the canonical body is ``page.editorial.body`` from
+    ``content/<locale>/shopify_content/articlepage/<pk>/body.md``. The StreamField
+    remains compatibility/rollback state and is not converted automatically.
 
     SEO: Article has no native seo field in Shopify Admin GraphQL API.
     Synced as metafields: namespace=global, key=title_tag / description_tag.

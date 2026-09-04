@@ -44,17 +44,18 @@ class AvailableLocalesPageForm(WagtailAdminPageForm):
 class EditorialReadOnlyFormMixin:
     """Render migrated editorial fields READ_ONLY under git_authoritative mode.
 
-    Reusable across page types (D-012 / WRITE SEMANTICS): the authoritative
-    value lives in Git and is edited through the Git workflow, so the admin
-    field is disabled and displayed from the domain accessor. Admin edits never
-    become authoritative content. Which fields are editorial is derived from the
-    central registry, so no per-field logic is duplicated.
+    Representation-compatible fields display the authoritative Git value in the
+    disabled legacy form control. Git-native fields (for example Article body
+    Markdown replacing a StreamField) keep the old DB widget disabled without
+    injecting the Markdown into it, because the two representations are not
+    interchangeable.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from shopify_content.content_store.accessors import (
-            MIRRORED_FIELDS,
+            EDITORIAL_FIELDS,
+            GIT_NATIVE_FIELDS,
             is_git_authoritative,
         )
 
@@ -64,13 +65,24 @@ class EditorialReadOnlyFormMixin:
         label = getattr(getattr(instance, '_meta', None), 'label_lower', None)
         if not label:
             return
-        for content_type, field_key in MIRRORED_FIELDS:
+
+        for content_type, field_key in EDITORIAL_FIELDS:
             if content_type != label:
                 continue
             field = self.fields.get(field_key)
             if field is None:
                 continue
+
             field.disabled = True
+            key = (content_type, field_key)
+            if key in GIT_NATIVE_FIELDS:
+                field.help_text = (
+                    'Read-only legacy field: production-authoritative content is '
+                    f'Git Markdown at content/<locale>/…/{field_key}.md. '
+                    'The value shown here is rollback/compatibility state only.'
+                )
+                continue
+
             field.help_text = (
                 'Read-only: authoritative content is managed in Git '
                 f'(content/<locale>/…/{field_key}.md). Edit via the Git workflow.'
@@ -88,7 +100,7 @@ class BlogPageForm(EditorialReadOnlyFormMixin, AvailableLocalesPageForm):
     pass
 
 
-class ArticlePageForm(AvailableLocalesPageForm):
+class ArticlePageForm(EditorialReadOnlyFormMixin, AvailableLocalesPageForm):
     pass
 
 

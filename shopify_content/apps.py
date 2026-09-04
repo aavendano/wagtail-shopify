@@ -36,3 +36,12 @@ class ShopifyContentConfig(AppConfig):
         )
 
         install_location_editorial_sync()
+
+        # Phase F: ArticlePage.body is Git-native Markdown. Patch the existing
+        # outbound import surface so API/Celery/management callers keep the same
+        # function name while Shopify receives rendered Markdown HTML.
+        from shopify_content.sync.article_markdown import (
+            install_article_markdown_sync,
+        )
+
+        install_article_markdown_sync()

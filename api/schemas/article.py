@@ -90,10 +90,11 @@ class ArticleIn(LocaleCreateFields):
     body: Optional[List[Dict[str, Any]]] = Field(
         None,
         description=(
-            "Article body as Wagtail StreamField block list. "
-            "Each item is a dict with 'type' and 'value' keys. "
-            "Rendered to HTML and pushed to Shopify as the article body. "
-            "Pass [] to clear the body. Omit to leave unchanged."
+            "Legacy Wagtail StreamField body. Accepted only while content authority is db/mirror. "
+            "When CONTENT_STORE_MODE=git_authoritative, Article body is Markdown in "
+            "content/<locale>/shopify_content/articlepage/<pk>/body.md and requests that include "
+            "this field are rejected with HTTP 400. Omit body and edit the Git document through "
+            "the branch/commit/PR workflow."
         ),
     )
     seo_title: Optional[str] = Field(
@@ -177,8 +178,9 @@ class ArticlePatch(LocalePatchFields):
     body: Optional[List[Dict[str, Any]]] = Field(
         None,
         description=(
-            "Replace the StreamField body blocks. Pass [] to clear. Omit to leave unchanged. "
-            "Format: list of {'type': str, 'value': any} dicts."
+            "Legacy StreamField replacement, available only in db/mirror authority modes. "
+            "Under git_authoritative this field is rejected with HTTP 400; edit the authoritative "
+            "body.md in Git instead. Omit to leave legacy rollback state unchanged."
         ),
     )
     seo_title: Optional[str] = Field(
@@ -252,8 +254,9 @@ class ArticleOut(StorefrontUrlOutFields, LocaleOutFields):
     body: List[Dict[str, Any]] = Field(
         ...,
         description=(
-            "StreamField body blocks. Each item has 'type' and 'value' keys. "
-            "Rendered to HTML and pushed to Shopify as the article body on sync."
+            "Legacy Wagtail StreamField rollback state. In db/mirror modes it is the published body. "
+            "In git_authoritative mode it is NOT authoritative; production content comes from "
+            "content/<locale>/shopify_content/articlepage/<pk>/body.md and is rendered separately."
         ),
     )
     seo_title: str = Field(
