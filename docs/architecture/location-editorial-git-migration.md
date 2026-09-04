@@ -64,6 +64,12 @@ The adapter is installed on the existing
 `AppConfig.ready()`, so Celery, API and management callers keep the same contract.
 It performs no model save, Git command, or filesystem write.
 
+Because the old `LocationPage.clean()` validation reads database-backed fields,
+the adapter explicitly reapplies the same forbidden brick-and-mortar phrase rule
+after the authoritative Git values are overlaid and before Shopify publication.
+This prevents migration of storage authority from bypassing an existing editorial
+safety rule.
+
 ## Transition behavior
 
 The content-store post-save mirroring signal is now registry-driven. Therefore

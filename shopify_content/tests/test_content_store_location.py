@@ -166,6 +166,24 @@ class LocationPublicationAdapterTests(TestCase):
                 sync_location_page(page)
             legacy.assert_not_called()
 
+    def test_authoritative_git_content_keeps_location_editorial_validation(self):
+        page = _make_location()
+        bad_values = dict(GIT_VALUES)
+        bad_values['intro'] = '<p>Visit our store today.</p>'
+        _write_git(self.root, page, bad_values)
+
+        with patch(
+            'shopify_content.sync.location_editorial._legacy_sync_location_page',
+        ) as legacy:
+            from shopify_content.sync.outbound import sync_location_page
+            ok, message = sync_location_page(page)
+
+        self.assertFalse(ok)
+        self.assertIn('visit our store', message)
+        legacy.assert_not_called()
+        for field_key, db_value in DB_VALUES.items():
+            self.assertEqual(db_text(page, field_key), db_value)
+
 
 class LocationMaterializationTests(TestCase):
     def setUp(self):
