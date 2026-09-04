@@ -25,6 +25,7 @@ _FIELD_FORMAT = {
     ("shopify_content.locationpage", "brand_section_content"): "markdown",
     ("shopify_content.locationpage", "map_content"): "markdown",
     ("shopify_content.locationpage", "after_page_content"): "markdown",
+    ("shopify_content.articlepage", "body"): "markdown",
 }
 
 _EXT = {"markdown": "md", "json": "json"}
@@ -51,18 +52,12 @@ def _safe(segment: str) -> str:
     """Reject path traversal and normalize a single path segment."""
     cleaned = _SAFE_SEGMENT.sub("-", (segment or "").strip())
     if cleaned in ("", ".", "..") or "/" in cleaned or "\\" in cleaned:
-        # Deterministic, collision-resistant fallback that can never traverse.
         cleaned = "h" + hashlib.sha256((segment or "").encode("utf-8")).hexdigest()[:16]
     return cleaned
 
 
 def relative_path(ref: ContentRef) -> Path:
-    """<content-locale>/<app_label>/<model>/<pk>/<field>.<ext> (pk-keyed).
-
-    The locale segment is normalized through the centralized locale policy
-    (e.g. ``en-US`` -> ``en-us``); unsupported locales raise UnsupportedLocale.
-    The physical path never uses the slug, so renames never move content.
-    """
+    """<content-locale>/<app_label>/<model>/<pk>/<field>.<ext> (pk-keyed)."""
     app_label, model = ref.content_type.split(".", 1)
     ext = _EXT.get(field_format(ref), "md")
     content_locale = to_content_locale(ref.locale)
