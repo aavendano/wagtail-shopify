@@ -14,11 +14,17 @@ from pathlib import Path
 from .contracts import ContentRef
 from .locales import to_content_locale
 
-# Field-format registry for the Phase B slice (BlogPage.description only).
-# fmt drives the file extension chosen by the serializer.
+# Explicit field-format registry. Markdown is also the safe default, but keeping
+# migrated fields here makes the storage contract auditable by content type.
 _FIELD_FORMAT = {
     ("shopify_content.blogpage", "description"): "markdown",
     ("shopify_content.glossarytermpage", "definition"): "markdown",
+    ("shopify_content.locationpage", "intro"): "markdown",
+    ("shopify_content.locationpage", "content_2"): "markdown",
+    ("shopify_content.locationpage", "content_3"): "markdown",
+    ("shopify_content.locationpage", "brand_section_content"): "markdown",
+    ("shopify_content.locationpage", "map_content"): "markdown",
+    ("shopify_content.locationpage", "after_page_content"): "markdown",
 }
 
 _EXT = {"markdown": "md", "json": "json"}

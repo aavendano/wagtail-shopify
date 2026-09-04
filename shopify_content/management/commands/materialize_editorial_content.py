@@ -5,12 +5,14 @@ startup, NOT triggered by Model.save()). Operators run this once per field to
 seed the authoritative worktree, then commit the result through the normal Git
 workflow.
 
-    python manage.py materialize_editorial_content [--field description|definition]
+    python manage.py materialize_editorial_content [--field FIELD]
                                                    [--locale en-US] [--force] [--dry-run]
 
-Migrated fields (scoped, per HumanGate):
-  BlogPage.description        (HG-003)
-  GlossaryTermPage.definition (HG-004)
+Migrated fields are derived from ``MIRRORED_FIELDS`` and currently cover:
+  BlogPage.description
+  GlossaryTermPage.definition
+  LocationPage.intro/content_2/content_3/brand_section_content/map_content/
+  after_page_content
 
 Content is preserved VERBATIM (lossless). Existing HTML (e.g. Wagtail RichText
 ``.source``) is written as-is inside the ``.md`` body; no HTML->Markdown

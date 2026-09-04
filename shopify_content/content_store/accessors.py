@@ -3,10 +3,10 @@
 Authority strategy is selected by ``CONTENT_STORE_MODE`` (see settings):
 
 * ``db``                -> PostgreSQL authoritative (legacy)
-* ``mirror``            -> PostgreSQL authoritative + filesystem mirror (Phase B)
-* ``git_authoritative`` -> Git-backed ContentRepository authoritative (Phase C)
+* ``mirror``            -> PostgreSQL authoritative + filesystem mirror
+* ``git_authoritative`` -> Git-backed ContentRepository authoritative
 
-Consumers use the domain accessor (``page.editorial.description``); this module
+Consumers use the domain accessor (``page.editorial.<field>``); this module
 implements the resolution behind it. It performs NO Git commands — runtime only
 reads the already-deployed worktree (Git sync is deployment infrastructure).
 """
@@ -27,11 +27,18 @@ from .serializers import checksum
 logger = logging.getLogger(__name__)
 
 # Migrated editorial fields (scoped, per HumanGate):
-#   BlogPage.description        (HG-003, Phase C)
-#   GlossaryTermPage.definition (HG-004, Phase D)
+#   BlogPage.description                         (HG-003, Phase C)
+#   GlossaryTermPage.definition                  (HG-004, Phase D)
+#   LocationPage single-value RichText sections  (Phase E)
 MIRRORED_FIELDS = frozenset({
     ("shopify_content.blogpage", "description"),
     ("shopify_content.glossarytermpage", "definition"),
+    ("shopify_content.locationpage", "intro"),
+    ("shopify_content.locationpage", "content_2"),
+    ("shopify_content.locationpage", "content_3"),
+    ("shopify_content.locationpage", "brand_section_content"),
+    ("shopify_content.locationpage", "map_content"),
+    ("shopify_content.locationpage", "after_page_content"),
 })
 
 MODE_DB = "db"

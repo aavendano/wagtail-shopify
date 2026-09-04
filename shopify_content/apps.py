@@ -28,3 +28,11 @@ class ShopifyContentConfig(AppConfig):
         )
 
         register_content_store_signals()
+
+        # Phase E: keep the public outbound function stable while making
+        # LocationPage RichText publication consume page.editorial.<field>.
+        from shopify_content.sync.location_editorial import (
+            install_location_editorial_sync,
+        )
+
+        install_location_editorial_sync()
