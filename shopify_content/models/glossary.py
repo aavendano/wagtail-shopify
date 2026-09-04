@@ -10,6 +10,8 @@ from wagtail.search import index
 from wagtail.rich_text import expand_db_html
 
 from shopify_content.admin_panels import semantic_links_panels
+from shopify_content.content_store.domain import EditorialMixin
+from shopify_content.forms import GlossaryTermPageForm
 from shopify_content.glossary_locale_utils import glossary_locale_code_for_wagtail
 from .mixins import SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 
@@ -20,7 +22,7 @@ LOCALE_CODE_CHOICES = [
 ]
 
 
-class GlossaryTermPage(Page):
+class GlossaryTermPage(EditorialMixin, Page):
     """
     Wagtail page that syncs to a Shopify merchant-owned metaobject (type: glossary_term).
 
@@ -109,6 +111,7 @@ class GlossaryTermPage(Page):
     )
 
     template = 'shopify_content/glossary_term_page.html'
+    base_form_class = GlossaryTermPageForm
     parent_page_types = ['shopify_content.ShopifyRootPage']
     subpage_types = []
 
