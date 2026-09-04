@@ -14,11 +14,13 @@ from .mixins import FAQItem, SHOPIFY_SEO_PANELS
 
 from config.settings import ALLOWED_LOCALE_CODES
 from ..admin_panels import StorefrontUrlsPanel
+from ..content_store.domain import EditorialMixin
 from ..content_templates.location_city_en_us import find_forbidden_phrases
+from ..forms import LocationPageForm
 from ..location_slug import location_page_slug
 
 
-class LocationPage(Page):
+class LocationPage(EditorialMixin, Page):
     """
     Wagtail page that syncs to a Shopify merchant-owned metaobject (type: local_page).
 
@@ -101,6 +103,7 @@ class LocationPage(Page):
     )
 
     template = 'shopify_content/location_page.html'
+    base_form_class = LocationPageForm
     parent_page_types = ['wagtailcore.Page', 'shopify_content.ShopifyRootPage']
     subpage_types = []
 

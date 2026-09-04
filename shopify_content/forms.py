@@ -94,3 +94,7 @@ class ArticlePageForm(AvailableLocalesPageForm):
 
 class GlossaryTermPageForm(EditorialReadOnlyFormMixin, WagtailAdminPageForm):
     pass
+
+
+class LocationPageForm(EditorialReadOnlyFormMixin, WagtailAdminPageForm):
+    pass
