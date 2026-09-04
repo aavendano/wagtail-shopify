@@ -34,4 +34,4 @@ wagtail-ai
 llm-gemini
 pgvector
 any-llm-sdk[gemini]
-Markdown>=3.6,<4
+Markdown>=3.10.3,<4
