@@ -102,6 +102,74 @@ class McpAuthForwardingTests(TestCase):
         _, kwargs = mcp_server._http_client.get.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer fallback-key")
 
+    @override_settings(MCP_DEFAULT_API_KEY="fallback-key")
+    async def test_request_uses_streamable_contextvar_authorization(self):
+        from api.mcp import streamable_request_authorization
+
+        mcp_server = WagtailShopifyMCP(
+            ninja=api,
+            base_url="http://testserver/api/v1",
+            http_client=AsyncMock(),
+        )
+        mcp_server._active_session_id = None
+        mcp_server._active_streamable_session_id = None
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mcp_server._http_client.get = AsyncMock(return_value=mock_response)
+
+        token = streamable_request_authorization.set("Bearer context-key")
+        try:
+            await mcp_server._request(
+                mcp_server._http_client,
+                "get",
+                "http://testserver/api/v1/products/",
+                {},
+                {},
+                None,
+            )
+        finally:
+            streamable_request_authorization.reset(token)
+
+        _, kwargs = mcp_server._http_client.get.call_args
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer context-key")
+
+
+class StreamableAuthResolutionTests(TestCase):
+    def test_prefers_valid_request_bearer_over_session_and_fallback(self):
+        from api.mcp_auth import resolve_streamable_authorization
+
+        resolved = resolve_streamable_authorization(
+            request_authorization="Bearer request-key",
+            stored_session_authorization="Bearer session-key",
+            fallback_authorization="Bearer fallback-key",
+            authenticate_token=lambda token: token == "request-key",
+        )
+        self.assertEqual(resolved, "Bearer request-key")
+
+    def test_skips_invalid_request_bearer_and_uses_session(self):
+        from api.mcp_auth import resolve_streamable_authorization
+
+        resolved = resolve_streamable_authorization(
+            request_authorization="Bearer expired-oauth",
+            stored_session_authorization="Bearer session-key",
+            fallback_authorization="Bearer fallback-key",
+            authenticate_token=lambda token: token == "session-key",
+        )
+        self.assertEqual(resolved, "Bearer session-key")
+
+    def test_ignores_unvalidated_fallback(self):
+        from api.mcp_auth import resolve_streamable_authorization
+
+        resolved = resolve_streamable_authorization(
+            request_authorization="",
+            stored_session_authorization="",
+            fallback_authorization="Bearer not-in-database",
+            authenticate_token=lambda token: False,
+        )
+        self.assertEqual(resolved, "")
+
 
 class McpEndpointAuthTests(TestCase):
     def setUp(self):

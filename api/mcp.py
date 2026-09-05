@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 import logging
 from typing import Any
 from uuid import UUID, uuid4
@@ -13,6 +14,11 @@ from ninja_mcp import NinjaMCP
 from ninja_mcp.transport.sse import DjangoSseServerTransport
 
 logger = logging.getLogger(__name__)
+
+streamable_request_authorization: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "mcp_streamable_request_authorization",
+    default="",
+)
 
 
 class AuthForwardingSseTransport(DjangoSseServerTransport):
@@ -120,36 +126,6 @@ class WagtailShopifyMCP(NinjaMCP):
         @router.event_source(mount_path, include_in_schema=False, operation_id="mcp_connection")
         async def handle_mcp_connection(request):
             """Handle SSE connection for MCP clients."""
-            # #region agent log
-            try:
-                import json as _json
-                import time as _time
-                from pathlib import Path as _Path
-
-                auth = request.META.get("HTTP_AUTHORIZATION", "")
-                _Path("/home/alejandro/apps/.cursor/debug-628bdd.log").open("a").write(
-                    _json.dumps(
-                        {
-                            "sessionId": "628bdd",
-                            "runId": "pre-fix",
-                            "hypothesisId": "A,C",
-                            "location": "mcp.py:handle_mcp_connection",
-                            "message": "SSE GET reached Django handler",
-                            "data": {
-                                "path": request.path,
-                                "has_auth": bool(auth),
-                                "auth_scheme": auth.split(" ", 1)[0] if auth else "",
-                                "accept": request.META.get("HTTP_ACCEPT", "")[:120],
-                                "user_agent": request.META.get("HTTP_USER_AGENT", "")[:160],
-                            },
-                            "timestamp": int(_time.time() * 1000),
-                        }
-                    )
-                    + "\n"
-                )
-            except Exception:
-                pass
-            # #endregion
             async for event in self.sse_transport.connect_sse(request):
                 yield event
 
@@ -177,6 +153,8 @@ class WagtailShopifyMCP(NinjaMCP):
             auth_header = self.sse_transport._session_auth.get(session_id, "")
         elif self._active_streamable_session_id:
             auth_header = self._streamable_session_auth.get(self._active_streamable_session_id, "")
+        if not auth_header:
+            auth_header = streamable_request_authorization.get()
         if not auth_header:
             auth_header = self.default_auth_header
         if auth_header and "Authorization" not in headers:
