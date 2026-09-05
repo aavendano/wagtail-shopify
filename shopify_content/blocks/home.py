@@ -13,6 +13,54 @@ LINKABLE_PAGE_TYPES = [
     'shopify_content.BlogPage',
 ]
 
+
+class LocaleAwarePageChooserBlock(PageChooserBlock):
+    """
+    PageChooserBlock that filters GlossaryTermPage by the current page's locale.
+    Used for GlossaryTermPage to ensure locale consistency in HomePage sections.
+    """
+
+    def get_queryset(self, request, model_admin, **kwargs):
+        qs = super().get_queryset(request, model_admin, **kwargs)
+
+        page_locale = getattr(request, 'homepage_locale', None)
+
+        if not page_locale and hasattr(request, 'session'):
+            page_locale = request.session.get('homepage_locale')
+
+        if not page_locale:
+            if hasattr(self, 'bound_field') and hasattr(self.bound_field, 'form'):
+                form = self.bound_field.form
+                if hasattr(form, 'instance') and form.instance and hasattr(form.instance, 'locale'):
+                    page_locale = form.instance.locale.language_code
+
+        if not page_locale:
+            page = kwargs.get('page')
+            if not page and hasattr(self, 'page'):
+                page = self.page
+            if page and hasattr(page, 'locale') and page.locale:
+                page_locale = page.locale.language_code
+
+        if page_locale:
+            from django.contrib.contenttypes.models import ContentType
+            from wagtail.models import Locale
+
+            from shopify_content.models.glossary import GlossaryTermPage
+            from shopify_content.page_chooser_locale import glossary_term_page_filter_q
+
+            target_models = self.page_type or []
+            if 'shopify_content.GlossaryTermPage' in target_models:
+                try:
+                    editor_locale = Locale.objects.get(language_code=page_locale)
+                except Locale.DoesNotExist:
+                    return qs
+
+                glossary_ct = ContentType.objects.get_for_model(GlossaryTermPage)
+                qs = qs.filter(glossary_term_page_filter_q(editor_locale, glossary_ct))
+
+        return qs
+
+
 # URLBlock rejects storefront-relative paths like /collections/all.
 STOREFRONT_CTA_URL_HELP = (
     'Storefront path (e.g. /collections/all) or absolute https URL.'
@@ -170,7 +218,7 @@ class ShopByNeedBlock(StructBlock):
 
 
 class EducationalHubLinkBlock(StructBlock):
-    page = PageChooserBlock(required=True, page_type=LINKABLE_PAGE_TYPES)
+    page = LocaleAwarePageChooserBlock(required=True, page_type=LINKABLE_PAGE_TYPES)
     label = CharBlock(max_length=100, required=False)
     description = CharBlock(max_length=160, required=False)
 
@@ -258,7 +306,7 @@ class FAQBlock(StructBlock):
 
 
 class InternalLinkItemBlock(StructBlock):
-    page = PageChooserBlock(required=True, page_type=LINKABLE_PAGE_TYPES)
+    page = LocaleAwarePageChooserBlock(required=True, page_type=LINKABLE_PAGE_TYPES)
     label = CharBlock(max_length=80, required=False)
 
     class Meta:
