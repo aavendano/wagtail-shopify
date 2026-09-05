@@ -28,6 +28,8 @@ Opción OAuth para clientes MCP:
 3. Crea el cliente MCP con su redirect URI y el grant type apropiado para el cliente
 4. Autoriza el cliente en `/authorize` (o `/o/authorize/`) y canjea el code en `/token` (o `/o/token/`) solicitando scope `mcp`
 
+Los clientes MCP (Cursor, Claude) también pueden usar **Dynamic Client Registration**: `POST /register` (RFC 7591). El metadata en `/.well-known/oauth-authorization-server` incluye `registration_endpoint`. Cada registro crea una Application OAuth **nueva** (cliente público, PKCE). Solo se aceptan redirect URIs de Cursor/Claude o loopback (`http://localhost:<port>/callback`). Una Application legacy `PLT-CMS` no se reutiliza.
+
 ### 2. Primera request
 
 ```bash
@@ -441,8 +443,10 @@ Las tools MCP corresponden a los `operation_id` del OpenAPI (~36 operaciones).
 
 1. **Conexión SSE:** header `Authorization: Bearer <api_key>` o `Authorization: Bearer <oauth_access_token>`.
 2. **Tool calls internos:** el servidor reenvía ese header a las llamadas HTTP internas.
-3. **Fallback opcional:** variable de entorno `MCP_DEFAULT_API_KEY` si el cliente MCP no envía headers.
+3. **Fallback:** `MCP_DEFAULT_API_KEY` solo si esa key existe y está activa en **API → API Keys**. Un valor en `.env` que no coincida con la tabla no autentica (evita 401 en tools MCP).
 4. **OAuth:** los access tokens deben incluir el scope `mcp` (configurable con `MCP_OAUTH_REQUIRED_SCOPES`).
+5. **Streamable HTTP:** un Bearer inválido o ausente en un POST posterior no pisa el token ya ligado a `mcp-session-id`. Host público: `https://cms.aadigitalbusiness.com/api/v1/mcp`.
+6. **DCR:** `POST /register` crea una Application pública **por registro** (PKCE, `token_endpoint_auth_method=none`). Sin DCR, pega el Client ID de una Application concreta en el conector.
 
 ```bash
 export MCP_DEFAULT_API_KEY="tu-key"  # opcional, solo para tool calls sin header SSE
@@ -454,7 +458,7 @@ export MCP_DEFAULT_API_KEY="tu-key"  # opcional, solo para tool calls sin header
 {
   "mcpServers": {
     "wagtail-shopify": {
-      "url": "https://wagtail-dev.aadigitalbusiness.com/api/v1/mcp",
+      "url": "https://cms.aadigitalbusiness.com/api/v1/mcp",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY_OR_OAUTH_ACCESS_TOKEN"
       }

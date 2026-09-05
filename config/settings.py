@@ -332,6 +332,8 @@ OAUTH2_PROVIDER = {
         'write': 'Create, update, delete, and sync content API resources',
     },
     'DEFAULT_SCOPES': ['mcp'],
+    'PKCE_REQUIRED': True,
+    'ALLOWED_REDIRECT_URI_SCHEMES': ['http', 'https', 'cursor'],
 }
 
 # OAuth authorize flow and Django admin login (not Wagtail admin at /admin/).

@@ -39,6 +39,10 @@ class ApiKeyAuth(HttpBearer):
     )
 
     def authenticate(self, request, token):
+        return self._authenticate_token(token)
+
+    def _authenticate_token(self, token):
+        """Validate API key or OAuth access token (used by MCP Streamable auth)."""
         api_key = self._authenticate_api_key(token)
         if api_key:
             return api_key
