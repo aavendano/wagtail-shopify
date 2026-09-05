@@ -41,6 +41,15 @@ CSRF_TRUSTED_ORIGINS = [
     'https://wagtail-dev.aadigitalbusiness.com',
     'https://cms.aadigitalbusiness.com',
 ]
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend(
+        [
+            'http://localhost:8082',
+            'http://127.0.0.1:8082',
+            'http://localhost:8083',
+            'http://127.0.0.1:8083',
+        ]
+    )
 
 _shopify_app_url = os.environ.get('SHOPIFY_APP_URL', '').rstrip('/')
 _shopify_app_domain = os.environ.get('SHOPIFY_APP_DOMAIN')
