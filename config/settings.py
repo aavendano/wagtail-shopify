@@ -332,6 +332,8 @@ OAUTH2_PROVIDER = {
         'write': 'Create, update, delete, and sync content API resources',
     },
     'DEFAULT_SCOPES': ['mcp'],
+    'PKCE_REQUIRED': True,
+    'ALLOWED_REDIRECT_URI_SCHEMES': ['http', 'https', 'cursor'],
 }
 
 # OAuth authorize flow and Django admin login (not Wagtail admin at /admin/).
@@ -370,6 +372,32 @@ ALLOWED_LOCALE_CODES = {
 _locations_parent_page_id = os.environ.get('LOCATIONS_PARENT_PAGE_ID', '').strip()
 LOCATIONS_PARENT_PAGE_ID = (
     int(_locations_parent_page_id) if _locations_parent_page_id.isdigit() else None
+)
+
+# Editorial content store (BlogPage.description slice).
+#
+# CONTENT_STORE_MODE selects the authority strategy (Phase C):
+#   db               -> PostgreSQL authoritative (legacy; no files)
+#   mirror           -> PostgreSQL authoritative + filesystem mirror (Phase B)
+#   git_authoritative-> Git-backed ContentRepository authoritative; the DB
+#                       editorial column is non-authoritative rollback state.
+#
+# CONTENT_STORE_ROOT is the deployed content worktree root. Under
+# git_authoritative it is a version-controlled Git checkout (authoritative);
+# runtime only READS it and never runs Git commands.
+#
+# CONTENT_STORE_ENABLED is retained for backward compatibility: when
+# CONTENT_STORE_MODE is unset, ENABLED=true implies 'mirror', else 'db'.
+CONTENT_STORE_ENABLED = os.environ.get('CONTENT_STORE_ENABLED', 'false').lower() == 'true'
+CONTENT_STORE_MODE = os.environ.get('CONTENT_STORE_MODE', '').strip().lower()
+CONTENT_STORE_ROOT = os.environ.get(
+    'CONTENT_STORE_ROOT', str(BASE_DIR / 'content'),
+)
+# Named, observable, off-by-default compatibility fallback: when a git
+# authoritative file is missing, return the DB value instead of raising.
+# Must remain False after migration completion (no silent fallback).
+CONTENT_STORE_GIT_FALLBACK_TO_DB = (
+    os.environ.get('CONTENT_STORE_GIT_FALLBACK_TO_DB', 'false').lower() == 'true'
 )
 
 # Celery

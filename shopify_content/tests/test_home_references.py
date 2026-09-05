@@ -142,6 +142,40 @@ class HomeReferencesTests(TestCase):
         self.assertEqual(labels['vibrators'], 'Vibrators')
         self.assertEqual(labels['couples'], 'Couples')
 
+    def test_nav_collection_pills_override_label_precedence(self):
+        sections_json = {
+            'version': 1,
+            'sections': [
+                {
+                    'type': 'featured_collections',
+                    'id': 'feat-1',
+                    'value': {
+                        'title': 'Core',
+                        'items': [{'page_id': self.collection.pk}],
+                    },
+                },
+                {
+                    'type': 'nav_collection_pills',
+                    'id': 'nav-pills',
+                    'value': {
+                        'items': [
+                            {
+                                'page_id': self.collection.pk,
+                                'override_label': 'Custom Vibe Label',
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+        refs = build_home_sync_references(sections_json)
+        labels = {
+            link['handle']: link.get('label')
+            for link in refs['related_links']
+            if link.get('type') == 'collection'
+        }
+        self.assertEqual(labels['vibrators'], 'Custom Vibe Label')
+
     def test_nav_collection_pills_semantic_source(self):
         from shopify_content.models.semantic_links import CollectionRelatedCollectionLink
 

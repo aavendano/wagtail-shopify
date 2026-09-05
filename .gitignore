@@ -93,6 +93,12 @@ secrets/
 db.sqlite3
 db.session
 
+# Editorial content store LEGACY mirror scratch dir (Phase B, mirror mode).
+# Anchored to repo root so the shopify_content/content_store package is tracked.
+# NOTE: the Phase C authoritative worktree is /content/ and is intentionally
+# NOT ignored — it is version-controlled (Git is the editorial source of truth).
+/content_store/
+
 .venv/
 node_modules/
 cms_ui/frontend/node_modules/
@@ -109,6 +115,11 @@ shopify.app.toml
 deploy/*
 scripts/
 
+# WARNING (migration policy, Phase C): this rule makes Django migrations
+# untracked, which conflicts with treating migrations as version-controlled
+# source artifacts. Phase C adds no schema change, so it is left untouched here;
+# un-ignoring migrations (while keeping __pycache__/*.pyc ignored) and committing
+# the pending catch-up migration should be done in a separate focused commit/PR.
 */migrations/*
 bin/*
 

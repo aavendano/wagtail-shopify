@@ -22,3 +22,32 @@ class ShopifyContentConfig(AppConfig):
         from shopify_content.signals import register_publish_signals
 
         register_publish_signals()
+
+        from shopify_content.content_store.signals import (
+            register_content_store_signals,
+        )
+
+        register_content_store_signals()
+
+        # Phase E: keep the public outbound function stable while making
+        # LocationPage RichText publication consume page.editorial.<field>.
+        from shopify_content.sync.location_editorial import (
+            install_location_editorial_sync,
+        )
+
+        install_location_editorial_sync()
+
+        # Phase F: ArticlePage.body is Git-native Markdown. Patch the existing
+        # outbound import surface so API/Celery/management callers keep the same
+        # function name while Shopify receives rendered Markdown HTML.
+        from shopify_content.sync.article_markdown import (
+            install_article_markdown_sync,
+        )
+
+        install_article_markdown_sync()
+
+        from shopify_content.page_chooser_locale import (
+            install_page_chooser_browse_locale_fix,
+        )
+
+        install_page_chooser_browse_locale_fix()

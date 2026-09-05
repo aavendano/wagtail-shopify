@@ -102,6 +102,141 @@ class McpAuthForwardingTests(TestCase):
         _, kwargs = mcp_server._http_client.get.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer fallback-key")
 
+    @override_settings(MCP_DEFAULT_API_KEY="fallback-key")
+    async def test_request_uses_streamable_contextvar_authorization(self):
+        from api.mcp import streamable_request_authorization
+
+        mcp_server = WagtailShopifyMCP(
+            ninja=api,
+            base_url="http://testserver/api/v1",
+            http_client=AsyncMock(),
+        )
+        mcp_server._active_session_id = None
+        mcp_server._active_streamable_session_id = None
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        mcp_server._http_client.get = AsyncMock(return_value=mock_response)
+
+        token = streamable_request_authorization.set("Bearer context-key")
+        try:
+            await mcp_server._request(
+                mcp_server._http_client,
+                "get",
+                "http://testserver/api/v1/products/",
+                {},
+                {},
+                None,
+            )
+        finally:
+            streamable_request_authorization.reset(token)
+
+        _, kwargs = mcp_server._http_client.get.call_args
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer context-key")
+
+
+class StreamableAuthResolutionTests(TestCase):
+    def test_prefers_valid_request_bearer_over_session_and_fallback(self):
+        from api.mcp_auth import resolve_streamable_authorization
+
+        resolved = resolve_streamable_authorization(
+            request_authorization="Bearer request-key",
+            stored_session_authorization="Bearer session-key",
+            fallback_authorization="Bearer fallback-key",
+            authenticate_token=lambda token: token == "request-key",
+        )
+        self.assertEqual(resolved, "Bearer request-key")
+
+    def test_skips_invalid_request_bearer_and_uses_session(self):
+        from api.mcp_auth import resolve_streamable_authorization
+
+        resolved = resolve_streamable_authorization(
+            request_authorization="Bearer expired-oauth",
+            stored_session_authorization="Bearer session-key",
+            fallback_authorization="Bearer fallback-key",
+            authenticate_token=lambda token: token == "session-key",
+        )
+        self.assertEqual(resolved, "Bearer session-key")
+
+    def test_ignores_unvalidated_fallback(self):
+        from api.mcp_auth import resolve_streamable_authorization
+
+        resolved = resolve_streamable_authorization(
+            request_authorization="",
+            stored_session_authorization="",
+            fallback_authorization="Bearer not-in-database",
+            authenticate_token=lambda token: False,
+        )
+        self.assertEqual(resolved, "")
+
+
+@override_settings(
+    SHOPIFY_APP_URL="https://cms.aadigitalbusiness.com",
+    WAGTAILADMIN_BASE_URL="https://cms.aadigitalbusiness.com",
+    MCP_DEFAULT_API_KEY="",
+)
+class StreamableWwwAuthenticateTests(TestCase):
+    def test_unauthenticated_streamable_post_includes_www_authenticate(self):
+        from asgiref.sync import async_to_sync
+
+        from api.mcp_asgi import MCPStreamableHTTPMiddleware
+
+        async def dummy_app(scope, receive, send):
+            raise AssertionError("unauthenticated Streamable request must not reach Django")
+
+        middleware = MCPStreamableHTTPMiddleware(dummy_app)
+
+        async def run():
+            status = {}
+            headers = {}
+
+            async def receive():
+                return {"type": "http.request", "body": b"{}", "more_body": False}
+
+            async def send(message):
+                if message["type"] == "http.response.start":
+                    status["code"] = message["status"]
+                    headers.update(
+                        {
+                            key.decode().lower(): value.decode()
+                            for key, value in message.get("headers", [])
+                        }
+                    )
+
+            scope = {
+                "type": "http",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "https",
+                "path": "/api/v1/mcp",
+                "raw_path": b"/api/v1/mcp",
+                "query_string": b"",
+                "headers": [(b"content-type", b"application/json")],
+                "client": ("127.0.0.1", 50000),
+                "server": ("cms.aadigitalbusiness.com", 443),
+            }
+            await middleware(scope, receive, send)
+            return status.get("code"), headers
+
+        code, headers = async_to_sync(run)()
+        self.assertEqual(code, 401)
+        www = headers.get("www-authenticate", "")
+        self.assertIn('Bearer realm="mcp"', www)
+        self.assertIn(
+            'resource_metadata="https://cms.aadigitalbusiness.com/.well-known/oauth-protected-resource"',
+            www,
+        )
+
+    def test_authenticate_token_accepts_active_api_key(self):
+        from api.auth import ApiKeyAuth
+
+        key = ApiKey.objects.create(name="streamable-key")
+        auth = ApiKeyAuth()
+        self.assertIsNotNone(auth._authenticate_token(key.key))
+        self.assertIsNone(auth._authenticate_token("missing-key"))
+
 
 class McpEndpointAuthTests(TestCase):
     def setUp(self):

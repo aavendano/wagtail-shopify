@@ -17,6 +17,7 @@ from shopify_content.available_locales import (
     default_available_locales_for_page,
     validate_available_locales,
 )
+from shopify_content.content_store.domain import EditorialMixin
 from shopify_content.forms import ArticlePageForm, BlogPageForm
 from .mixins import FAQItem, ShopifyMetafield, SHOPIFY_SYNC_PANELS, SHOPIFY_SEO_PANELS
 from ..blocks import ARTICLE_BODY_BLOCKS
@@ -66,7 +67,7 @@ class AvailableLocalesMixin(models.Model):
 # Blog (index / container page)
 # ---------------------------------------------------------------------------
 
-class BlogPage(AvailableLocalesMixin, Page):
+class BlogPage(EditorialMixin, AvailableLocalesMixin, Page):
     """
     Mirrors a Shopify Blog (the container object).
 
@@ -189,7 +190,7 @@ class ArticlePageMetafield(ShopifyMetafield):
     )
 
 
-class ArticlePage(AvailableLocalesMixin, Page):
+class ArticlePage(EditorialMixin, AvailableLocalesMixin, Page):
     """
     Mirrors a Shopify Article inside a Blog.
 
@@ -198,11 +199,15 @@ class ArticlePage(AvailableLocalesMixin, Page):
       handle      → handle
       title       → Page.title
       author.name → author (CharField — full name string)
-      body        → body (StreamField, rendered to HTML on outbound)
+      body        → body (legacy StreamField; Git Markdown when git_authoritative)
       publishedAt → published_at
       summary     → summary (HTML text)
       tags        → tags (ClusterTaggableManager)
       image       → featured_image (Wagtail Image FK)
+
+    In git_authoritative mode the canonical body is ``page.editorial.body`` from
+    ``content/<locale>/shopify_content/articlepage/<pk>/body.md``. The StreamField
+    remains compatibility/rollback state and is not converted automatically.
 
     SEO: Article has no native seo field in Shopify Admin GraphQL API.
     Synced as metafields: namespace=global, key=title_tag / description_tag.

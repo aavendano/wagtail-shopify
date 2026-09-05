@@ -44,6 +44,28 @@
     return chunks.join('\n\n');
   }
 
+  function addEditorLocaleToPageChoosers() {
+    const form = document.querySelector('[data-edit-form][data-page-locale]');
+    const locale = form?.dataset.pageLocale;
+    if (!locale) {
+      return;
+    }
+
+    document.querySelectorAll('[data-chooser-url]').forEach((chooser) => {
+      const url = new URL(chooser.dataset.chooserUrl, window.location.origin);
+      // Page chooser: homepage_locale for glossary filtering (Wagtail uses ``locale`` for i18n browse).
+      if (url.pathname.includes('/choose-page')) {
+        url.searchParams.delete('locale');
+        if (!url.searchParams.has('homepage_locale')) {
+          url.searchParams.set('homepage_locale', locale);
+        }
+      } else if (!url.searchParams.has('locale')) {
+        url.searchParams.set('locale', locale);
+      }
+      chooser.dataset.chooserUrl = url.toString();
+    });
+  }
+
   function filterSuggestionsByType(results, filterType) {
     if (!filterType || !Array.isArray(results)) {
       return results;
@@ -165,6 +187,8 @@
   document.addEventListener('DOMContentLoaded', () => {
     installPatch();
     patchRegisteredControllers();
+    addEditorLocaleToPageChoosers();
   });
   document.addEventListener('w-unsaved:ready', patchRegisteredControllers);
+  document.addEventListener('w-unsaved:ready', addEditorLocaleToPageChoosers);
 })();

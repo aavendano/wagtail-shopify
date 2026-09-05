@@ -15,6 +15,7 @@ from api.oauth_discovery import (
     OAuthProtectedResourceMetadataView,
     oauth_authorization_server_metadata,
 )
+from api.oauth_registration import OAuthDynamicClientRegistrationView
 
 
 from wagtail import urls as wagtail_urls
@@ -38,6 +39,8 @@ urlpatterns = [
     path("authorize/", oauth2_views.AuthorizationView.as_view(), name="oauth2-authorize-root-slash"),
     path("token", oauth2_views.TokenView.as_view(), name="oauth2-token-root"),
     path("token/", oauth2_views.TokenView.as_view(), name="oauth2-token-root-slash"),
+    path("register", OAuthDynamicClientRegistrationView.as_view(), name="oauth2-register"),
+    path("register/", OAuthDynamicClientRegistrationView.as_view(), name="oauth2-register-slash"),
     path(
         ".well-known/oauth-authorization-server",
         oauth_authorization_server_metadata,
@@ -47,6 +50,16 @@ urlpatterns = [
         ".well-known/oauth-protected-resource",
         OAuthProtectedResourceMetadataView.as_view(),
         name="oauth2-protected-resource-metadata",
+    ),
+    path(
+        ".well-known/oauth-protected-resource/api/v1/mcp",
+        OAuthProtectedResourceMetadataView.as_view(),
+        name="oauth2-protected-resource-mcp",
+    ),
+    path(
+        ".well-known/oauth-authorization-server/api/v1/mcp",
+        oauth_authorization_server_metadata,
+        name="oauth2-authorization-server-mcp",
     ),
     path("o/", include("oauth2_provider.urls", namespace="oauth2_provider")),
 

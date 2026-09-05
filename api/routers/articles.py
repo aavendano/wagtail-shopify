@@ -5,9 +5,10 @@ from ninja import Router
 from django.utils.text import slugify
 from django.shortcuts import get_object_or_404
 
+from shopify_content.content_store.accessors import is_git_authoritative
 from shopify_content.models import BlogPage, ArticlePage
 from shopify_content.models.blog import ArticlePageMetafield
-from shopify_content.sync.outbound import sync_article_page
+from shopify_content.sync.article_markdown import sync_article_page
 from ..sync import execute_pull
 from ..schemas.article import ArticleIn, ArticlePatch, ArticleOut
 from ..schemas.common import SyncResultSchema, ImportResultSchema, ErrorSchema
@@ -21,6 +22,18 @@ from ..locale_utils import (
 )
 
 router = Router()
+
+
+def _git_body_write_error():
+    return {
+        "detail": (
+            "Article body is Git-authoritative Markdown in this environment. "
+            "Edit content/<locale>/shopify_content/articlepage/<pk>/body.md "
+            "through the Git branch/PR workflow; the REST body field is legacy "
+            "StreamField rollback state and cannot be written while "
+            "CONTENT_STORE_MODE=git_authoritative."
+        )
+    }
 
 
 @router.get(
@@ -63,8 +76,10 @@ def list_articles(
 )
 def create_article(request, data: ArticleIn):
     """Create article under parent BlogPage."""
-    blog_page = get_object_or_404(BlogPage, pk=data.blog_id)
+    if is_git_authoritative() and data.body is not None:
+        return 400, _git_body_write_error()
 
+    blog_page = get_object_or_404(BlogPage, pk=data.blog_id)
     slug = slugify(data.handle or data.title)
 
     page = ArticlePage(
@@ -151,8 +166,6 @@ def get_article(request, page_id: int):
         return 404, {"detail": f"Article page {page_id} not found."}
 
 
-
-
 @router.get(
     '/{page_id}/preview',
     response={404: ErrorSchema},
@@ -171,6 +184,7 @@ def preview_article(request, page_id: int):
         return 404, {"detail": f"Article page {page_id} not found."}
     return render_page_preview(request, page)
 
+
 @router.patch(
     '/{page_id}',
     response={200: ArticleOut, 404: ErrorSchema, 400: ErrorSchema},
@@ -181,6 +195,9 @@ def preview_article(request, page_id: int):
 )
 def update_article(request, page_id: int, data: ArticlePatch):
     """Partially update article; publish=true syncs when enabled."""
+    if is_git_authoritative() and data.body is not None:
+        return 400, _git_body_write_error()
+
     try:
         page = (
             ArticlePage.objects
