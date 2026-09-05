@@ -7,7 +7,18 @@
     {
       "name": "daphne",
       "command": ".venv/bin/daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+    },
+    {
+      "name": "daphne-test",
+      "command": "export DJANGO_SETTINGS_MODULE=config.settings_test TEST_SQLITE_NAME=/tmp/cms-shop-test.sqlite3 && .venv/bin/python manage.py migrate --noinput && .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application",
+      "description": "Servidor de prueba Django/Wagtail (settings_test + SQLite) en http://127.0.0.1:8083. No usar el Daphne de producción en :8082."
     }
   ],
-  "ports": [8000]
+  "ports": [
+    8000,
+    {
+      "name": "wagtail-test",
+      "port": 8083
+    }
+  ]
 }
