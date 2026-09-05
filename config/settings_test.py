@@ -1,4 +1,4 @@
-"""Aislado de producción: SQLite, sin pgvector, Celery eager."""
+"""Pytest only: SQLite in-memory. For local Daphne use config.settings_dev."""
 
 import os
 
@@ -18,7 +18,6 @@ INSTALLED_APPS = [
     if app != 'django_ai_core.contrib.index.storage.pgvector'
 ]
 
-# launch.json → archivo; pytest (sin env) → :memory:
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -26,7 +25,6 @@ DATABASES = {
     }
 }
 
-# Daphne local (launch.json :8083) habla HTTP/HTTPS directo, no el proxy TLS de Shopify CLI.
 CSRF_TRUSTED_ORIGINS = [
     *CSRF_TRUSTED_ORIGINS,
     'http://127.0.0.1:8082',

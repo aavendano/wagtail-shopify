@@ -218,6 +218,8 @@ Tras desplegar cambios en la API, recarga la ventana de Cursor para que regenere
 
 ### Desarrollo local (sin systemd)
 
+**Producción local (Postgres, :8082)** — usa `.env` + `config.settings`:
+
 ```bash
 cd /home/alejandro/apps/cms-shop/backend
 source .venv/bin/activate
@@ -227,6 +229,16 @@ source .venv/bin/activate
 
 # Celery (terminal 2)
 celery -A config worker --beat --scheduler django --loglevel=info
+```
+
+**Dev aislado (SQLite, :8083, content store mirror)** — ver [docs/cms-spa.md](docs/cms-spa.md):
+
+```bash
+cp .env.dev.example .env.dev
+# Run and Debug → "Daphne dev (8083)"
+# o:
+DJANGO_SETTINGS_MODULE=config.settings_dev DEV_SQLITE_NAME=/tmp/cms-shop-dev.sqlite3 \
+  .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application
 ```
 
 Reiniciar con **Ctrl+C** y volver a arrancar cada proceso.

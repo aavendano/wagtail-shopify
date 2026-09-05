@@ -87,6 +87,7 @@ __pycache__/
 local_settings.py
 
 .env
+.env.dev
 .env.backup*
 !.env.example
 secrets/

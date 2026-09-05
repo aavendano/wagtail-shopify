@@ -3,8 +3,23 @@
 ## Plan activo
 
 - **Archivo:** [`plan.md`](plan.md) (Puck CMS Headless)
-- **Última fase completada:** Fases 0–4 — SPA `/cms/`, auth sesión, CRUD recursos, preview HTML, restricción Wagtail Admin + docs (2026-09-03)
-- **Siguiente:** QA manual en tienda conectada (`ensure_cms_spa`, build frontend, smoke `/cms/#/glossary`)
+- **Última fase completada:** QA smoke CMS SPA en Daphne prod `:8082` (2026-09-05)
+- **Siguiente:** Reconectar `ShopConfig` + import Shopify (catálogo vacío) y/o theme-index-pages Fase 7
+
+### Resultado QA smoke (2026-09-05)
+
+| Paso | Resultado |
+|------|-----------|
+| `npm run build` (`cms_ui/frontend`) | OK → `cms_ui/static/cms_ui/` + collectstatic |
+| `ensure_cms_spa` | OK — `CmsSpaMount` + grupo `cms_editors` |
+| `/cms/` anon | 302 → `/admin-django/login/?next=/cms/` |
+| `/cms/` staff (`admin`) | 200 — `cms-spa-root`, `__CMS_BOOTSTRAP__`, resources glossary…locations |
+| static `spa-public.js` | 200 |
+| API list glossary/products/collections/blogs/articles/locations | 200 (catálogo vacío al inicio; sin `ShopConfig`) |
+| glossary detail + preview | detail 200; preview **bloqueado** por `Invalid filter: richtext` → fix `{% load wagtailcore_tags %}` en `glossary_term_page.html` → preview **200** |
+| Enlace `/cms/` desde `shopify-admin` / root menu | Presente en templates |
+
+Notas: Postgres sin tienda OAuth ni páginas importadas; se creó `ShopifyRootPage` + término `qa-smoke-term` solo para ejercitar preview. Daphne `:8082` reiniciado vía proceso local (sin `sudo systemctl`).
 
 ## Convención de planes (2026-07-06)
 
@@ -36,6 +51,7 @@ Ver troubleshooting en [`theme-index-pages.plan.md`](.cursor/plans/theme-index-p
 
 | Fecha | Plan | Fase | Notas |
 |-------|------|------|-------|
+| 2026-09-05 | puck-cms-headless | QA smoke | build SPA, ensure_cms_spa, shell/API OK; fix preview glossary `wagtailcore_tags`; DB sin ShopConfig/import |
 | 2026-09-03 | puck-cms-headless | 0–4 | `django_react_ui_editor` + `/cms/` SPA, session auth, preview endpoints, docs roles |
 | 2026-07-11 | theme-index-pages | 4–5 | Detalle glossary/local: synonyms, DefinedTerm, related_links fallback, LocalBusiness; FAQs CMS en PDP/PLP; batch 65 ciudades COMPLETED; home gates A/B closed |
 | 2026-07-06 | planes-genéricos-tienda | — | Convención agnóstica de tienda en plans/README, plans-convention, theme-index-pages |

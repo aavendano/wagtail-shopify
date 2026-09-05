@@ -1,26 +1,26 @@
 {
-  "name": "cms-shop backend",
-  "user": "ubuntu",
-  "install": "bash .cursor/install.sh",
-  "start": "bash .cursor/start.sh",
+  "name": "cms-shop-backend",
+  "install": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+  "start": "true",
   "terminals": [
     {
       "name": "daphne",
-      "command": ".venv/bin/daphne -b 0.0.0.0 -p 8000 config.asgi:application"
-    }
-  ],
-  "ports": [8000]
+      "command": ".venv/bin/daphne -b 0.0.0.0 -p 8000 config.asgi:application",
+      "description": "Producción/Cloud: Django ASGI en http://0.0.0.0:8000 (config.settings + .env)"
     },
     {
-      "name": "daphne-test",
-      "command": "export DJANGO_SETTINGS_MODULE=config.settings_test TEST_SQLITE_NAME=/tmp/cms-shop-test.sqlite3 && .venv/bin/python manage.py migrate --noinput && .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application",
-      "description": "Servidor de prueba Django/Wagtail (settings_test + SQLite) en http://127.0.0.1:8083. No usar el Daphne de producción en :8082."
+      "name": "daphne-dev",
+      "command": "export DJANGO_SETTINGS_MODULE=config.settings_dev DEV_SQLITE_NAME=/tmp/cms-shop-dev.sqlite3 && .venv/bin/python manage.py migrate --noinput && .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application",
+      "description": "Dev local: settings_dev + SQLite + content store mirror en http://127.0.0.1:8083"
     }
   ],
   "ports": [
-    8000,
     {
-      "name": "wagtail-test",
+      "name": "wagtail-cloud",
+      "port": 8000
+    },
+    {
+      "name": "wagtail-dev",
       "port": 8083
     }
   ]
