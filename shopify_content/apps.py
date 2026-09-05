@@ -45,3 +45,9 @@ class ShopifyContentConfig(AppConfig):
         )
 
         install_article_markdown_sync()
+
+        from shopify_content.page_chooser_locale import (
+            install_page_chooser_browse_locale_fix,
+        )
+
+        install_page_chooser_browse_locale_fix()

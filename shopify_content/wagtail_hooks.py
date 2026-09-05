@@ -147,3 +147,96 @@ def notify_shopify_sync_after_bulk_publish(request, action_type, objects, action
             ),
             extra_tags='shopify-sync-error',
         )
+
+
+# ---------------------------------------------------------------------------
+# HomePage: Locale-aware page chooser for GlossaryTermPage
+# ---------------------------------------------------------------------------
+
+from wagtail.admin.views.pages.edit import EditView
+
+
+class HomePageEditView(EditView):
+    """
+    Custom edit view for HomePage that stores the page's locale in the request
+    so that LocaleAwarePageChooserBlock can access it when rendering StreamField blocks.
+    """
+
+    def get_edit_handler_class(self, request, instance):
+        if instance and hasattr(instance, 'locale') and instance.locale:
+            request.homepage_locale = instance.locale.language_code
+            if hasattr(request, 'session'):
+                request.session['homepage_locale'] = instance.locale.language_code
+        return super().get_edit_handler_class(request, instance)
+
+
+@hooks.register('register_page_editing_view')
+def use_home_page_edit_view(page):
+    """Register HomePageEditView for HomePage instances."""
+    from shopify_content.models.home_page import HomePage
+    if isinstance(page, HomePage):
+        return HomePageEditView
+    return None
+
+
+@hooks.register('construct_page_chooser_queryset')
+def filter_page_chooser_by_locale(pages, request):
+    """
+    Filter PageChooserBlock queryset by the current page's locale for HomePage editing.
+    Only applies when editing a HomePage and only filters GlossaryTermPage.
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from wagtail.models import Page
+
+    from shopify_content.models.glossary import GlossaryTermPage
+
+    # Editor locale from HomePageEditView, session, or homepage_locale query param.
+    # Do not use Wagtail chooser UI ``locale`` — that controls browse tree i18n.
+    page_locale = getattr(request, 'homepage_locale', None)
+    if not page_locale and hasattr(request, 'session'):
+        page_locale = request.session.get('homepage_locale')
+    if not page_locale:
+        page_locale = request.GET.get('homepage_locale')
+
+    if not page_locale:
+        return pages
+
+    from shopify_content.page_chooser_locale import (
+        get_homepage_editor_locale,
+        glossary_term_page_filter_q,
+        maybe_include_glossary_root_at_chooser_root,
+        maybe_set_glossary_browse_locale_override,
+    )
+
+    maybe_include_glossary_root_at_chooser_root(request)
+    maybe_set_glossary_browse_locale_override(request)
+
+    page_type_string = request.GET.get('page_type', '')
+    desired_classes = []
+    if page_type_string:
+        for page_type in page_type_string.split(','):
+            page_type = page_type.strip()
+            if page_type == 'wagtailcore.page':
+                desired_classes = [Page]
+                break
+            try:
+                app_label, model_name = page_type.split('.')
+                from django.apps import apps
+                model = apps.get_model(app_label, model_name)
+                if model and issubclass(model, Page):
+                    desired_classes.append(model)
+            except (ValueError, LookupError, ImportError):
+                pass
+
+    if not desired_classes:
+        desired_classes = [Page]
+
+    if GlossaryTermPage in desired_classes:
+        editor_locale = get_homepage_editor_locale(request)
+        if editor_locale is None:
+            return pages
+
+        glossary_ct = ContentType.objects.get_for_model(GlossaryTermPage)
+        pages = pages.filter(glossary_term_page_filter_q(editor_locale, glossary_ct))
+
+    return pages
