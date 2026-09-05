@@ -1,7 +1,12 @@
 
 from django.contrib import admin
 from django.urls import path, include
-from core.views import HomeView, EmbeddedShopifySyncView, EmbeddedCommandDispatchView
+from core.views import (
+    HomeView,
+    EmbeddedShopifySyncView,
+    EmbeddedCommandDispatchView,
+    RootMenuView,
+)
 
 from django.urls import include, path
 from django.conf.urls.static import static
@@ -26,6 +31,7 @@ from api.main import api
 from django_react_ui_editor.spa_registry import get_spa_urlpatterns
 
 urlpatterns = [
+    path("", RootMenuView.as_view(), name="root"),
     path("shopify-admin/", HomeView.as_view(), name="home"),
     path("shopify-admin", HomeView.as_view()),
     path("shopify-admin/sync/", EmbeddedShopifySyncView.as_view(), name="shopify_embedded_sync"),

@@ -1,4 +1,4 @@
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -37,6 +37,20 @@ class ShopConfigFormTests(TestCase):
             form = ShopConfigForm(data={"shop": "test_shop.myshopify.com"})
             self.assertFalse(form.is_valid())
             self.assertIn("shop", form.errors)
+
+
+class RootMenuViewTests(SimpleTestCase):
+    def test_root_renders_navigation_hub(self):
+        response = self.client.get(reverse("root"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'href="/cms/"')
+        self.assertContains(response, 'href="/admin/"')
+        self.assertContains(response, 'href="/admin-django/"')
+        self.assertContains(response, 'href="/shopify-admin/"')
+        self.assertContains(response, 'href="/core/install"')
+        self.assertContains(response, 'href="/api/v1/docs/"')
+        self.assertContains(response, 'href="/mcp"')
 
 
 class PublicEntryViewTests(TestCase):

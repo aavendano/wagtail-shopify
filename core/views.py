@@ -67,6 +67,12 @@ def _shop_config_context(shop=None):
     }
 
 
+class RootMenuView(TemplateView):
+    """Hub de navegación en / (CMS headless: no hay páginas Wagtail en la raíz)."""
+
+    template_name = "core/root_menu.html"
+
+
 class PublicEntryView(TemplateView):
     template_name = "core/public_entry.html"
 

@@ -1,0 +1,20 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<s-page heading="CMS Shop">
+    <s-section heading="Navegación">
+        <s-paragraph>
+            Accesos rápidos a los paneles y endpoints de esta instalación.
+        </s-paragraph>
+        <s-stack direction="block" gap="small-200">
+            <s-link href="/cms/">CMS SPA</s-link>
+            <s-link href="/admin/">Wagtail Admin</s-link>
+            <s-link href="/admin-django/">Django Admin</s-link>
+            <s-link href="{% url 'home' %}">App embebida (sync Shopify)</s-link>
+            <s-link href="{% url 'core:install' %}">Instalar / login tienda</s-link>
+            <s-link href="/api/v1/docs/">API docs</s-link>
+            <s-link href="/mcp">MCP</s-link>
+        </s-stack>
+    </s-section>
+</s-page>
+{% endblock %}
