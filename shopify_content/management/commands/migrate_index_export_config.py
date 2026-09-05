@@ -1,22 +1,33 @@
-"""Migrate export_config from multi-page pages map to single page_gid."""
+"""Migrate glossary/location export_config to RootIndexConsumer locales shape."""
 
 import json
 
 from django.core.management.base import BaseCommand, CommandError
 
 from core.models import ShopConfig
+from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.models import ShopifyRootPage
 from shopify_content.sync.index_pages_bootstrap import (
-    GLOSSARY_INDEX_PAGE,
-    LOCATION_INDEX_PAGE,
     build_glossary_export_config,
     build_location_export_config,
-    ensure_index_pages,
 )
 
 
+def _locales_from_legacy_section(section: dict) -> list[str]:
+    """Derive locales from pages{}, page_gid-era configs, or existing locales."""
+    if isinstance(section.get('locales'), list) and section['locales']:
+        return list(section['locales'])
+    pages = section.get('pages') or section.get('_legacy_pages') or {}
+    if isinstance(pages, dict) and pages:
+        return list(pages.keys())
+    return list(ALLOWED_LOCALE_CODE_LIST)
+
+
 class Command(BaseCommand):
-    help = 'Migrate glossary/location export_config from pages{} to page_gid (single-page architecture).'
+    help = (
+        'Migrate glossary/location export_config from pages{}/page_gid to '
+        'locales[] (root_page metaobject architecture).'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -35,15 +46,9 @@ class Command(BaseCommand):
         if not config:
             raise CommandError('No ShopConfig found.')
 
-        shop = config.shop
-        pages_by_handle = ensure_index_pages(
-            shop,
-            (GLOSSARY_INDEX_PAGE, LOCATION_INDEX_PAGE),
-        )
-
-        for root_slug, config_key, builder, page_spec in (
-            ('glossary', 'glossary_index', build_glossary_export_config, GLOSSARY_INDEX_PAGE),
-            ('local-us', 'location_index', build_location_export_config, LOCATION_INDEX_PAGE),
+        for root_slug, config_key, builder in (
+            ('glossary', 'glossary_index', build_glossary_export_config),
+            ('local-us', 'location_index', build_location_export_config),
         ):
             root = ShopifyRootPage.objects.filter(slug=root_slug).first()
             if root is None:
@@ -52,28 +57,38 @@ class Command(BaseCommand):
 
             export_config = dict(root.export_config or {})
             section = dict(export_config.get(config_key) or {})
-            new_section = builder(pages_by_handle)[config_key]
 
-            if section.get('page_gid') == new_section.get('page_gid'):
-                self.stdout.write(f'{root_slug}: already migrated (page_gid set).')
+            has_pages = bool(section.get('pages'))
+            has_page_gid = bool(section.get('page_gid'))
+            has_locales = isinstance(section.get('locales'), list) and bool(section.get('locales'))
+
+            if has_locales and not has_pages and not has_page_gid:
+                self.stdout.write(f'{root_slug}: already migrated (locales set).')
                 continue
 
+            locales = _locales_from_legacy_section(section)
+            new_section = builder(locales=locales)[config_key]
+
             legacy_pages = section.pop('pages', None)
+            legacy_page_gid = section.pop('page_gid', None)
             if legacy_pages:
                 section['_legacy_pages'] = legacy_pages
-            section['enabled'] = new_section.get('enabled', True)
-            section['page_gid'] = new_section['page_gid']
+            if legacy_page_gid:
+                section['_legacy_page_gid'] = legacy_page_gid
+
+            section['enabled'] = new_section.get('enabled', section.get('enabled', True))
+            section['locales'] = new_section['locales']
+            section.setdefault('noindex_locales', new_section.get('noindex_locales', []))
+            if new_section.get('x_default_locale') and not section.get('x_default_locale'):
+                section['x_default_locale'] = new_section['x_default_locale']
+
             export_config[config_key] = section
 
             self.stdout.write(f'\n--- {root_slug} export_config[{config_key}] ---')
             self.stdout.write(json.dumps({config_key: section}, indent=2))
             self.stdout.write(
-                f'Assign template page.{page_spec.template_suffix} to handle '
-                f'{page_spec.handle} in Theme Editor.'
-            )
-            self.stdout.write(
-                'Optional: add Shopify URL redirects from legacy index handles to '
-                f'/pages/{page_spec.handle}.'
+                'Glossary/locations now sync via root_page metaobject entries '
+                f'({config_key} locales → handles like glossary-en-us).'
             )
 
             if options['apply'] and not options['dry_run']:

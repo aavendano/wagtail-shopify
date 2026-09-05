@@ -89,11 +89,7 @@ def build_location_index_listings(*, generated_at: datetime | None = None) -> di
 
 
 def build_location_index_json(locale_code: str, *, generated_at: datetime | None = None) -> dict:
-    """
-    Build grouped location index payload for one Wagtail locale code.
-
-    Deprecated: prefer build_location_index_listings() for the single-page architecture.
-    """
+    """Build grouped location index payload for one Wagtail locale code."""
     when = generated_at or datetime.now(timezone.utc)
     listing = _build_location_locale_listing(locale_code)
     return {

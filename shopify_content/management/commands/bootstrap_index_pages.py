@@ -1,5 +1,9 @@
 """
-Create Shopify Pages for glossary/location/blog index sync and print export_config GIDs.
+Bootstrap Shopify index targets.
+
+Blog still uses a native Shopify Page + custom.index_listings (page_gid).
+Glossary/locations use root_page metaobject entries (locales in export_config);
+this command only prints/applies their locales config — no Page bootstrap.
 
 Usage:
     python manage.py bootstrap_index_pages
@@ -29,13 +33,16 @@ from shopify_content.sync.resource_metafield_definitions import ensure_index_met
 
 
 class Command(BaseCommand):
-    help = 'Create glossary/location/blog index Shopify Pages and show export_config JSON'
+    help = (
+        'Create blog index Shopify Page + print/apply export_config for '
+        'glossary/locations (locales) and blog (page_gid).'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--apply-export-config',
             action='store_true',
-            help='Merge generated GIDs into ShopifyRootPage.export_config in Wagtail DB.',
+            help='Merge generated config into ShopifyRootPage.export_config in Wagtail DB.',
         )
         parser.add_argument(
             '--skip-metafield-definitions',
@@ -45,7 +52,10 @@ class Command(BaseCommand):
         parser.add_argument(
             '--legacy-pages',
             action='store_true',
-            help='Also create deprecated per-locale index Pages (glossary-en, locations-en-us, etc.).',
+            help=(
+                'Also create deprecated glossary/locations Shopify Pages '
+                '(not used by the root_page metaobject sync path).'
+            ),
         )
 
     def handle(self, *args, **options):
@@ -57,7 +67,7 @@ class Command(BaseCommand):
         self.stdout.write(f'Shop: {shop}')
 
         if not options['skip_metafield_definitions']:
-            self.stdout.write('Ensuring index metafield definitions...')
+            self.stdout.write('Ensuring index metafield definitions (blog Page path)...')
             def_stats = ensure_index_metafield_definitions(shop)
             if def_stats['page']['errors']:
                 raise CommandError(f'Page metafield definition errors: {def_stats["page"]["errors"]}')
@@ -67,13 +77,15 @@ class Command(BaseCommand):
                         f'Resource metafield definition errors ({scope}): {def_stats[scope]["errors"]}'
                     )
 
-        canonical_specs = (GLOSSARY_INDEX_PAGE, LOCATION_INDEX_PAGE, BLOG_INDEX_PAGE)
-        pages_by_handle = ensure_index_pages(shop, canonical_specs)
+        pages_by_handle = ensure_index_pages(shop, (BLOG_INDEX_PAGE,))
 
         if options['legacy_pages']:
             legacy_pages = ensure_index_pages(
                 shop,
-                LEGACY_GLOSSARY_INDEX_PAGES + LEGACY_LOCATION_INDEX_PAGES + LOCATION_LEGACY_ALIAS_PAGES,
+                (GLOSSARY_INDEX_PAGE, LOCATION_INDEX_PAGE)
+                + LEGACY_GLOSSARY_INDEX_PAGES
+                + LEGACY_LOCATION_INDEX_PAGES
+                + LOCATION_LEGACY_ALIAS_PAGES,
             )
             pages_by_handle.update(legacy_pages)
 
@@ -81,8 +93,8 @@ class Command(BaseCommand):
             flag = 'created' if node.get('created') else 'exists'
             self.stdout.write(f'  [{flag}] {handle} → {node["id"]}')
 
-        glossary_config = build_glossary_export_config(pages_by_handle)
-        location_config = build_location_export_config(pages_by_handle)
+        glossary_config = build_glossary_export_config()
+        location_config = build_location_export_config()
         blog_config = build_blog_export_config(pages_by_handle)
 
         self.stdout.write('\n--- Pegar en ShopifyRootPage slug=glossary (export_config) ---')

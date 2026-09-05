@@ -31,6 +31,24 @@ query getMetaobjectDefinitionByType($type: String!) {
                 value
             }
         }
+        capabilities {
+            publishable {
+                enabled
+            }
+            onlineStore {
+                enabled
+                data {
+                    urlHandle
+                }
+            }
+            renderable {
+                enabled
+                data {
+                    metaTitleKey
+                    metaDescriptionKey
+                }
+            }
+        }
     }
 }
 """

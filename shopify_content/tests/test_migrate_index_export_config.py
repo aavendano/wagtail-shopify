@@ -1,7 +1,5 @@
 """Tests for migrate_index_export_config management command."""
 
-from unittest.mock import patch
-
 from django.core.management import call_command
 from django.test import TestCase
 from wagtail.models import Locale, Page
@@ -24,7 +22,7 @@ class MigrateIndexExportConfigTests(TestCase):
             export_config={
                 'glossary_index': {
                     'enabled': True,
-                    'pages': {'en': 'gid://shopify/Page/legacy-en'},
+                    'pages': {'en': 'gid://shopify/Page/legacy-en', 'es': 'gid://shopify/Page/legacy-es'},
                 },
             },
             locale=locale,
@@ -32,17 +30,29 @@ class MigrateIndexExportConfigTests(TestCase):
         home.add_child(instance=self.glossary_root)
         self.glossary_root.save_revision().publish()
 
-    @patch('shopify_content.management.commands.migrate_index_export_config.ensure_index_pages')
-    def test_apply_migrates_glossary_export_config(self, mock_ensure):
-        mock_ensure.return_value = {
-            'glossary': {'id': 'gid://shopify/Page/new-glossary', 'created': False},
-            'locations': {'id': 'gid://shopify/Page/new-locations', 'created': False},
+    def test_apply_migrates_glossary_export_config(self):
+        call_command('migrate_index_export_config', '--apply')
+
+        self.glossary_root.refresh_from_db()
+        section = self.glossary_root.export_config['glossary_index']
+        self.assertEqual(section['locales'], ['en', 'es'])
+        self.assertEqual(section['_legacy_pages']['en'], 'gid://shopify/Page/legacy-en')
+        self.assertNotIn('pages', section)
+        self.assertNotIn('page_gid', section)
+
+    def test_apply_migrates_page_gid_to_locales(self):
+        self.glossary_root.export_config = {
+            'glossary_index': {
+                'enabled': True,
+                'page_gid': 'gid://shopify/Page/old',
+            },
         }
+        self.glossary_root.save(update_fields=['export_config'])
 
         call_command('migrate_index_export_config', '--apply')
 
         self.glossary_root.refresh_from_db()
         section = self.glossary_root.export_config['glossary_index']
-        self.assertEqual(section['page_gid'], 'gid://shopify/Page/new-glossary')
-        self.assertEqual(section['_legacy_pages']['en'], 'gid://shopify/Page/legacy-en')
-        self.assertNotIn('pages', section)
+        self.assertTrue(section['locales'])
+        self.assertEqual(section['_legacy_page_gid'], 'gid://shopify/Page/old')
+        self.assertNotIn('page_gid', section)
