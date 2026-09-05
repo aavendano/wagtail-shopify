@@ -171,6 +171,73 @@ class StreamableAuthResolutionTests(TestCase):
         self.assertEqual(resolved, "")
 
 
+@override_settings(
+    SHOPIFY_APP_URL="https://cms.aadigitalbusiness.com",
+    WAGTAILADMIN_BASE_URL="https://cms.aadigitalbusiness.com",
+    MCP_DEFAULT_API_KEY="",
+)
+class StreamableWwwAuthenticateTests(TestCase):
+    def test_unauthenticated_streamable_post_includes_www_authenticate(self):
+        from asgiref.sync import async_to_sync
+
+        from api.mcp_asgi import MCPStreamableHTTPMiddleware
+
+        async def dummy_app(scope, receive, send):
+            raise AssertionError("unauthenticated Streamable request must not reach Django")
+
+        middleware = MCPStreamableHTTPMiddleware(dummy_app)
+
+        async def run():
+            status = {}
+            headers = {}
+
+            async def receive():
+                return {"type": "http.request", "body": b"{}", "more_body": False}
+
+            async def send(message):
+                if message["type"] == "http.response.start":
+                    status["code"] = message["status"]
+                    headers.update(
+                        {
+                            key.decode().lower(): value.decode()
+                            for key, value in message.get("headers", [])
+                        }
+                    )
+
+            scope = {
+                "type": "http",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "https",
+                "path": "/api/v1/mcp",
+                "raw_path": b"/api/v1/mcp",
+                "query_string": b"",
+                "headers": [(b"content-type", b"application/json")],
+                "client": ("127.0.0.1", 50000),
+                "server": ("cms.aadigitalbusiness.com", 443),
+            }
+            await middleware(scope, receive, send)
+            return status.get("code"), headers
+
+        code, headers = async_to_sync(run)()
+        self.assertEqual(code, 401)
+        www = headers.get("www-authenticate", "")
+        self.assertIn('Bearer realm="mcp"', www)
+        self.assertIn(
+            'resource_metadata="https://cms.aadigitalbusiness.com/.well-known/oauth-protected-resource"',
+            www,
+        )
+
+    def test_authenticate_token_accepts_active_api_key(self):
+        from api.auth import ApiKeyAuth
+
+        key = ApiKey.objects.create(name="streamable-key")
+        auth = ApiKeyAuth()
+        self.assertIsNotNone(auth._authenticate_token(key.key))
+        self.assertIsNone(auth._authenticate_token("missing-key"))
+
+
 class McpEndpointAuthTests(TestCase):
     def setUp(self):
         self.client = TestClient(api)

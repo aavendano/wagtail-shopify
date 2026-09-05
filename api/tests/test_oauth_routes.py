@@ -144,3 +144,88 @@ class OAuthRootRouteTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["error"], "invalid_redirect_uri")
+
+    def test_cursor_and_claude_dcr_authorize_token_pkce_flow(self):
+        """DCR → login → authorize (allow) → token exchange for Cursor and Claude callbacks."""
+        import base64
+        import hashlib
+        import secrets
+        from urllib.parse import parse_qs, urlparse
+
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        user = User.objects.create_user(username="oauth-user", password="secret")
+        self.client.force_login(user)
+
+        for client_name, redirect_uri in (
+            ("Cursor", "https://www.cursor.com/agents/mcp/oauth/callback"),
+            ("Claude", "https://claude.ai/api/mcp/auth_callback"),
+        ):
+            with self.subTest(client_name=client_name):
+                register = self.client.post(
+                    "/register",
+                    data={
+                        "redirect_uris": [redirect_uri],
+                        "client_name": client_name,
+                        "token_endpoint_auth_method": "none",
+                    },
+                    content_type="application/json",
+                )
+                self.assertEqual(register.status_code, 201)
+                client_id = register.json()["client_id"]
+
+                verifier = secrets.token_urlsafe(64)
+                challenge = (
+                    base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest())
+                    .rstrip(b"=")
+                    .decode("ascii")
+                )
+
+                authorize_get = self.client.get(
+                    "/authorize",
+                    {
+                        "response_type": "code",
+                        "client_id": client_id,
+                        "redirect_uri": redirect_uri,
+                        "scope": "mcp",
+                        "state": f"state-{client_name}",
+                        "code_challenge": challenge,
+                        "code_challenge_method": "S256",
+                    },
+                )
+                self.assertEqual(authorize_get.status_code, 200)
+                self.assertContains(authorize_get, 'name="allow"')
+
+                authorize_post = self.client.post(
+                    "/authorize",
+                    {
+                        "allow": "on",
+                        "redirect_uri": redirect_uri,
+                        "scope": "mcp",
+                        "client_id": client_id,
+                        "state": f"state-{client_name}",
+                        "response_type": "code",
+                        "code_challenge": challenge,
+                        "code_challenge_method": "S256",
+                    },
+                )
+                self.assertEqual(authorize_post.status_code, 302)
+                location = authorize_post["Location"]
+                self.assertTrue(location.startswith(redirect_uri))
+                code = parse_qs(urlparse(location).query)["code"][0]
+
+                token = self.client.post(
+                    "/token",
+                    {
+                        "grant_type": "authorization_code",
+                        "code": code,
+                        "redirect_uri": redirect_uri,
+                        "client_id": client_id,
+                        "code_verifier": verifier,
+                    },
+                )
+                self.assertEqual(token.status_code, 200, token.content)
+                payload = token.json()
+                self.assertIn("access_token", payload)
+                self.assertIn("mcp", payload.get("scope", "").split())
