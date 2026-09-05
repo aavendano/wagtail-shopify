@@ -1,11 +1,11 @@
-import json
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
 from core.models import ShopConfig
+from metaobjects.shopify_metaobjects.metaobject import Metaobject
 from shopify_content.locations.index import (
     build_location_index_json,
     build_location_index_listings,
@@ -105,7 +105,7 @@ class SyncLocationIndexPagesTests(TestCase):
             export_config={
                 'location_index': {
                     'enabled': True,
-                    'page_gid': 'gid://shopify/Page/10',
+                    'locales': ['en-US'],
                 },
             },
             locale=locale,
@@ -127,19 +127,23 @@ class SyncLocationIndexPagesTests(TestCase):
     def test_get_location_index_config_reads_export_config(self):
         config = get_location_index_config(self.location_root)
         self.assertTrue(config['enabled'])
-        self.assertEqual(config['page_gid'], 'gid://shopify/Page/10')
+        self.assertEqual(config['locales'], ['en-US'])
 
-    @patch('shopify_content.export_config.single_page._push_metafields', return_value=True)
-    def test_sync_pushes_index_listings(self, mock_push):
+    @patch('metaobjects.shopify_metaobjects.client.MetaobjectClient')
+    def test_sync_upserts_metaobject_entry(self, mock_client_cls):
+        mock_client = MagicMock()
+        mock_client.sync.return_value = Metaobject(
+            type='root_page', handle='locations-en-us', id='gid://1',
+        )
+        mock_client_cls.return_value = mock_client
+
         stats = sync_location_index_pages()
 
         self.assertEqual(stats['pushed'], 1)
-        mock_push.assert_called_once()
-        metafields = mock_push.call_args.args[1]
-        self.assertEqual(len(metafields), 1)
-        self.assertEqual(metafields[0]['key'], 'index_listings')
-        index_value = json.loads(metafields[0]['value'])
-        self.assertEqual(index_value['locales']['en-US']['count'], 1)
+        mock_client.sync.assert_called_once()
+        data = mock_client.sync.call_args.args[0]
+        self.assertEqual(data['handle'], 'locations-en-us')
+        self.assertEqual(data['index']['count'], 1)
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
@@ -159,7 +163,7 @@ class LocationIndexSignalTests(TestCase):
             export_config={
                 'location_index': {
                     'enabled': True,
-                    'page_gid': 'gid://shopify/Page/10',
+                    'locales': ['en-US'],
                 },
             },
             locale=locale,

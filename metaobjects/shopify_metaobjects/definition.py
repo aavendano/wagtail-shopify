@@ -84,6 +84,23 @@ class MetaobjectDefinitionSpec:
             normalized["metaDescriptionKey"] = normalized.pop("metaDescriptionField")
         return {**caps, "renderable": {**renderable, "data": normalized}}
 
+    @staticmethod
+    def _parse_capabilities(raw: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Convert the GraphQL capabilities shape into the same dict shape used to build specs."""
+        if not raw:
+            return None
+        parsed: dict[str, Any] = {}
+        for key in ('publishable', 'onlineStore', 'renderable'):
+            capability = raw.get(key)
+            if capability is None:
+                continue
+            entry: dict[str, Any] = {'enabled': bool(capability.get('enabled'))}
+            data = capability.get('data')
+            if data:
+                entry['data'] = {k: v for k, v in data.items() if v is not None}
+            parsed[key] = entry
+        return parsed or None
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         raw_fields = data.get("fields") or data.get("fieldDefinitions") or []
@@ -108,6 +125,7 @@ class MetaobjectDefinitionSpec:
             name=data.get("name", data["type"]),
             description=data.get("description") or "",
             fields=fields,
+            capabilities=cls._parse_capabilities(data.get("capabilities")),
         )
 
     @classmethod

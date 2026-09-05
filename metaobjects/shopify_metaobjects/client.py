@@ -25,6 +25,16 @@ def _publishable_active_input(definition: MetaobjectDefinitionSpec | None) -> di
     return {'publishable': {'status': 'ACTIVE'}}
 
 
+def _capabilities_diff(existing: dict | None, desired: dict | None) -> dict | None:
+    """Return only the capability entries that differ, normalized as Shopify would store them."""
+    if not desired:
+        return None
+    desired = MetaobjectDefinitionSpec._normalize_capabilities(desired)
+    existing = existing or {}
+    diff = {key: value for key, value in desired.items() if existing.get(key) != value}
+    return diff or None
+
+
 class MetaobjectClient:
     def __init__(self, shop: str):
         self.shop = shop
@@ -60,31 +70,50 @@ class MetaobjectClient:
     ) -> MetaobjectDefinitionSpec:
         existing_keys = {field.key for field in existing.fields}
         missing = [field for field in spec.fields if field.key not in existing_keys]
-        if not missing:
+        capabilities_diff = _capabilities_diff(existing.capabilities, spec.capabilities)
+
+        if not missing and not capabilities_diff:
             return existing
         if not existing.id:
             raise DefinitionError(
-                f"Cannot add fields to {spec.type}: definition id missing from Shopify response"
+                f"Cannot update {spec.type}: definition id missing from Shopify response"
             )
-        return self.add_definition_fields(existing.id, missing)
+        return self.update_definition(existing.id, fields=missing, capabilities=capabilities_diff)
 
     def add_definition_fields(
         self,
         definition_id: str,
         fields: list[MetaobjectFieldSpec],
     ) -> MetaobjectDefinitionSpec:
-        create_payload = [
-            {"create": field_spec.to_shopify_input()}
-            for field_spec in fields
-        ]
+        return self.update_definition(definition_id, fields=fields)
+
+    def update_definition(
+        self,
+        definition_id: str,
+        *,
+        fields: list[MetaobjectFieldSpec] | None = None,
+        capabilities: dict | None = None,
+    ) -> MetaobjectDefinitionSpec:
+        """
+        Push new field definitions and/or changed capabilities to an existing metaobject
+        definition. Only fields/capabilities that actually changed should be passed in —
+        this issues a single metaobjectDefinitionUpdate for both.
+        """
+        definition_input: dict = {}
+        if fields:
+            definition_input["fieldDefinitions"] = [
+                {"create": field_spec.to_shopify_input()}
+                for field_spec in fields
+            ]
+        if capabilities:
+            definition_input["capabilities"] = capabilities
+
         result = execute_admin_graphql(
             METAOBJECT_DEFINITION_UPDATE,
             shop=self.shop,
             variables={
                 "id": definition_id,
-                "definition": {
-                    "fieldDefinitions": create_payload,
-                },
+                "definition": definition_input,
             },
         )
         if not result.ok:

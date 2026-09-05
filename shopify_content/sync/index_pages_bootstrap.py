@@ -145,19 +145,52 @@ def build_blog_export_config(pages_by_handle: dict[str, dict]) -> dict:
     )
 
 
-def build_glossary_export_config(pages_by_handle: dict[str, dict]) -> dict:
-    return build_single_page_export_config(
-        pages_by_handle,
-        handle='glossary',
+def build_root_index_export_config(
+    *,
+    config_key: str,
+    locales: list[str],
+    x_default_locale: str | None = None,
+) -> dict:
+    """export_config shape for RootIndexConsumer families (glossary/locations)."""
+    section: dict = {
+        'enabled': True,
+        'locales': list(locales),
+        'noindex_locales': [],
+    }
+    if x_default_locale:
+        section['x_default_locale'] = x_default_locale
+    return {config_key: section}
+
+
+def build_glossary_export_config(
+    pages_by_handle: dict[str, dict] | None = None,
+    *,
+    locales: list[str] | None = None,
+) -> dict:
+    """Glossary uses root_page metaobject entries; pages_by_handle is ignored."""
+    from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
+
+    locale_list = list(locales or ALLOWED_LOCALE_CODE_LIST)
+    return build_root_index_export_config(
         config_key='glossary_index',
+        locales=locale_list,
+        x_default_locale=locale_list[0] if locale_list else None,
     )
 
 
-def build_location_export_config(pages_by_handle: dict[str, dict]) -> dict:
-    return build_single_page_export_config(
-        pages_by_handle,
-        handle='locations',
+def build_location_export_config(
+    pages_by_handle: dict[str, dict] | None = None,
+    *,
+    locales: list[str] | None = None,
+) -> dict:
+    """Locations use root_page metaobject entries; pages_by_handle is ignored."""
+    from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
+
+    locale_list = list(locales or ALLOWED_LOCALE_CODE_LIST)
+    return build_root_index_export_config(
         config_key='location_index',
+        locales=locale_list,
+        x_default_locale=locale_list[0] if locale_list else None,
     )
 
 

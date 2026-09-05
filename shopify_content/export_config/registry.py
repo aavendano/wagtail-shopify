@@ -4,19 +4,20 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from shopify_content.export_config.base import RootIndexConsumer
 from shopify_content.export_config.blog import BlogListingsConsumer, blog_listings_consumer
-from shopify_content.export_config.glossary import glossary_listings_consumer
-from shopify_content.export_config.location import location_listings_consumer
+from shopify_content.export_config.glossary import glossary_index_consumer
+from shopify_content.export_config.location import location_index_consumer
 from shopify_content.export_config.single_page import SinglePageListingsConsumer
 
 if TYPE_CHECKING:
     from shopify_content.models import ShopifyRootPage
 
-ExportConsumer = SinglePageListingsConsumer | BlogListingsConsumer
+ExportConsumer = RootIndexConsumer | SinglePageListingsConsumer | BlogListingsConsumer
 
 _CONSUMERS_BY_SLUG: dict[str, ExportConsumer] = {
-    glossary_listings_consumer.root_slug: glossary_listings_consumer,
-    location_listings_consumer.root_slug: location_listings_consumer,
+    glossary_index_consumer.root_slug: glossary_index_consumer,
+    location_index_consumer.root_slug: location_index_consumer,
     blog_listings_consumer.root_slug: blog_listings_consumer,
 }
 
@@ -58,10 +59,17 @@ def queue_index_sync_for_content_page(page) -> None:
 
 
 def on_root_published(root) -> None:
+    """
+    Queue index rebuild for single-Page consumers (blog).
+
+    Glossary/locations RootIndexConsumers sync via sync_shopify_root_page on the
+    standard publish→sync path; do not double-queue them here.
+    """
     specific = root.specific if hasattr(root, 'specific') else root
     consumer = get_consumer_for_slug(specific.slug)
-    if consumer is not None:
-        consumer.queue_sync()
+    if consumer is None or isinstance(consumer, RootIndexConsumer):
+        return
+    consumer.queue_sync()
 
 
 def on_content_page_changed(page) -> None:

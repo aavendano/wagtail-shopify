@@ -25,44 +25,39 @@ La app es **instalable en cualquier merchant**: cada instalación ejecuta su pro
 Checklist al instalar la app en una tienda Shopify nueva (`{shop}.myshopify.com`):
 
 1. Completar OAuth → `ShopConfig` con token válido.
-2. `python manage.py ensure_metaobject_definitions`
-3. `python manage.py ensure_index_metafield_definitions`
+2. `python manage.py ensure_metaobject_definitions` — incluye `root_page` con `onlineStore` + campos de índice.
+3. `python manage.py ensure_index_metafield_definitions` — metafields PAGE/BLOG/ARTICLE del **blog** (`custom.index_listings`).
 4. En Wagtail: crear `ShopifyRootPage` con slug `glossary`, `local-us` y `blogs` bajo el root del sitio (si no existen).
 5. `python manage.py migrate_glossary_locales` — asigna Wagtail Locale a términos existentes.
-6. `python manage.py bootstrap_index_pages --apply-export-config` — crea Pages `glossary`, `locations`, `blogs` + `page_gid` en `export_config`.
-7. Si migras desde arquitectura multi-page: `python manage.py migrate_index_export_config --apply`.
-8. `python manage.py rebuild_glossary_index` + `python manage.py rebuild_location_index` + `python manage.py rebuild_blog_index`
-9. En Theme Editor: asignar `page.glossary` → handle `glossary`, `page.locations` → `locations`, `page.blogs` → `blogs`.
-10. Smoke test storefront: `/pages/glossary`, `/pages/locations`, `/pages/blogs` → 200.
+6. `python manage.py bootstrap_index_pages --apply-export-config` — crea Page `blogs` + `page_gid`; aplica `locales` en glossary/locations.
+7. `python manage.py rebuild_glossary_index` + `python manage.py rebuild_location_index` + `python manage.py rebuild_blog_index`
+8. Theme: template default del metaobjeto `root_page` para glossary/locations; Theme Editor `page.blogs` → handle `blogs`.
+9. Smoke test: `/pages/index/glossary-en-us`, `/pages/index/locations-en-us`, `/pages/blogs`.
 
-### Troubleshooting 404 en índices
+### Troubleshooting índices
 
 | Síntoma | Causa probable | Acción |
 |---------|----------------|--------|
-| 404 en `/pages/glossary` o `/pages/locations` | Pages no existen en Shopify Admin | `python manage.py bootstrap_index_pages` |
-| 404 con Pages existentes pero listado vacío | `export_config` con GIDs de **otra tienda** | `bootstrap_index_pages --apply-export-config` en la tienda activa |
-| Page existe pero sin UI de índice | Template no asignado | Theme Editor → `page.glossary` / `page.locations` en handles `glossary` / `locations` |
-| Navbar enlaza URL incorrecta | Page handle distinto | Debe ser `/pages/glossary` y `/pages/locations` |
+| 404 en `/pages/index/glossary-*` | Definición `root_page` sin `onlineStore` o sin upsert | `ensure_metaobject_definitions` + `rebuild_glossary_index` |
+| Listado vacío | `export_config.locales` vacío o desalineado | Editar root Wagtail; `bootstrap_index_pages --apply-export-config` |
+| Blog 404 `/pages/blogs` | Page blogs ausente | `bootstrap_index_pages` (path blog) |
+| Blog sin listado | `page_gid` de otra tienda | `bootstrap_index_pages --apply-export-config` |
 
-**Verificación con GID de la tienda conectada** (no copiar GIDs de documentación):
+**Verificación glossary (metaobject por locale):**
 
 ```python
 from core.models import ShopConfig
-from shopify_content.models import ShopifyRootPage
 from shopify_requests.graphql_service import execute_admin_graphql
 
 shop = ShopConfig.objects.first().shop
-root = ShopifyRootPage.objects.get(slug='glossary')
-page_gid = root.export_config['glossary_index']['page_gid']
-q = '''query($id: ID!) {
-  node(id: $id) {
-    ... on Page {
-      handle
-      metafield(namespace: "custom", key: "index_listings") { value }
-    }
+q = '''query {
+  metaobjectByHandle(handle: {type: "root_page", handle: "glossary-en-us"}) {
+    handle
+    field(key: "index") { value }
+    field(key: "locale") { value }
   }
 }'''
-execute_admin_graphql(q, shop=shop, variables={'id': page_gid})
+execute_admin_graphql(q, shop=shop)
 ```
 
 ---
@@ -71,7 +66,7 @@ execute_admin_graphql(q, shop=shop, variables={'id': page_gid})
 
 | Modelo Wagtail | Recurso Shopify | Operación de sync |
 |----------------|-----------------|-------------------|
-| `ShopifyRootPage` | Metaobject merchant-owned (`root_page`) | `metaobjectUpsert` vía `MetaobjectClient` |
+| `ShopifyRootPage` | Metaobject `root_page` (glossary/locations: una entrada por locale con `onlineStore`; otros roots: mirror) | `metaobjectUpsert` vía `MetaobjectClient` |
 | `ProductPage` | Product | `productUpdate` |
 | `CollectionPage` | Collection | `collectionUpdate` |
 | `BlogPage` | Blog | `blogCreate` / `blogUpdate` |
@@ -429,16 +424,16 @@ python manage.py rebuild_glossary_index
 
 Tras desplegar cambios en la definición, ejecutar `python manage.py ensure_metaobject_definitions` o push de un término con `ensure_definition=True`.
 
-### Índice de glosario (`/pages/glossary`)
+### Índice de glosario (`root_page` por locale)
 
-Índice maestro multi-locale en una sola Shopify Page handle `glossary`. Wagtail precomputa el JSON y lo empuja a `custom.index_listings` (mismo metafield que blog y locations). El theme elige el listado según `request.locale` → clave Wagtail (`en-US`, etc.).
+Índice A–Z en entradas del metaobjeto `root_page` (handles `glossary-{locale}`, p. ej. `glossary-en-us`). Wagtail precomputa el JSON por locale y lo empuja con `sync_root_index_locales`. URL storefront: `/pages/index/{handle}` (`onlineStore.urlHandle = index`).
 
 **Setup**
 
 ```bash
-python manage.py ensure_index_metafield_definitions
+python manage.py ensure_metaobject_definitions
 python manage.py migrate_glossary_locales
-python manage.py bootstrap_index_pages --apply-export-config
+python manage.py bootstrap_index_pages --apply-export-config   # aplica locales; no crea Page glossary
 python manage.py rebuild_glossary_index
 ```
 
@@ -448,15 +443,20 @@ python manage.py rebuild_glossary_index
 {
   "glossary_index": {
     "enabled": true,
-    "page_gid": "gid://shopify/Page/..."
+    "locales": ["en-US", "es-US"],
+    "noindex_locales": [],
+    "x_default_locale": "en-US"
   }
 }
 ```
 
-**Contrato** — slice `locales["en-US"]` dentro de `custom.index_listings`:
+**Contrato** — campo `index` de cada entrada `root_page`:
 
 ```json
 {
+  "version": 1,
+  "locale": "en-US",
+  "generated_at": "2026-07-05T12:00:00+00:00",
   "count": 70,
   "sections": [
     {"key": "A", "items": [{"term": "...", "handle": "...", "path": "/pages/glossary/..."}]}
@@ -464,67 +464,69 @@ python manage.py rebuild_glossary_index
 }
 ```
 
-Solo entran términos **live** con `shopify_id` no vacío bajo el root `glossary`, filtrados por `Page.locale` (Wagtail). `locale_code` (`en`/`es`/`fr`) se deriva del locale Wagtail para el metaobject Shopify.
+Solo entran términos **live** con `shopify_id` no vacío bajo el root `glossary`, filtrados por `Page.locale` (Wagtail).
 
 **Flujo automático**
 
-- Publicar `GlossaryTermPage` → sync outbound → Celery rebuild completo de `index_listings`.
+- Publicar `GlossaryTermPage` → sync outbound → Celery rebuild de locales configurados.
 - Despublicar término → rebuild inmediato (signal `page_unpublished`).
-- Publicar root `glossary` → rebuild completo.
+- Publicar root `glossary` → `sync_shopify_root_page` upserts todas las entradas locale.
 
 ```bash
 python manage.py rebuild_glossary_index --dry-run
 python manage.py rebuild_glossary_index
+python manage.py rebuild_glossary_index --locale en-US
 ```
-
-**Migración desde arquitectura multi-page** (`glossary-en`/`es`/`fr`): `python manage.py migrate_index_export_config --apply`. Redirects 301 manuales en Shopify Admin si hace falta.
 
 ### ShopifyRootPage — `models/root.py`
 
-Cada instancia de `ShopifyRootPage` exporta a metaobject `root_page`. El campo `export_config` (JSON en Wagtail) se empuja como `config` en Shopify. El root con slug `glossary` usa `export_config.glossary_index` para apuntar a las Pages índice.
+Glossary/locations exportan **una entrada `root_page` por locale** (capability `onlineStore`). Otros roots (blog, products, …) siguen el mirror de una sola entrada (`handle` = slug/handle). `export_config` viaja como `config` en cada upsert.
 
-| Campo Wagtail | Campo Shopify (metaobject field) |
-|---------------|----------------------------------|
-| `title` | `title` |
-| `slug` | `slug` |
-| `get_resource_type()` | `resource_type` |
-| `export_config` | `config` |
-| `seo_title` (Page) | `meta_title` |
-| `search_description` (Page) | `meta_description` |
+| Campo Wagtail / calculado | Campo Shopify | Notas |
+|---------------------------|---------------|-------|
+| `title` | `title` | Mismo en todas las entradas de un root índice |
+| `slug` | `slug` | Slug del `ShopifyRootPage` |
+| `get_resource_type()` | `resource_type` | |
+| `export_config` | `config` | Espejo informativo |
+| SEO Page | `meta_title` / `meta_description` | |
+| — | `handle` | `{prefix}-{locale}` p. ej. `glossary-en-us` |
+| — | `locale` / `index` / `index_alternates` / `index_noindex` | Solo familias RootIndexConsumer |
 
 ### Plataforma `export_config`
 
-Wagtail configura *qué* y *dónde* exportar al storefront; el theme Liquid define *cómo* renderizar.
+Wagtail configura *qué locales publicar* (glossary/locations) o *qué Page* (blog); el theme Liquid define *cómo* renderizar.
 
 | Root slug | Clave `export_config` | Destino Shopify | Trigger automático |
 |-----------|----------------------|-----------------|-------------------|
-| `glossary` | `glossary_index` | Page `glossary` (`custom.index_listings`) | publish/unpublish `GlossaryTermPage` |
-| `local-us` | `location_index` | Page `locations` (`custom.index_listings`) | publish/unpublish `LocationPage` |
-| `blogs` | `blog_index` | Page `blogs` (`custom.index_listings`) | publish/unpublish `ArticlePage` |
+| `glossary` | `glossary_index` | `root_page` entries (`glossary-*`) | publish/unpublish `GlossaryTermPage`, publish root |
+| `local-us` | `location_index` | `root_page` entries (`locations-*`) | publish/unpublish `LocationPage`, publish root |
+| `blogs` | `blog_index` | Page `blogs` (`custom.index_listings` + `page_gid`) | publish/unpublish `ArticlePage`, publish root |
 | `root` / `collections` | `product_overrides` / `collection_overrides` | (plantillas editoriales; v1 opcional) | — |
 
-Los consumidores viven en `shopify_content/export_config/` (registry plug-in). Cada índice usa `SinglePageListingsConsumer` y empuja `custom.index_listings` a una sola Page (`page_gid` en `export_config`).
+Consumers en `shopify_content/export_config/`: `RootIndexConsumer` (glossary/locations, payload builders) + `SinglePageListingsConsumer` (blog). El writer de glossary/locations es `sync_root_index_locales()`.
 
-#### Cómo agregar un nuevo root/index (sin tocar el theme)
+#### Cómo agregar un nuevo root/index metaobject
 
-1. Crear un `ShopifyRootPage` con un `slug` nuevo (p. ej. `store-brands`).
-2. Implementar `build_*_index_listings()` con envelope multi-locale (`locales` → `{count, sections}`).
-3. Crear una subclase de `SinglePageListingsConsumer` en `shopify_content/export_config/` y registrarla en `registry.py`.
-4. Añadir spec en `index_pages_bootstrap.py` + `bootstrap_index_pages`; correr `ensure_index_metafield_definitions`.
-5. Publicar contenido → Celery rebuild completo de `index_listings`.
-6. En el theme: asignar `wagtail-root-index` (o modo `custom` con `index_listings`) desde Theme Editor.
+1. Crear un `ShopifyRootPage` con un `slug` nuevo.
+2. Implementar `build_*_index_json(locale_code)` (`version/locale/generated_at/count/sections`).
+3. Subclase de `RootIndexConsumer` (`root_slug`, `handle_prefix`, `config_key`) y registrar en `registry.py`.
+4. Pegar `export_config = {"<key>": {"enabled": true, "locales": [...]}}` en el root.
+5. `ensure_metaobject_definitions` + publicar root o hijo → `sync_root_index_locales()`.
+
+Para un índice estilo **blog** (Page + `index_listings`), usar `SinglePageListingsConsumer` + `page_gid` + `bootstrap_index_pages`.
 
 **Responsabilidades**
 
-- `ShopifyRootPage.export_config` → metaobject `root_page.config` (mirror CMS)
-- Índices precomputados → metafields JSON en Shopify Pages
+- Glossary/locations: índices, hreflang y noindex → campos de cada entrada `root_page`
+- Blog: índice multi-locale → `custom.index_listings` en Page `blogs`
 - `ProductPage.theme_config` / `CollectionPage.theme_config` → metafields en el recurso Shopify al publicar
 
-### Índice de locations (`/pages/locations`)
+### Índice de locations (`root_page` por locale)
 
-Mismo patrón single-page que glosario y blog. Root `local-us`, builder en `shopify_content/locations/index.py`.
+Mismo patrón metaobject que glosario. Root `local-us`, builder en `shopify_content/locations/index.py`, handles `locations-{locale}`.
 
 ```bash
+python manage.py ensure_metaobject_definitions
 python manage.py bootstrap_index_pages --apply-export-config
 python manage.py rebuild_location_index
 ```
@@ -535,12 +537,14 @@ python manage.py rebuild_location_index
 {
   "location_index": {
     "enabled": true,
-    "page_gid": "gid://shopify/Page/..."
+    "locales": ["en-US", "es-US"],
+    "noindex_locales": [],
+    "x_default_locale": "en-US"
   }
 }
 ```
 
-**Contrato** — slice `locales["en-US"]` en `custom.index_listings`: `sections[]` con `key` = estado (o `#`); `items[]` con `titulo`, `handle`, `path`, `city`, `state`.
+**Contrato** — campo `index`: `sections[]` con `key` = estado (o `#`); `items[]` con `titulo`, `handle`, `path`, `city`, `state`.
 
 ### Theme contract (Liquid)
 
@@ -1083,14 +1087,14 @@ Cuando `bigquery_gsc` comparta base de datos con el CMS:
 | `setup_locales` | Crea los 4 objetos `Locale` de Wagtail (en-US, es-US, en-CA, fr-CA) |
 | `setup_celery_beat_schedules` | Crea la tarea periódica de importación inbound (deshabilitada por defecto) |
 | `ensure_metaobject_definitions` | Crea o verifica definiciones de metaobjetos merchant-owned en Shopify (idempotente) |
-| `ensure_page_metafield_definitions` | Crea metafield definitions en owner `PAGE` (`glossary_*`, `location_*`) |
-| `ensure_index_metafield_definitions` | Crea `custom.index_listings` (PAGE) + `available_locales` (BLOG/ARTICLE) |
+| `ensure_page_metafield_definitions` | Metafield definitions PAGE (blog `index_listings`; legacy glossary/location keys) |
+| `ensure_index_metafield_definitions` | Crea `custom.index_listings` (PAGE, blog) + `available_locales` (BLOG/ARTICLE) |
 | `ensure_blog_metafield_definitions` | Alias de `ensure_index_metafield_definitions` |
 | `migrate_glossary_locales` | Asigna Wagtail Locale a términos según `locale_code` |
-| `migrate_index_export_config` | Migra `export_config` de `pages{}` a `page_gid` |
-| `bootstrap_index_pages` | Crea Pages `glossary`/`locations`/`blogs` y aplica `export_config` |
-| `rebuild_glossary_index` | Regenera `custom.index_listings` en Page handle `glossary` |
-| `rebuild_location_index` | Regenera `custom.index_listings` en Page handle `locations` |
+| `migrate_index_export_config` | Migración legacy `pages{}` → `page_gid` (blog; glossary/locations usan `locales`) |
+| `bootstrap_index_pages` | Crea Page `blogs` + aplica `export_config` (locales glossary/locations; page_gid blog) |
+| `rebuild_glossary_index` | Regenera entradas `root_page` `glossary-*` |
+| `rebuild_location_index` | Regenera entradas `root_page` `locations-*` |
 | `rebuild_blog_index` | Regenera `custom.index_listings` en Page handle `blogs` |
 | `rebuild_content_url_index` | Reconstruye el índice URL storefront → Wagtail (`ContentUrlIndex`) |
 

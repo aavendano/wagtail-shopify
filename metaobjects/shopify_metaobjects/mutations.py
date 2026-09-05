@@ -60,6 +60,24 @@ mutation updateMetaobjectDefinition($id: ID!, $definition: MetaobjectDefinitionU
                     value
                 }
             }
+            capabilities {
+                publishable {
+                    enabled
+                }
+                onlineStore {
+                    enabled
+                    data {
+                        urlHandle
+                    }
+                }
+                renderable {
+                    enabled
+                    data {
+                        metaTitleKey
+                        metaDescriptionKey
+                    }
+                }
+            }
         }
         userErrors {
             field
@@ -87,6 +105,24 @@ mutation createMetaobjectDefinition($definition: MetaobjectDefinitionCreateInput
                 validations {
                     name
                     value
+                }
+            }
+            capabilities {
+                publishable {
+                    enabled
+                }
+                onlineStore {
+                    enabled
+                    data {
+                        urlHandle
+                    }
+                }
+                renderable {
+                    enabled
+                    data {
+                        metaTitleKey
+                        metaDescriptionKey
+                    }
                 }
             }
         }
