@@ -56,7 +56,13 @@ def _get_page(page_id: Any, *, home_page: HomePage | None = None) -> Page | None
     return page
 
 
-def _append_unique_link(links: list[dict[str, Any]], seen: set, link: dict[str, Any] | None) -> None:
+def _append_unique_link(
+    links: list[dict[str, Any]],
+    seen: set,
+    link: dict[str, Any] | None,
+    *,
+    has_explicit_label: bool = False,
+) -> None:
     if not link:
         return
     dedupe_key = (
@@ -65,6 +71,15 @@ def _append_unique_link(links: list[dict[str, Any]], seen: set, link: dict[str, 
         link.get('blog_handle') or link.get('url_handle'),
     )
     if dedupe_key in seen:
+        if has_explicit_label and link.get('label'):
+            for existing in links:
+                if (
+                    existing.get('type'),
+                    existing.get('handle'),
+                    existing.get('blog_handle') or existing.get('url_handle'),
+                ) == dedupe_key:
+                    existing['label'] = link['label']
+                    break
         return
     seen.add(dedupe_key)
     links.append(link)
@@ -350,6 +365,7 @@ def build_home_sync_references(
                 label=pill.get('override_label'),
                 home_page=home_page,
             ),
+            has_explicit_label=bool(pill.get('override_label')),
         )
 
     result: dict[str, Any] = {}
