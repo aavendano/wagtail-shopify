@@ -1,9 +1,14 @@
-"""Desarrollo local (Daphne :8083): SQLite en archivo, content store mirror, sin Postgres."""
+"""Desarrollo local (Daphne :8083): SQLite en archivo, content store, sin Postgres."""
 
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from config.settings import *  # noqa: F403
+
+# .env.dev overrides .env so CONTENT_STORE_* / DEV_SQLITE_NAME apply to Daphne :8083.
+load_dotenv(Path(BASE_DIR) / '.env.dev', override=True)  # noqa: F405
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET') or 'dev-secret-not-for-production'
 DEBUG = True
@@ -30,7 +35,7 @@ DATABASES = {
     }
 }
 
-# Content store: BD manda + espejo en archivos bajo CONTENT_STORE_ROOT
+# Content store (re-read after .env.dev): default mirror; flip via CONTENT_STORE_MODE
 CONTENT_STORE_ENABLED = (
     os.environ.get('CONTENT_STORE_ENABLED', 'true').lower() == 'true'
 )
@@ -38,6 +43,9 @@ CONTENT_STORE_MODE = (os.environ.get('CONTENT_STORE_MODE') or 'mirror').strip().
 CONTENT_STORE_ROOT = os.environ.get(
     'CONTENT_STORE_ROOT',
     str(Path(BASE_DIR) / 'content'),  # noqa: F405
+)
+CONTENT_STORE_GIT_FALLBACK_TO_DB = (
+    os.environ.get('CONTENT_STORE_GIT_FALLBACK_TO_DB', 'false').lower() == 'true'
 )
 
 # Daphne local habla HTTP directo (sin proxy TLS de Shopify CLI).

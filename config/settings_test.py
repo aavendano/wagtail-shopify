@@ -12,6 +12,11 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_BROKER_URL = 'memory://'
 CELERY_RESULT_BACKEND = 'cache+memory://'
 
+# Isolate from ambient .env.dev / shell exports (CONTENT_STORE_*).
+CONTENT_STORE_ENABLED = False
+CONTENT_STORE_MODE = ''
+CONTENT_STORE_GIT_FALLBACK_TO_DB = False
+
 INSTALLED_APPS = [
     app
     for app in INSTALLED_APPS

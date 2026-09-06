@@ -3,8 +3,20 @@
 ## Plan activo
 
 - **Archivo:** [`plan.md`](plan.md) (Puck CMS Headless)
-- **Última fase completada:** QA smoke CMS SPA en Daphne prod `:8082` (2026-09-05)
-- **Siguiente:** Reconectar `ShopConfig` + import Shopify (catálogo vacío) y/o theme-index-pages Fase 7
+- **Última fase completada:** content-store Phase E+F cerradas en `settings_dev` + `git_authoritative` (2026-09-05)
+- **Siguiente:** materialize/flip en prod **solo tras** `ShopConfig` + import + PR de `content/`; y/o theme-index-pages Fase 7
+
+### Content-store E → F → git_authoritative (dev, 2026-09-05)
+
+| Paso | Resultado |
+|------|-----------|
+| pytest location + article markdown (+ blog/glossary/git) | 79 passed (`settings_test` aisla `CONTENT_STORE_*`) |
+| `materialize_editorial_content` | location pk=3 campos espejo + blog description |
+| `materialize_article_markdown` | article pk=5 `body.md` (creado mínimo en SQLite) |
+| `.env.dev` flip | `CONTENT_STORE_MODE=git_authoritative`, `GIT_FALLBACK_TO_DB=false` |
+| Smoke editorial | `page.editorial.*` desde archivo; edit `.md` sin DB; missing → `ContentNotFound`; forms read-only |
+
+**Prod** (`:8082` / `.env`) sigue en `db`/`mirror` hasta checklist de rollout del contrato F. No flip ahí.
 
 ### Resultado QA smoke (2026-09-05)
 
@@ -51,6 +63,7 @@ Ver troubleshooting en [`theme-index-pages.plan.md`](.cursor/plans/theme-index-p
 
 | Fecha | Plan | Fase | Notas |
 |-------|------|------|-------|
+| 2026-09-05 | content-store E/F | cerrar + git_auth | pytest OK; materialize location/article en SQLite; `.env.dev` `git_authoritative`; smoke editorial/fail-missing; prod sin flip |
 | 2026-09-05 | puck-cms-headless | QA smoke | build SPA, ensure_cms_spa, shell/API OK; fix preview glossary `wagtailcore_tags`; DB sin ShopConfig/import |
 | 2026-09-03 | puck-cms-headless | 0–4 | `django_react_ui_editor` + `/cms/` SPA, session auth, preview endpoints, docs roles |
 | 2026-07-11 | theme-index-pages | 4–5 | Detalle glossary/local: synonyms, DefinedTerm, related_links fallback, LocalBusiness; FAQs CMS en PDP/PLP; batch 65 ciudades COMPLETED; home gates A/B closed |

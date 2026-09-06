@@ -1,6 +1,6 @@
 # Phase E — LocationPage editorial content in Git
 
-Status: implementation branch; review/merge pending  
+Status: **completed / merged** (verified 2026-09-05; `git_authoritative` on `settings_dev` only)  
 Scope: `LocationPage` single-value RichText sections only
 
 ## Goal

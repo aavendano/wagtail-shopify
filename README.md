@@ -231,7 +231,7 @@ source .venv/bin/activate
 celery -A config worker --beat --scheduler django --loglevel=info
 ```
 
-**Dev aislado (SQLite, :8083, content store mirror)** — ver [docs/cms-spa.md](docs/cms-spa.md):
+**Dev aislado (SQLite, :8083, content store `git_authoritative` en `.env.dev`; prod sin flip)** — ver [docs/cms-spa.md](docs/cms-spa.md):
 
 ```bash
 cp .env.dev.example .env.dev
