@@ -71,7 +71,7 @@ Rama de trabajo: `cursor/git-native-content-layer-e08d`
 9. [x] `manage.py content_validate` determinista, `--json`, exit ≠ 0, sin git/db write  
 10. [x] `ContentIndex` derivado + `content_index_rebuild` reconstruible  
 11. [x] Sin HTML→Markdown automático; StreamField legacy intacto  
-12. [ ] Tests `make test` verdes (suite completa: deuda migraciones `shopify_id` en tests Wagtail; subset content-store 33+ passed)  
+12. [~] Tests CI content-store: migraciones `0008`/`0009` versionadas (`ContentIndex`, `ShopifyRootPage`); verificar workflow tras push  
 13. [x] CI valida `content/**` + tests shopify_content  
 14. [x] Docs arquitectura actualizadas  
 15. [x] HTML `ArticlePage.body` igual salvo tests justificados (renderer preserva contrato; facade `markdown_renderer.py`)  
