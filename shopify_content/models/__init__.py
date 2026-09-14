@@ -13,6 +13,7 @@ from .root import ShopifyRootPage
 from .sync_run import ShopifySyncRun
 from .command_run import EmbeddedCommandRun
 from .content_url_index import ContentUrlIndex
+from .content_index import ContentIndex, ContentReferenceIndex
 
 __all__ = [
     'FAQItem',
@@ -39,5 +40,7 @@ __all__ = [
     'ShopifySyncRun',
     'EmbeddedCommandRun',
     'ContentUrlIndex',
+    'ContentIndex',
+    'ContentReferenceIndex',
     *[model.__name__ for model in ALL_TYPED_SEMANTIC_LINK_MODELS],
 ]
