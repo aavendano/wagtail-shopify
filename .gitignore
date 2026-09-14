@@ -122,6 +122,7 @@ scripts/
 # un-ignoring migrations (while keeping __pycache__/*.pyc ignored) and committing
 # the pending catch-up migration should be done in a separate focused commit/PR.
 */migrations/*
+!shopify_content/migrations/*.py
 bin/*
 
 bin/daphne
