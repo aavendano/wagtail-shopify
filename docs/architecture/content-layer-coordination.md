@@ -71,7 +71,7 @@ Rama de trabajo: `cursor/git-native-content-layer-e08d`
 9. [x] `manage.py content_validate` determinista, `--json`, exit ≠ 0, sin git/db write  
 10. [x] `ContentIndex` derivado + `content_index_rebuild` reconstruible  
 11. [x] Sin HTML→Markdown automático; StreamField legacy intacto  
-12. [~] Tests CI content-store: migraciones `0008`/`0009` versionadas (`ContentIndex`, `ShopifyRootPage`); verificar workflow tras push  
+12. [x] Workflow CI *Editorial content validate* verde (migraciones `0008`–`0010` + catch-up schema)  
 13. [x] CI valida `content/**` + tests shopify_content  
 14. [x] Docs arquitectura actualizadas  
 15. [x] HTML `ArticlePage.body` igual salvo tests justificados (renderer preserva contrato; facade `markdown_renderer.py`)  
@@ -96,7 +96,7 @@ Rama de trabajo: `cursor/git-native-content-layer-e08d`
 
 ### Deuda
 
-- Alinear migraciones Django en entorno de test (`shopify_id` en `ShopifyRootPage`) para suite Wagtail completa.
+- `0009_shopifyrootpage_operational_fields` cubre drift de `ShopifyRootPage`; suite Wagtail global puede tener deuda adicional fuera de content-store.
 - Resolver asset URLs contra CDN real de la tienda (hoy passthrough).
 - Validación `content_validate` en árbol `content/` de producción tras materialize.
 
