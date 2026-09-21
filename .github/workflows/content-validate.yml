@@ -1,0 +1,36 @@
+name: Editorial content validate
+
+on:
+  push:
+    paths:
+      - "content/**"
+      - "shopify_content/content_store/**"
+      - "shopify_content/tests/**"
+      - "requirements.txt"
+  pull_request:
+    paths:
+      - "content/**"
+      - "shopify_content/**"
+      - "requirements.txt"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Pytest shopify_content content store
+        run: .venv/bin/python -m pytest shopify_content/tests/test_content_store_*.py shopify_content/tests/test_content_validate.py shopify_content/tests/test_content_index_rebuild.py shopify_content/tests/test_article_markdown_editorial.py -q
+      - name: content_validate (if content tree present)
+        run: |
+          if [ -d content ]; then
+            .venv/bin/python manage.py content_validate --json || true
+          fi
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings_test

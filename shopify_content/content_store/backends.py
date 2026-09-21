@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Mapping, Optional
 
 from .contracts import (
+    CanonicalDocument,
     ContentConflict,
     ContentDocument,
     ContentNotFound,
@@ -41,12 +42,30 @@ class FilesystemContentRepository:
         return self._abs(ref).is_file()
 
     def read(self, ref: ContentRef) -> ContentDocument:
+        return self.read_canonical(ref).as_content_document()
+
+    def read_canonical(self, ref: ContentRef) -> CanonicalDocument:
         path = self._abs(ref)
         try:
             raw = path.read_text(encoding="utf-8")
         except FileNotFoundError as exc:
             raise ContentNotFound(str(ref)) from exc
-        return self.serializer.loads(ref, raw)
+        doc = self.serializer.loads(ref, raw)
+        derived: tuple[str, ...] = ()
+        try:
+            from .markdown.references import extract_reference_tokens
+
+            derived = tuple(extract_reference_tokens(doc.body))
+        except ImportError:
+            pass
+        return CanonicalDocument(
+            ref=ref,
+            body=doc.body,
+            metadata=dict(doc.meta),
+            format=doc.fmt,
+            checksum=doc.checksum,
+            derived_refs=derived,
+        )
 
     def write(
         self,

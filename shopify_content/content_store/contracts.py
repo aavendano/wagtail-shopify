@@ -6,7 +6,7 @@ No backend behaviour lives here; see ``backends.py`` and ``serializers.py``.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Mapping, Optional, Protocol
+from typing import Mapping, Optional, Protocol, Tuple
 
 
 @dataclass(frozen=True)
@@ -42,12 +42,42 @@ class ContentDocument:
     checksum: str = ""
 
 
+@dataclass(frozen=True)
+class CanonicalDocument:
+    """Domain document bound to a ``ContentRef`` (Git-native layer).
+
+    Physical file layout and frontmatter keys are not part of the public domain
+    API beyond informational ``metadata``. ``derived_refs`` are populated when
+    the body is parsed for typed references (e.g. article directives).
+    """
+
+    ref: ContentRef
+    body: str
+    metadata: Mapping[str, str] = field(default_factory=dict)
+    format: str = "markdown"
+    checksum: str = ""
+    derived_refs: Tuple[str, ...] = ()
+
+    def as_content_document(self) -> ContentDocument:
+        """Backward-compatible view without ``ref`` (INV-PERSIST-003)."""
+        return ContentDocument(
+            body=self.body,
+            fmt=self.format,
+            meta=dict(self.metadata),
+            checksum=self.checksum,
+        )
+
+
 class ContentNotFound(Exception):
     """Raised when a ref has no stored document."""
 
 
 class ContentConflict(Exception):
     """Raised on optimistic-concurrency mismatch (expected_version)."""
+
+
+class InvalidEditorialFrontmatter(Exception):
+    """Raised when YAML frontmatter is present but not parseable."""
 
 
 class ContentSerializer(Protocol):
