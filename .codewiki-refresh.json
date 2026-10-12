@@ -1,0 +1,10 @@
+{
+  "lang": "es",
+  "exclude": "**/static/**,docs/**",
+  "jobs": [
+    { "type": "architecture", "out": "docs/developer/architecture" },
+    { "type": "user-guide", "out": "docs/guides" },
+    { "type": "developer", "out": "docs/developer" },
+    { "type": "api", "out": "docs/developer/api" }
+  ]
+}
