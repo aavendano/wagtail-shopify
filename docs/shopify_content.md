@@ -247,11 +247,11 @@ El theme resuelve la locale actual con la misma regla que `cms-wagtail-locale-ke
 
 ### Flujo editorial (cluster single-locale)
 
-1. Crear `BlogPage` bajo root `blogs`, `handle=sex-toys-artisans`, locale `en-US`.
+1. Crear `BlogPage` bajo root `blogs`, `handle=example-cluster`, locale `en-US`.
 2. Marcar `available_locales = ["en-US"]`.
-3. Publicar → Shopify Blog en `/blogs/sex-toys-artisans`.
+3. Publicar → Shopify Blog en `/blogs/example-cluster`.
 4. Crear `ArticlePage` hijo, mismo locale, `available_locales = ["en-US"]`.
-5. Publicar → artículo en `/blogs/sex-toys-artisans/{handle}`.
+5. Publicar → artículo en `/blogs/example-cluster/{handle}`.
 6. El theme lista artículos con `blog.articles` — sin JSON Wagtail.
 
 Para multi-mercado: ampliar `available_locales` a `["en-US","es-US"]`; Wagtail puede tener variantes por locale + `translationsRegister` en artículo (y blog para título/descripción/SEO).
@@ -292,14 +292,14 @@ ShopifyRootPage (slug=blogs)
       "count": 12,
       "sections": [
         {
-          "key": "sex-toys-artisans",
-          "label": "Sex Toys Artisans",
+          "key": "example-cluster",
+          "label": "Example Cluster",
           "items": [
             {
               "title": "Article title",
               "handle": "article-handle",
-              "blog_handle": "sex-toys-artisans",
-              "path": "/blogs/sex-toys-artisans/article-handle",
+              "blog_handle": "example-cluster",
+              "path": "/blogs/example-cluster/article-handle",
               "published_at": "2026-06-01T10:00:00+00:00"
             }
           ]
