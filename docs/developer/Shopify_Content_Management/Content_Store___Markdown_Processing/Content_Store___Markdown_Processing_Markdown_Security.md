@@ -1,0 +1,1 @@
+# Seguridad de Markdown para el Almacén de Contenido
