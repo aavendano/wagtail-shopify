@@ -10,8 +10,8 @@
     },
     {
       "name": "daphne-dev",
-      "command": "export DJANGO_SETTINGS_MODULE=config.settings_dev DEV_SQLITE_NAME=/tmp/cms-shop-dev.sqlite3 && .venv/bin/python manage.py migrate --noinput && .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application",
-      "description": "Dev local: settings_dev + SQLite + content store mirror en http://127.0.0.1:8083"
+      "command": "export DJANGO_SETTINGS_MODULE=config.settings_dev DEV_SQLITE_NAME=/tmp/cms-shop-dev.sqlite3 && set -a && [ -f \"$HOME/.secrets/plt/default-user.env\" ] && . \"$HOME/.secrets/plt/default-user.env\"; set +a && .venv/bin/python manage.py migrate --noinput && .venv/bin/python manage.py ensure_cms_spa && .venv/bin/python manage.py ensure_superuser --update-password && .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application",
+      "description": "Dev local: settings_dev + SQLite + ensure admin + content store en http://127.0.0.1:8083"
     }
   ],
   "ports": [

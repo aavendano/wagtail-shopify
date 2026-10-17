@@ -40,7 +40,9 @@ export DEV_SQLITE_NAME=/tmp/cms-shop-dev.sqlite3
 
 .venv/bin/python manage.py migrate --noinput
 .venv/bin/python manage.py ensure_cms_spa
-.venv/bin/python manage.py createsuperuser   # usuario solo en SQLite dev
+# Admin desde env (ADMIN_USERNAME / ADMIN_PASSWORD), p. ej. ~/.secrets/plt/default-user.env
+set -a && [ -f "$HOME/.secrets/plt/default-user.env" ] && . "$HOME/.secrets/plt/default-user.env"; set +a
+.venv/bin/python manage.py ensure_superuser --update-password
 
 # o Run and Debug → "Daphne dev (8083)"
 .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application
