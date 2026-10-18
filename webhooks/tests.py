@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 
 
 class WebhookUninstalledTests(TestCase):

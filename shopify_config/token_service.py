@@ -7,8 +7,8 @@ from django.utils.dateparse import parse_datetime
 
 from webhooks.utils import shop_for_sdk_api, shop_lookup_variants
 
-from .models import ShopConfig
-from .shop_config_lookup import get_shop_config
+from shopify_config.models import ShopConfig
+from shopify_config.shop_config_lookup import get_shop_config
 from .utils import _get_attr, get_shopify_app, log_shopify_result
 
 

@@ -120,7 +120,7 @@ if gql.ok and gql.data:
 Si `not gql.ok` y `gql.raw` es el resultado del SDK, se puede devolver la respuesta HTTP esperada por Shopify:
 
 ```python
-from core.utils import shopify_result_to_django_response
+from shopify_config.utils import shopify_result_to_django_response
 
 if not gql.ok and gql.raw is not None:
     return shopify_result_to_django_response(gql.raw)

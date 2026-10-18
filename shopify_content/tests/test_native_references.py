@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import (
     CollectionPage,
     GlossaryTermPage,

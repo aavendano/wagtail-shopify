@@ -707,7 +707,7 @@ class BackfillSemanticLinksTaskTests(TestCase):
 @override_settings(SEMANTIC_LINKS_NATIVE_REFS_ENABLED=True)
 class NativeReferencePushIntegrationTests(TestCase):
     def setUp(self):
-        from core.models import ShopConfig
+        from shopify_config.models import ShopConfig
 
         ShopConfig.objects.create(shop='test-shop.myshopify.com', access_token='tok')
         locale = Locale.get_default()

@@ -1,8 +1,8 @@
 from django.utils import timezone
 
-from core.shop_config_lookup import get_shop_config
-from core.utils import get_shopify_app
-from core.token_service import (
+from shopify_config.shop_config_lookup import get_shop_config
+from shopify_config.utils import get_shopify_app
+from shopify_config.token_service import (
     ensure_offline_token_lifecycle,
     refresh_stored_token_if_possible,
 )

@@ -4,7 +4,7 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from core.utils import (
+from shopify_config.utils import (
     get_shopify_app,
     log_shopify_result,
     request_to_shopify_req,

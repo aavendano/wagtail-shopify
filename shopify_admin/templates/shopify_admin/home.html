@@ -1,4 +1,4 @@
-{% extends 'core/base.html' %}
+{% extends 'shopify_admin/base.html' %}
 {% load static %}
 
 {% block content %}
@@ -30,7 +30,7 @@
                 {% for resource_key, resource_label in sync_resources %}
                     <form
                         method="post"
-                        action="{% url 'shopify_embedded_sync' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                        action="{% url 'shopify_admin:shopify_embedded_sync' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
                     >
                         {% csrf_token %}
                         <input type="hidden" name="resource" value="{{ resource_key }}">
@@ -71,7 +71,7 @@
                                 {% endif %}
                                 <form
                                     method="post"
-                                    action="{% url 'shopify_embedded_command' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
+                                    action="{% url 'shopify_admin:shopify_embedded_command' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}"
                                 >
                                     {% csrf_token %}
                                     <input type="hidden" name="command_id" value="{{ command.id }}">

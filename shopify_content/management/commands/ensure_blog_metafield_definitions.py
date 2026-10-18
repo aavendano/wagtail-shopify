@@ -2,7 +2,7 @@
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.sync.resource_metafield_definitions import ensure_blog_metafield_definitions
 
 

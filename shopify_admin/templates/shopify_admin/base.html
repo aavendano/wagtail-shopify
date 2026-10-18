@@ -16,7 +16,7 @@
 
 <body>
 
-    {% include 'core/navbar.html' %}
+    {% include 'shopify_admin/navbar.html' %}
 
     {% if messages %}
     <div id="django-messages" hidden>
@@ -39,7 +39,7 @@
 
 
     <script defer
-        src="{{ request.scheme }}://{{ request.META.HTTP_HOST }}{% static 'core/js/messages_manager.js' %}?v=20260313"></script>
+        src="{{ request.scheme }}://{{ request.META.HTTP_HOST }}{% static 'shopify_admin/js/messages_manager.js' %}?v=20260313"></script>
 
 </body>
 

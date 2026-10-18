@@ -4,7 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import CollectionPage, ProductPage, ShopifyRootPage
 from shopify_content.sync.outbound import sync_collection_page, sync_product_page
 from shopify_content.sync.theme_config import collect_theme_config_metafield_inputs

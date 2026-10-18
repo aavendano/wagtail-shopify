@@ -7,7 +7,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.blogs.index import article_path, build_blog_index_listings
 from shopify_content.export_config.blog import blog_listings_consumer
 from shopify_content.models import ArticlePage, BlogPage, ShopifyRootPage

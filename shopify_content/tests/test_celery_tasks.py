@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import ProductPage, ShopifySyncRun
 from shopify_content.models.root import ShopifyRootPage
 from shopify_content.sync.task_dispatch import enqueue_shopify_import

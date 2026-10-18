@@ -269,7 +269,7 @@ def _article_mutation_fields(page):
 
 def _get_shop():
     """Resolve shop from ShopConfig (single-tenant: always the first/only record)."""
-    from core.models import ShopConfig
+    from shopify_config.models import ShopConfig
     config = ShopConfig.objects.first()
     if not config:
         raise RuntimeError(

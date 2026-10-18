@@ -4,7 +4,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import ShopifyRootPage
 
 
