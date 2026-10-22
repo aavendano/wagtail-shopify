@@ -46,5 +46,7 @@ sole `ShopConfig`).
 - `README.md` — arquitectura y setup
 - `docs/shopify_content.md` — modelos y sync
 - `docs/adr/0002-shop-tenancy-membership.md` — tenancy deploy-per-shop
+- `docs/adr/0003-dual-channel-storefronts.md` — Online Store + Hydrogen; schema como forma
+- `docs/content-inventory-playlovetoys.md` — inventario schema → Shopify → canales
 - `docs/api-agents.md` — API y MCP para agentes
 - `.cursor/rules/api-documentation.mdc` — política de doc API/MCP (obligatoria en cambios de `api/`)

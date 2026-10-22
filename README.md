@@ -28,6 +28,13 @@ resuelve por sesión (`SESSION_SHOP`) + `ShopMembership`, o por
 `resolve_sole_installed_shop()` en sync/Celery; no se almacena en cada página.
 Ver [`docs/adr/0002-shop-tenancy-membership.md`](docs/adr/0002-shop-tenancy-membership.md).
 
+**Dual-channel (Online Store + Hydrogen):** un merchant, un Site Wagtail, dos
+superficies de lectura sobre la misma proyección Shopify. Forma documental:
+`plt-editorial-schema` 1.1.0. Ver
+[`docs/adr/0003-dual-channel-storefronts.md`](docs/adr/0003-dual-channel-storefronts.md)
+e inventario
+[`docs/content-inventory-playlovetoys.md`](docs/content-inventory-playlovetoys.md).
+
 ---
 
 ## Apps del proyecto

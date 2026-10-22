@@ -19,6 +19,12 @@ El `shop` se resuelve con `resolve_sole_installed_shop()` en sync sin request, o
 vía sesión/`--shop` en admin y commands; no se almacena en cada página. Ver
 [`docs/adr/0002-shop-tenancy-membership.md`](adr/0002-shop-tenancy-membership.md).
 
+PlayLoveToys publica a **dos canales** (tema Liquid + Hydrogen) sin segundo
+Site/`ShopConfig`: [`docs/adr/0003-dual-channel-storefronts.md`](adr/0003-dual-channel-storefronts.md).
+Mapa schema → Shopify → Wagtail → consumo por canal (incl. triángulo geo
+`location` / `location_page` / `local_page` y backlog P0–P4):
+[`docs/content-inventory-playlovetoys.md`](content-inventory-playlovetoys.md).
+
 La app es **instalable en cualquier merchant**: cada instalación ejecuta su propio bootstrap; los GIDs en `export_config` son exclusivos de esa tienda. Nunca reutilizar `export_config` exportado de otra instalación.
 
 ---
