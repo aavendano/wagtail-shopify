@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Root 2: register wagtail-runner-01 + systemd
+set -euo pipefail
+
+RUNNER_USER="github-runner"
+RUNNER_NAME="wagtail-runner-01"
+RUNNER_ROOT="/opt/github-runners/${RUNNER_NAME}"
+REPO_URL="https://github.com/aavendano/wagtail-shopify"
+RUNNER_TOKEN="__REPLACE_WITH_EPHEMERAL_TOKEN__"
+LABELS="wagtail-ci"
+WORK_FOLDER="_work"
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "ERROR: run as root (sudo bash $0)" >&2
+  exit 1
+fi
+if [[ -z "${RUNNER_TOKEN}" || "${RUNNER_TOKEN}" == "__REPLACE_WITH_EPHEMERAL_TOKEN__" ]]; then
+  echo "ERROR: token not injected" >&2
+  exit 1
+fi
+if [[ ! -x "${RUNNER_ROOT}/config.sh" ]]; then
+  echo "ERROR: run Root 1 first" >&2
+  exit 1
+fi
+if [[ -f "${RUNNER_ROOT}/.runner" ]]; then
+  echo "ERROR: already configured; inspect before --replace" >&2
+  cat "${RUNNER_ROOT}/.runner" || true
+  unset RUNNER_TOKEN
+  exit 1
+fi
+
+echo "==> Configuring ${RUNNER_NAME}"
+runuser -u "${RUNNER_USER}" -- env HOME="/home/${RUNNER_USER}" bash -c "
+  cd '${RUNNER_ROOT}'
+  ./config.sh \
+    --unattended \
+    --url '${REPO_URL}' \
+    --token '${RUNNER_TOKEN}' \
+    --name '${RUNNER_NAME}' \
+    --labels '${LABELS}' \
+    --work '${WORK_FOLDER}'
+"
+unset RUNNER_TOKEN
+sed -i 's/^RUNNER_TOKEN=.*/RUNNER_TOKEN="REDACTED"/' "$0" || true
+
+echo "==> systemd via svc.sh"
+cd "${RUNNER_ROOT}"
+./svc.sh install "${RUNNER_USER}"
+./svc.sh start
+systemctl status 'actions.runner.aavendano-wagtail-shopify.*' --no-pager || systemctl status 'actions.runner.*' --no-pager | head -40
+echo "Root 2 complete. Tell the agent: Root 2 wagtail listo"

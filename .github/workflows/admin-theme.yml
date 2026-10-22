@@ -1,6 +1,10 @@
 name: Admin theme
 
+# Self-hosted on wagtail-ci for trusted refs. Fork PRs stay on ubuntu-latest
+# (public repo + persistent runner).
+
 on:
+  workflow_dispatch:
   push:
     paths:
       - "admin_theme/**"
@@ -16,9 +20,17 @@ on:
       - "config/settings.py"
       - ".github/workflows/admin-theme.yml"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-theme-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   admin-theme:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","wagtail-ci"]') }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Read pinned design-system SHA
