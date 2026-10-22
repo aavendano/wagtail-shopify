@@ -43,9 +43,37 @@ change cannot silently produce an inaccessible admin.
 
 ## Deployment
 
-The stylesheet and fonts are ordinary static files. Production must run
-`python manage.py collectstatic --noinput` and serve `STATIC_ROOT` under `/static/`;
-this repo does not do either itself (Django only serves static files when `DEBUG` is on).
+The stylesheet and fonts are ordinary static files (`STORAGES` uses Django's plain
+`StaticFilesStorage`, so the CSS can reference `../fonts/` relatively). Production must run
+`python manage.py collectstatic --noinput` (the README's `scripts/bootstrap_app.sh` step) and
+serve `STATIC_ROOT` under `/static/`; Django only does that itself when `DEBUG` is on.
+
+Checked locally: `collectstatic` copies `cheesecake-admin.css` and the four `.woff2` files, and
+`../fonts/...` resolves from the CSS URL.
+
+Example Caddy block (**illustrative, not validated against the real Caddyfile**; adjust the path
+to your `STATIC_ROOT`):
+
+```caddyfile
+cms.example.com {
+    handle_path /static/* {
+        root * /path/to/backend/staticfiles
+        header Cache-Control "public, max-age=31536000"
+        file_server
+    }
+    reverse_proxy 127.0.0.1:8083
+}
+```
+
+The CSS link carries a `?v=<hash>` (Wagtail's `versioned_static`), so a long cache lifetime is
+safe for the stylesheet; the fonts have stable names and change only when replaced.
+
+After deploying, confirm both files are reachable:
+
+```bash
+curl -I https://<cms-host>/static/admin_theme/css/cheesecake-admin.css
+curl -I https://<cms-host>/static/admin_theme/fonts/atkinson-hyperlegible-latin-400-normal.woff2
+```
 
 Font files are Atkinson Hyperlegible (SIL OFL 1.1, from `@fontsource/atkinson-hyperlegible`
 5.3.0); the licence is in `static/admin_theme/fonts/`.
