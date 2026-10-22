@@ -1,0 +1,116 @@
+/*
+ * GENERATED FILE - DO NOT EDIT.
+ * Source: plt-design-system `cheesecake` theme @ a490a19307f2c64a3d18746d739ec93edda1e627
+ * Regenerate: make admin-theme DESIGN_SYSTEM=../plt-design-system
+ *
+ * Cheesecake is light-only, so the palette is applied to the light theme and
+ * to the system theme when the OS prefers light. `.w-theme-dark` is untouched.
+ */
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/atkinson-hyperlegible-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/atkinson-hyperlegible-latin-700-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/atkinson-hyperlegible-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/atkinson-hyperlegible-latin-ext-700-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+:root {
+  --w-font-sans: "Atkinson Hyperlegible", Arial, sans-serif;
+}
+
+.w-theme-light {
+  --w-color-primary-hue: 268.3;
+  --w-color-primary-saturation: 41.2%;
+  --w-color-primary-lightness: 33.3%;
+  --w-color-secondary-hue: 190.1;
+  --w-color-secondary-saturation: 83.9%;
+  --w-color-secondary-lightness: 29.2%;
+  --w-color-secondary-50-lightness: 95%;
+  --w-color-surface-page: #FAF7F2;
+  --w-color-surface-header: #EEECE9;
+  --w-color-surface-field-inactive: #EEECE9;
+  --w-color-surface-dashboard-panel: #F8F8F8;
+  --w-color-text-context: #314157;
+  --w-color-text-button: #FAF7F2;
+  --w-color-info-125-hue: 200.3;
+  --w-color-info-125-saturation: 98.3%;
+  --w-color-info-125-lightness: 27.1%;
+  --w-color-info-50: #B8E6FE;
+  --w-color-text-status-label: var(--w-color-info-125);
+  --w-color-positive-100-hue: 165.4;
+  --w-color-positive-100-saturation: 99.1%;
+  --w-color-positive-100-lightness: 19.9%;
+  --w-color-positive-50: #A3F2CE;
+  --w-color-warning-100-hue: 26.6;
+  --w-color-warning-100-saturation: 95.7%;
+  --w-color-warning-100-lightness: 35.8%;
+  --w-color-warning-50: #FEF2C6;
+  --w-color-critical-200-hue: 345.6;
+  --w-color-critical-200-saturation: 62.2%;
+  --w-color-critical-200-lightness: 36.2%;
+  --w-color-critical-50: #FECCD2;
+}
+
+@media (prefers-color-scheme: light) {
+  .w-theme-system {
+    --w-color-primary-hue: 268.3;
+    --w-color-primary-saturation: 41.2%;
+    --w-color-primary-lightness: 33.3%;
+    --w-color-secondary-hue: 190.1;
+    --w-color-secondary-saturation: 83.9%;
+    --w-color-secondary-lightness: 29.2%;
+    --w-color-secondary-50-lightness: 95%;
+    --w-color-surface-page: #FAF7F2;
+    --w-color-surface-header: #EEECE9;
+    --w-color-surface-field-inactive: #EEECE9;
+    --w-color-surface-dashboard-panel: #F8F8F8;
+    --w-color-text-context: #314157;
+    --w-color-text-button: #FAF7F2;
+    --w-color-info-125-hue: 200.3;
+    --w-color-info-125-saturation: 98.3%;
+    --w-color-info-125-lightness: 27.1%;
+    --w-color-info-50: #B8E6FE;
+    --w-color-text-status-label: var(--w-color-info-125);
+    --w-color-positive-100-hue: 165.4;
+    --w-color-positive-100-saturation: 99.1%;
+    --w-color-positive-100-lightness: 19.9%;
+    --w-color-positive-50: #A3F2CE;
+    --w-color-warning-100-hue: 26.6;
+    --w-color-warning-100-saturation: 95.7%;
+    --w-color-warning-100-lightness: 35.8%;
+    --w-color-warning-50: #FEF2C6;
+    --w-color-critical-200-hue: 345.6;
+    --w-color-critical-200-saturation: 62.2%;
+    --w-color-critical-200-lightness: 36.2%;
+    --w-color-critical-50: #FECCD2;
+  }
+}

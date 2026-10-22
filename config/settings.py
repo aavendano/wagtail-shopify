@@ -140,6 +140,7 @@ INSTALLED_APPS = [
     'api',
     'django_react_ui_editor',
     'cms_ui.apps.CmsUiConfig',
+    'admin_theme.apps.AdminThemeConfig',
     'django_celery_beat',
 ]
 
