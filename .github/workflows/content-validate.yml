@@ -1,21 +1,35 @@
 name: Editorial content validate
 
+# Self-hosted on wagtail-ci for trusted refs. Fork PRs stay on ubuntu-latest
+# because this repo is public and a persistent runner must not execute untrusted code.
+
 on:
+  workflow_dispatch:
   push:
     paths:
       - "content/**"
       - "shopify_content/content_store/**"
       - "shopify_content/tests/**"
       - "requirements.txt"
+      - ".github/workflows/content-validate.yml"
   pull_request:
     paths:
       - "content/**"
       - "shopify_content/**"
       - "requirements.txt"
+      - ".github/workflows/content-validate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-validate-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","wagtail-ci"]') }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
