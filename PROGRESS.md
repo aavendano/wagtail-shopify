@@ -63,6 +63,7 @@ Ver troubleshooting en [`theme-index-pages.plan.md`](.cursor/plans/theme-index-p
 
 | Fecha | Plan | Fase | Notas |
 |-------|------|------|-------|
+| 2026-10-22 | proyección dual-channel | registro | `shopify_content/projection.py` fija la matriz schema → canal. `bin/pytest` del módulo nuevo más definiciones location/glossary/home/root: 17 passed; los cuatro archivos de sync completos: 37 passed. Sin smoke de producción ni CI. |
 | 2026-09-05 | content-store E/F | cerrar + git_auth | pytest OK; materialize location/article en SQLite; `.env.dev` `git_authoritative`; smoke editorial/fail-missing; prod sin flip |
 | 2026-09-05 | puck-cms-headless | QA smoke | build SPA, ensure_cms_spa, shell/API OK; fix preview glossary `wagtailcore_tags`; DB sin ShopConfig/import |
 | 2026-09-03 | puck-cms-headless | 0–4 | `django_react_ui_editor` + `/cms/` SPA, session auth, preview endpoints, docs roles |
