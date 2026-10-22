@@ -12,9 +12,13 @@ Usage:
 
 from django.core.management.base import BaseCommand, CommandError
 
-from shopify_config.models import ShopConfig
 from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.exceptions import DefinitionError
+from shopify_config.tenancy import (
+    ShopUnresolvedError,
+    add_shop_argument,
+    resolve_shop_for_command_or_sole,
+)
 from shopify_content.sync.outbound import (
     _location_page_definition,
     _root_page_definition,
@@ -26,12 +30,14 @@ from shopify_content.sync.outbound import (
 class Command(BaseCommand):
     help = 'Create or verify merchant-owned Shopify metaobject definitions'
 
-    def handle(self, *args, **options):
-        config = ShopConfig.objects.first()
-        if not config:
-            raise CommandError('No ShopConfig found. Install the app on a Shopify store first.')
+    def add_arguments(self, parser):
+        add_shop_argument(parser)
 
-        shop = config.shop
+    def handle(self, *args, **options):
+        try:
+            shop = resolve_shop_for_command_or_sole(shop=options.get('shop') or None)
+        except ShopUnresolvedError as exc:
+            raise CommandError(str(exc)) from exc
         client = MetaobjectClient(shop=shop)
 
         definitions = [

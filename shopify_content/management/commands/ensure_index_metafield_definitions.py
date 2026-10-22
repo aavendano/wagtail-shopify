@@ -2,7 +2,11 @@
 
 from django.core.management.base import BaseCommand, CommandError
 
-from shopify_config.models import ShopConfig
+from shopify_config.tenancy import (
+    ShopUnresolvedError,
+    add_shop_argument,
+    resolve_shop_for_command_or_sole,
+)
 from shopify_content.sync.page_metafield_definitions import (
     LEGACY_PAGE_INDEX_METAFIELD_DEFINITIONS,
     ensure_page_metafield_definitions,
@@ -14,6 +18,7 @@ class Command(BaseCommand):
     help = 'Ensure custom.index_listings (PAGE) and blog/article available_locales definitions.'
 
     def add_arguments(self, parser):
+        add_shop_argument(parser)
         parser.add_argument(
             '--legacy',
             action='store_true',
@@ -21,18 +26,19 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        config = ShopConfig.objects.first()
-        if not config:
-            raise CommandError('No ShopConfig found.')
+        try:
+            shop = resolve_shop_for_command_or_sole(shop=options.get('shop') or None)
+        except ShopUnresolvedError as exc:
+            raise CommandError(str(exc)) from exc
 
-        stats = ensure_index_metafield_definitions(config.shop)
+        stats = ensure_index_metafield_definitions(shop)
         self._report('page', stats['page'])
         self._report('blog', stats['blog'])
         self._report('article', stats['article'])
 
         if options['legacy']:
             legacy_stats = ensure_page_metafield_definitions(
-                config.shop,
+                shop,
                 specs=LEGACY_PAGE_INDEX_METAFIELD_DEFINITIONS,
             )
             self._report('legacy PAGE', legacy_stats)

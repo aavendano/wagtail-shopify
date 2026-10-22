@@ -16,7 +16,7 @@ alwaysApply: false
 
 - **Admin Wagtail:** publish encola sync outbound vía Celery (`shopify_content/sync/outbound.py`)
 - **API REST:** operaciones 100% síncronas; respuesta HTTP contiene resultado final
-- Single-tenant: `shop` desde `ShopConfig.objects.first().shop`
+- Deploy-per-shop: `shop` vía `resolve_sole_installed_shop()` / sesión / `--shop`
 
 ## API para agentes
 

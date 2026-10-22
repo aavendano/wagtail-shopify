@@ -11,10 +11,26 @@ from wagtail.admin import messages as wagtail_messages
 from wagtail.admin.views.generic import WagtailAdminTemplateMixin
 
 from shopify_config.shop_config_lookup import get_shop_config, shop_has_access_token
+from shopify_config.tenancy import (
+    ShopUnresolvedError,
+    ensure_session_shop,
+    resolve_sole_installed_shop,
+)
 from shopify_content.sync.service import VALID_IMPORT_RESOURCES
 from shopify_content.sync.task_dispatch import enqueue_shopify_import
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_admin_shop(request):
+    """Session shop when authorized; otherwise sole installed ShopConfig."""
+    shop = ensure_session_shop(request)
+    if shop:
+        return shop
+    try:
+        return resolve_sole_installed_shop()
+    except ShopUnresolvedError:
+        return ""
 
 
 class ShopifySyncView(WagtailAdminTemplateMixin, TemplateView):
@@ -26,8 +42,9 @@ class ShopifySyncView(WagtailAdminTemplateMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        config = get_shop_config()
-        context['shop_configured'] = shop_has_access_token()
+        shop = _resolve_admin_shop(self.request)
+        config = get_shop_config(shop) if shop else None
+        context['shop_configured'] = shop_has_access_token(shop) if shop else False
         context['shop_domain'] = config.shop if config else None
         context['resources'] = [
             ('products', 'Importar productos nuevos'),

@@ -5,14 +5,17 @@ alwaysApply: true
 
 # cms-shop backend
 
-Shopify Embedded App (Django + Wagtail) — CMS headless: una instalación = una tienda Shopify; desplegable en cualquier shop (no multi-tenant).
+Shopify Embedded App (Django + Wagtail) — CMS headless: una instalación = una
+tienda Shopify (**deploy-per-shop**); desplegable en cualquier shop. No hay
+campo `shop` en páginas Wagtail ni Site-per-shop. Tenancy + `ShopMembership` en
+`shopify_config` — ver `docs/adr/0002-shop-tenancy-membership.md`.
 
 ## Stack y apps
 
 | App | Rol |
 |-----|-----|
 | `shopify_admin` | UI embebida, OAuth App Home (`/shopify-admin/`) |
-| `shopify_config` | ShopConfig + tokens (`db_table=core_shopconfig`) |
+| `shopify_config` | ShopConfig + tokens + tenancy/membership (`db_table=core_shopconfig`) |
 | `core` | Solo plataforma Django (`ensure_superuser`) |
 | `shopify_content` | Páginas Wagtail sincronizadas a Shopify |
 | `shopify_requests` | Cliente GraphQL centralizado |
@@ -27,6 +30,9 @@ make test                              # pytest
 .venv/bin/python manage.py migrate
 ```
 
+Management commands aceptan `--shop` (fallback `SHOPIFY_PUBLICATION_SHOP` o
+sole `ShopConfig`).
+
 ## Convenciones de trabajo
 
 - Planes en `.cursor/plans/`; progreso en `PROGRESS.md`
@@ -39,5 +45,6 @@ make test                              # pytest
 
 - `README.md` — arquitectura y setup
 - `docs/shopify_content.md` — modelos y sync
+- `docs/adr/0002-shop-tenancy-membership.md` — tenancy deploy-per-shop
 - `docs/api-agents.md` — API y MCP para agentes
 - `.cursor/rules/api-documentation.mdc` — política de doc API/MCP (obligatoria en cambios de `api/`)

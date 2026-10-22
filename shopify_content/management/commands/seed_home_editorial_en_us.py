@@ -4,7 +4,6 @@ from django.core.management.base import BaseCommand
 
 from wagtail.models import Locale
 
-from shopify_config.models import ShopConfig
 from shopify_content.models import CollectionPage, HomePage
 from shopify_content.home_sections_normalization import normalize_sections_json
 from shopify_content.home_serialization import sections_json_to_stream_data
@@ -130,11 +129,14 @@ def _featured_collection_items() -> list[dict]:
 
 def _storefront_url(path: str) -> str:
     """Build absolute URL for Wagtail URLField (storefront-relative path)."""
+    from shopify_config.tenancy import ShopUnresolvedError, resolve_sole_installed_shop
+
     path = path if path.startswith('/') else f'/{path}'
-    config = ShopConfig.objects.first()
-    if config and config.shop:
-        return f'https://{config.shop}{path}'
-    return f'https://example.myshopify.com{path}'
+    try:
+        shop = resolve_sole_installed_shop()
+        return f'https://{shop}{path}'
+    except ShopUnresolvedError:
+        return f'https://example.myshopify.com{path}'
 
 
 def _sections_payload() -> dict:

@@ -1,8 +1,9 @@
 """
 Outbound sync: push Wagtail page content to Shopify Admin on publish.
 
-Single-tenant design: shop is resolved from ShopConfig.objects.first().shop.
-If sync fails, we log and return False — the publish is NOT blocked.
+Deploy-per-shop: shop is resolved via resolve_sole_installed_shop()
+(exactly one ShopConfig). If sync fails, we log and return False — the
+publish is NOT blocked.
 
 StreamField → HTML: each block is rendered via its template. HtmlBlock values
 are used verbatim. MetafieldBlock blocks are extracted separately.
@@ -268,14 +269,13 @@ def _article_mutation_fields(page):
 
 
 def _get_shop():
-    """Resolve shop from ShopConfig (single-tenant: always the first/only record)."""
-    from shopify_config.models import ShopConfig
-    config = ShopConfig.objects.first()
-    if not config:
-        raise RuntimeError(
-            'No ShopConfig found. Install the app on a Shopify store first.'
-        )
-    return config.shop
+    """Resolve the sole installed shop (deploy-per-shop / Celery without request)."""
+    from shopify_config.tenancy import ShopUnresolvedError, resolve_sole_installed_shop
+
+    try:
+        return resolve_sole_installed_shop()
+    except ShopUnresolvedError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _render_streamfield_html(streamfield_value):

@@ -14,6 +14,7 @@ from .routers.glossary import router as glossary_router
 from .routers.home import router as home_router
 from .routers.semantic_links import router as semantic_links_router
 from .routers.capabilities import router as capabilities_router
+from .routers.session_shop import router as session_shop_router
 
 
 def openapi_servers() -> list[dict[str, str]]:
@@ -54,7 +55,9 @@ clients in **Django Admin → Django OAuth Toolkit → Applications** and reques
 `mcp` scope through `/o/authorize/` and `/o/token/`.
 
 2. **Django session** (merchant CMS SPA at `/cms/`): logged-in **staff** or members of
-the **cms_editors** group, same-origin with CSRF for unsafe methods.
+the **cms_editors** group, same-origin with CSRF for unsafe methods, plus
+**ShopMembership** for the session shop (or sole installed shop). Use
+`GET/POST /session-shop/` to list and select shops.
 
 Missing or invalid credentials return **401**.
 
@@ -205,6 +208,7 @@ api.add_router('/glossary/', glossary_router, tags=['Glossary'])
 api.add_router('/home/', home_router, tags=['Home'])
 api.add_router('/semantic-links/', semantic_links_router, tags=['Semantic Links'])
 api.add_router('/capabilities/', capabilities_router, tags=['Capabilities'])
+api.add_router('/session-shop/', session_shop_router, tags=['Session'])
 
 from .mcp import setup_mcp  # noqa: E402
 

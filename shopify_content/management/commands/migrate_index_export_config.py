@@ -4,7 +4,11 @@ import json
 
 from django.core.management.base import BaseCommand, CommandError
 
-from shopify_config.models import ShopConfig
+from shopify_config.tenancy import (
+    ShopUnresolvedError,
+    add_shop_argument,
+    resolve_shop_for_command_or_sole,
+)
 from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.models import ShopifyRootPage
 from shopify_content.sync.index_pages_bootstrap import (
@@ -30,6 +34,7 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        add_shop_argument(parser)
         parser.add_argument(
             '--apply',
             action='store_true',
@@ -42,9 +47,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        config = ShopConfig.objects.first()
-        if not config:
-            raise CommandError('No ShopConfig found.')
+        try:
+            resolve_shop_for_command_or_sole(shop=options.get('shop') or None)
+        except ShopUnresolvedError as exc:
+            raise CommandError(str(exc)) from exc
 
         for root_slug, config_key, builder in (
             ('glossary', 'glossary_index', build_glossary_export_config),

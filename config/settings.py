@@ -287,6 +287,8 @@ SHOPIFY_ADMIN_API_VERSION = os.environ.get('SHOPIFY_ADMIN_API_VERSION', '2025-04
 
 WAGTAILADMIN_BASE_URL = os.environ.get('SHOPIFY_APP_URL', 'http://localhost:8000')
 WAGTAIL_SITE_NAME = 'Wagtail Shopify'
+# Suppress dashboard "Wagtail upgrade available" panel (pin upgrades intentionally).
+WAGTAIL_ENABLE_UPDATE_CHECK = False
 
 _gemini_api_key = os.environ.get('GEMINI_API_KEY', '')
 if _gemini_api_key:

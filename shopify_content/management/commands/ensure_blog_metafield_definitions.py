@@ -2,7 +2,11 @@
 
 from django.core.management.base import BaseCommand, CommandError
 
-from shopify_config.models import ShopConfig
+from shopify_config.tenancy import (
+    ShopUnresolvedError,
+    add_shop_argument,
+    resolve_shop_for_command_or_sole,
+)
 from shopify_content.sync.resource_metafield_definitions import ensure_blog_metafield_definitions
 
 
@@ -12,12 +16,14 @@ class Command(BaseCommand):
         'and available_locales on BLOG and ARTICLE resources.'
     )
 
-    def handle(self, *args, **options):
-        config = ShopConfig.objects.first()
-        if not config:
-            raise CommandError('No ShopConfig found.')
+    def add_arguments(self, parser):
+        add_shop_argument(parser)
 
-        shop = config.shop
+    def handle(self, *args, **options):
+        try:
+            shop = resolve_shop_for_command_or_sole(shop=options.get('shop') or None)
+        except ShopUnresolvedError as exc:
+            raise CommandError(str(exc)) from exc
         self.stdout.write(f'Shop: {shop}')
 
         stats = ensure_blog_metafield_definitions(shop)
