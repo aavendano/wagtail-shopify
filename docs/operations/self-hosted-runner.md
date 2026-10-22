@@ -26,3 +26,11 @@ sudo bash /tmp/wagtail-runner-configure-and-svc.sh  # Root 2
 ```
 
 Does not replace or stop `cms-runner-01`.
+
+
+## Verification evidence
+
+- Runner Online: Settings → Actions → Runners (`wagtail-runner-01`, labels `wagtail-ci`)
+- systemd: `actions.runner.aavendano-wagtail-shopify.wagtail-runner-01.service` (enabled, active)
+- Successful run: https://github.com/aavendano/wagtail-shopify/actions/runs/39830151567 (`content-validate`, runner `wagtail-runner-01`)
+- `cms-runner-01` remains Online for `shopify-django-md-cms` (separate install)
