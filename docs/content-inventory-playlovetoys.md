@@ -3,6 +3,7 @@
 Mapa canónico **schema → proyección Shopify → Wagtail → canal**, anclado en
 `plt-editorial-schema` `contractVersion` **1.1.0** y en evidencia de repos
 (no Admin live). Arquitectura: [ADR 0003](adr/0003-dual-channel-storefronts.md).
+La fuente de esta matriz en código es `shopify_content/projection.py`.
 
 **Leyenda de estado**
 

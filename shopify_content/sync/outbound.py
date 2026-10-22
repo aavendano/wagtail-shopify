@@ -31,6 +31,8 @@ from django.utils import timezone
 from django.utils.functional import SimpleLazyObject
 
 from shopify_requests.graphql_service import execute_admin_graphql
+
+from shopify_content.projection import projection
 from .mutations import (
     PRODUCT_UPDATE,
     COLLECTION_UPDATE,
@@ -1019,7 +1021,7 @@ def _location_page_definition():
     """
     from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
     return MetaobjectDefinitionSpec(
-        type='local_page',
+        type=projection('location').wagtail_type,
         name='Location Page',
         description='Location-specific page content managed in Wagtail CMS',
         display_name_field='city',
@@ -1074,7 +1076,7 @@ def _resolve_location_shopify_id(client, page, canonical: str) -> str | None:
     if not legacy_handle or legacy_handle == canonical:
         return None
 
-    existing = client.get_by_handle('local_page', legacy_handle)
+    existing = client.get_by_handle(projection('location').wagtail_type, legacy_handle)
     if existing and existing.id:
         return existing.id
     return None
@@ -1202,7 +1204,7 @@ def _root_page_definition():
     from metaobjects.shopify_metaobjects.definition import MetaobjectDefinitionSpec, MetaobjectFieldSpec
 
     return MetaobjectDefinitionSpec(
-        type='root_page',
+        type=projection('index').wagtail_type,
         name='Root Page',
         description='Wagtail ShopifyRootPage index, synced one entry per locale',
         display_name_field='title',
@@ -1466,7 +1468,7 @@ def _glossary_term_definition(glossary_definition_gid=None, *, include_self_refe
         self_ref_gid,
     )
     return MetaobjectDefinitionSpec(
-        type='glossary_term',
+        type=projection('glossary_term').wagtail_type,
         name='Glossary Term',
         description='Glossary term managed in Wagtail CMS',
         display_name_field='term',
@@ -1493,7 +1495,7 @@ def ensure_glossary_term_definition(client):
     """
     from metaobjects.shopify_metaobjects.definition import clear_glossary_definition_gid_cache
 
-    existing = client.get_definition('glossary_term')
+    existing = client.get_definition(projection('glossary_term').wagtail_type)
     gid = existing.id if existing else None
     result = client.ensure_definition(
         _glossary_term_definition(gid, include_self_reference=False),
@@ -1684,7 +1686,7 @@ def _home_page_definition(glossary_definition_gid=None, *, include_glossary_refs
     ]
     native_fields = MetaobjectDefinitionSpec.home_native_reference_fields(gid)
     return MetaobjectDefinitionSpec(
-        type='home_page',
+        type=projection('home').wagtail_type,
         name='Home Page',
         description='Storefront home content managed in Wagtail CMS (one metaobject per locale)',
         display_name_field='hero_heading',
@@ -1704,7 +1706,7 @@ def ensure_home_page_definition(client):
     """Ensure home_page definition includes glossary metaobject refs when available."""
     from metaobjects.shopify_metaobjects.definition import clear_glossary_definition_gid_cache
 
-    glossary_def = client.get_definition('glossary_term')
+    glossary_def = client.get_definition(projection('glossary_term').wagtail_type)
     glossary_gid = glossary_def.id if glossary_def else None
 
     result = client.ensure_definition(
@@ -1726,7 +1728,7 @@ def _resolve_home_shopify_id(client, page, canonical: str) -> str | None:
     if not legacy_handle or legacy_handle == canonical:
         return None
 
-    existing = client.get_by_handle('home_page', legacy_handle)
+    existing = client.get_by_handle(projection('home').wagtail_type, legacy_handle)
     if existing and existing.id:
         return existing.id
     return None
