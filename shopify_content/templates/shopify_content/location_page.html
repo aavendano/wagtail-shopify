@@ -1,0 +1,22 @@
+{% load wagtailcore_tags %}
+<!DOCTYPE html>
+<html>
+<head>
+<title>{{ page.get_seo_title }}</title>
+{% include "shopify_content/includes/hreflang_tags.html" %}
+</head>
+<body>
+<h1>{{ page.titulo }}</h1>
+{% if page.subtitulo %}<h2>{{ page.subtitulo }}</h2>{% endif %}
+{% if page.region %}<p><a href="{{ page.region.url }}">{{ page.region.title }}</a></p>{% endif %}
+{{ page.intro|richtext }}
+{% if page.titulo_2 %}<h2>{{ page.titulo_2 }}</h2>{{ page.content_2|richtext }}{% endif %}
+{% if page.titulo_3 %}<h2>{{ page.titulo_3 }}</h2>{{ page.content_3|richtext }}{% endif %}
+{% if page.discreet_shipping %}<p>{{ page.discreet_shipping }}</p>{% endif %}
+{% if page.quality_focus %}<p>{{ page.quality_focus }}</p>{% endif %}
+{% if page.body_safe_materials %}<p>{{ page.body_safe_materials }}</p>{% endif %}
+{% for faq in page.faqs.all %}
+<h3>{{ faq.question }}</h3><p>{{ faq.answer }}</p>
+{% endfor %}
+</body>
+</html>

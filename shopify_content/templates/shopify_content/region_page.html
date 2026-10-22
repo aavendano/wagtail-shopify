@@ -1,0 +1,18 @@
+{% load wagtailcore_tags %}
+<!DOCTYPE html>
+<html>
+<head>
+<title>{{ page.get_seo_title }}</title>
+{% include "shopify_content/includes/hreflang_tags.html" %}
+</head>
+<body>
+<h1>{{ page.header1|default:page.title }}</h1>
+{% if page.header2 %}<h2>{{ page.header2 }}</h2>{% endif %}
+{% if page.greeting %}<p>{{ page.greeting }}</p>{% endif %}
+<ul>
+{% for location in page.location_pages %}
+  <li><a href="{{ location.url }}">{{ location.city|default:location.title }}</a></li>
+{% endfor %}
+</ul>
+</body>
+</html>

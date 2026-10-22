@@ -33,6 +33,7 @@ from django.utils.functional import SimpleLazyObject
 from shopify_requests.graphql_service import execute_admin_graphql
 
 from shopify_content.projection import projection
+from shopify_content.shopify_languages import shopify_translation_language
 from .mutations import (
     PRODUCT_UPDATE,
     COLLECTION_UPDATE,
@@ -628,7 +629,8 @@ def _register_shopify_translations(page, shop, resource_id, translatable_fields)
         - str  → attribute name on the translation page (field or method)
         - callable(translation_page) → str value
 
-    Shopify locale codes: 'es' (es-US), 'en-CA', 'fr-CA'. Primary locale (en-US) is skipped.
+    Shopify languages: 'es' (es-US) and 'fr' (fr-CA). The primary language (en-US) and
+    en-CA, which shares it, are skipped.
     """
     try:
         for variant in _live_translation_variants(page):
@@ -667,21 +669,16 @@ def _register_shopify_translations(page, shop, resource_id, translatable_fields)
 
 def _wagtail_locale_to_shopify(language_code):
     """
-    Convert Wagtail locale code to Shopify locale code.
-    Shopify uses BCP 47 but often just 2-letter: en, es, fr.
-    en-US → en (primary, not registered as translation)
+    Convert a Wagtail locale code to the Shopify language to register as a translation.
+
+    The store's languages are en (primary), es and fr; the market (ca / usa) is not part
+    of the language (see shopify_content/shopify_languages.py).
+    en-US → None (primary, not a translation)
+    en-CA → None (same Shopify language as the primary)
     es-US → es
-    en-CA → en-CA
-    fr-CA → fr-CA
-    Returns None for the primary locale (should not be registered as translation).
+    fr-CA → fr
     """
-    mapping = {
-        'en-US': None,   # primary — skip
-        'es-US': 'es',
-        'en-CA': 'en-CA',
-        'fr-CA': 'fr-CA',
-    }
-    return mapping.get(language_code)
+    return shopify_translation_language(language_code)
 
 
 def _mark_synced(model_class, pk):

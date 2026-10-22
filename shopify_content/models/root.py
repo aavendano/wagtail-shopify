@@ -41,6 +41,7 @@ class ShopifyRootPage(Page):
         'shopify_content.ProductPage',
         'shopify_content.CollectionPage',
         'shopify_content.BlogPage',
+        'shopify_content.RegionPage',
         'shopify_content.LocationPage',
         'shopify_content.GlossaryTermPage',
         'shopify_content.HomePage',

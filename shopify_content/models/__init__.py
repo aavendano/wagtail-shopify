@@ -7,6 +7,7 @@ from .blog import (
 )
 from .semantic_links import ALL_TYPED_SEMANTIC_LINK_MODELS
 from .location_page import LocationPage, LocationPageFAQ
+from .region_page import RegionPage
 from .home_page import HomePage
 from .glossary import GlossaryTermPage
 from .root import ShopifyRootPage
@@ -34,6 +35,7 @@ __all__ = [
     'ArticlePageTag',
     'LocationPage',
     'LocationPageFAQ',
+    'RegionPage',
     'HomePage',
     'GlossaryTermPage',
     'ShopifyRootPage',

@@ -45,23 +45,16 @@ class ChannelProjectionTests(SimpleTestCase):
         self.assertEqual(row.hydrogen_type, 'location_page')
         self.assertTrue(row.wagtail_sync)
 
-    def test_region_and_page_are_not_wagtail_synced(self):
+    def test_region_has_a_wagtail_model_but_is_not_synced_yet(self):
         region = projection('region')
         page = projection('page')
+        self.assertEqual(region.wagtail_model, 'RegionPage')
         self.assertFalse(region.wagtail_sync)
-        self.assertIsNone(region.wagtail_model)
+        self.assertIsNone(region.wagtail_type, 'nothing is written to a Shopify type')
         self.assertEqual(region.hydrogen_type, 'region')
+        self.assertTrue(hasattr(content_models, 'RegionPage'))
         self.assertFalse(page.wagtail_sync)
         self.assertIsNone(page.wagtail_model)
-        self.assertFalse(hasattr(content_models, 'RegionPage'))
-
-        models_root = Path(content_models.__file__).resolve().parent
-        for path in models_root.rglob('*.py'):
-            self.assertNotIn(
-                'class RegionPage',
-                path.read_text(encoding='utf-8'),
-                msg=str(path),
-            )
 
     def test_index_root_page_has_no_hydrogen_reader(self):
         row = projection('index')

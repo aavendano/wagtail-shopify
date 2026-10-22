@@ -374,6 +374,16 @@ ALLOWED_LOCALE_CODES = {
     'fr-CA': 'French (Canada)',
 }
 
+# Generalized region / location_page / faq / content_links definitions are code-only until the
+# project is operational: with this off, nothing writes those definitions to Shopify.
+SHOPIFY_SCHEMA_CHANGES_ENABLED = (
+    os.environ.get('SHOPIFY_SCHEMA_CHANGES_ENABLED', '').strip().lower() in ('1', 'true', 'yes')
+)
+# URL handles of the generalized definitions. The defaults are the live ones, so a plan or an
+# apply never changes a published URL; changing them is a routing/SEO decision (redirects).
+REGION_PAGE_URL_HANDLE = os.environ.get('REGION_PAGE_URL_HANDLE', '').strip()
+LOCATION_PAGE_URL_HANDLE = os.environ.get('LOCATION_PAGE_URL_HANDLE', '').strip()
+
 # Optional override for POST /locations/ parent (ShopifyRootPage). When unset, slug "local-us" is used.
 _locations_parent_page_id = os.environ.get('LOCATIONS_PARENT_PAGE_ID', '').strip()
 LOCATIONS_PARENT_PAGE_ID = (

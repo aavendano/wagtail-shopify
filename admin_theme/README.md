@@ -4,7 +4,8 @@ Skins the Wagtail admin with the `cheesecake` theme of
 [`plt-design-system`](https://github.com/aavendano/plt-design-system), using the
 mechanism documented in Wagtail's "Custom user interface colors": override the
 `--w-color-*` / `--w-font-sans` custom properties and inject the stylesheet with the
-`insert_global_admin_css` hook (`wagtail_hooks.py`). No Wagtail templates are overridden.
+`insert_global_admin_css` hook (`wagtail_hooks.py`). The colors and fonts need no template
+override; only the branding (below) overrides three admin templates, through their documented blocks.
 
 ## What is mapped
 
