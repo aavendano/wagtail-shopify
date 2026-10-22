@@ -14,7 +14,7 @@ notebook < 7.0
 shopifyapp
 pandas>=1.0.0
 requests>=2.25.0
-wagtail
+wagtail>=6.4,<8
 wagtail-localize>=1.8
 django-ninja @ git+https://github.com/mikeedjones/django-ninja.git@a1a5273
 django-ninja-mcp==0.0.1a2

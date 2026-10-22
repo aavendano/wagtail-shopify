@@ -114,7 +114,8 @@ staticfiles/
 .claude/
 shopify.app.toml
 deploy/*
-scripts/
+scripts/*
+!scripts/build_admin_theme.py
 
 # WARNING (migration policy, Phase C): this rule makes Django migrations
 # untracked, which conflicts with treating migrations as version-controlled

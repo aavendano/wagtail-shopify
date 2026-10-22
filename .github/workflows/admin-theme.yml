@@ -1,0 +1,44 @@
+name: Admin theme
+
+on:
+  push:
+    paths:
+      - "admin_theme/**"
+      - "scripts/build_admin_theme.py"
+      - "requirements.txt"
+      - "config/settings.py"
+      - ".github/workflows/admin-theme.yml"
+  pull_request:
+    paths:
+      - "admin_theme/**"
+      - "scripts/build_admin_theme.py"
+      - "requirements.txt"
+      - "config/settings.py"
+      - ".github/workflows/admin-theme.yml"
+
+jobs:
+  admin-theme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read pinned design-system SHA
+        id: pin
+        run: echo "sha=$(tr -d '[:space:]' < admin_theme/DESIGN_SYSTEM_SHA)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          repository: aavendano/plt-design-system
+          ref: ${{ steps.pin.outputs.sha }}
+          path: plt-design-system
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Stylesheet is up to date with the pinned design system
+        run: python scripts/build_admin_theme.py --design-system plt-design-system --check
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Pytest admin_theme
+        run: .venv/bin/python -m pytest admin_theme/tests -q
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings_test
