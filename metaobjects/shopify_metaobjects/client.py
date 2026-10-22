@@ -93,18 +93,33 @@ class MetaobjectClient:
         *,
         fields: list[MetaobjectFieldSpec] | None = None,
         capabilities: dict | None = None,
+        field_validations: dict[str, list[dict[str, Any]]] | None = None,
     ) -> MetaobjectDefinitionSpec:
         """
-        Push new field definitions and/or changed capabilities to an existing metaobject
-        definition. Only fields/capabilities that actually changed should be passed in —
-        this issues a single metaobjectDefinitionUpdate for both.
+        Push new field definitions, changed capabilities and/or changed validations of
+        existing fields to an existing metaobject definition. Only what actually changed
+        should be passed in — this issues a single metaobjectDefinitionUpdate for all of it.
+
+        ``field_validations`` maps an existing field key to its full new validation list
+        (for example the allowed values of a choice-list field).
         """
         definition_input: dict = {}
+        field_operations: list[dict] = []
         if fields:
-            definition_input["fieldDefinitions"] = [
-                {"create": field_spec.to_shopify_input()}
-                for field_spec in fields
-            ]
+            field_operations.extend(
+                {"create": field_spec.to_shopify_input()} for field_spec in fields
+            )
+        for key, validations in (field_validations or {}).items():
+            field_operations.append({
+                "update": {
+                    "key": key,
+                    "validations": MetaobjectFieldSpec(
+                        key=key, name=key, type="", validations=validations,
+                    ).to_shopify_input().get("validations", []),
+                }
+            })
+        if field_operations:
+            definition_input["fieldDefinitions"] = field_operations
         if capabilities:
             definition_input["capabilities"] = capabilities
 

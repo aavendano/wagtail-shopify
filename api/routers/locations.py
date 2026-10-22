@@ -3,7 +3,7 @@ from typing import List, Optional
 from django.core.exceptions import ValidationError
 from ninja import Router
 
-from shopify_content.models import ShopifyRootPage
+from shopify_content.models import RegionPage, ShopifyRootPage
 
 from shopify_content.models import LocationPage
 from shopify_content.models.location_page import LocationPageFAQ
@@ -138,10 +138,11 @@ def create_location(request, data: LocationIn):
     except RuntimeError as e:
         return 400, {"detail": str(e)}
 
-    if not isinstance(parent, ShopifyRootPage):
+    if not isinstance(parent, (ShopifyRootPage, RegionPage)):
         detail = (
             f'Parent page id={parent.pk} is a {type(parent).__name__}, '
-            'not a ShopifyRootPage. Use the Local US root (slug=local-us) or pass parent_page_id.'
+            'not a ShopifyRootPage or RegionPage. Use the Local US root (slug=local-us), '
+            'a region page, or pass parent_page_id.'
         )
         return 400, {"detail": detail}
 

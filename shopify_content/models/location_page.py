@@ -22,7 +22,18 @@ from ..location_slug import location_page_slug
 
 class LocationPage(EditorialMixin, Page):
     """
-    Wagtail page that syncs to a Shopify merchant-owned metaobject (type: local_page).
+    One location model for Canada and the United States.
+
+    Today it syncs to the Shopify merchant-owned metaobject ``local_page`` (the US layout).
+    The Canadian ``location_page`` fields (``discreet_shipping``, ``quality_focus``,
+    ``body_safe_materials``, ``seo_keyword``) are stored here too; the generalized Shopify
+    definitions are code-only for now (``shopify_content/sync/unified_definitions.py``).
+
+    The parent is the ``RegionPage`` of its province or state (the region links back to its
+    locations). A page placed directly under a root keeps working during the transition; run
+    ``manage.py organize_location_regions`` to move such pages under their region.
+    Field equivalences with the contract: titulo=header1, subtitulo=header2, intro=greeting,
+    state=province.
 
     The definition is created/verified at runtime via MetaobjectClient.ensure_definition().
     On publish, synced via MetaobjectClient.sync() with ensure_definition=True.
@@ -95,6 +106,12 @@ class LocationPage(EditorialMixin, Page):
         features=['bold', 'italic', 'link', 'ol', 'ul', 'h2', 'h3'],
     )
 
+    # Service messaging (Canadian layout; plain text, as in the Shopify location_page)
+    discreet_shipping = models.TextField(blank=True, verbose_name='Discreet shipping')
+    quality_focus = models.TextField(blank=True, verbose_name='Quality focus')
+    body_safe_materials = models.TextField(blank=True, verbose_name='Body-safe materials')
+    seo_keyword = models.CharField(max_length=255, blank=True, verbose_name='SEO keyword')
+
     # Shopify locale override (e.g. "es", "en-CA"); blank = use page's locale
     shopify_locale = models.CharField(
         max_length=20, blank=True, verbose_name='Shopify Locale',
@@ -104,7 +121,11 @@ class LocationPage(EditorialMixin, Page):
 
     template = 'shopify_content/location_page.html'
     base_form_class = LocationPageForm
-    parent_page_types = ['wagtailcore.Page', 'shopify_content.ShopifyRootPage']
+    parent_page_types = [
+        'shopify_content.RegionPage',
+        'wagtailcore.Page',
+        'shopify_content.ShopifyRootPage',
+    ]
     subpage_types = []
 
     search_fields = Page.search_fields + [
@@ -146,6 +167,12 @@ class LocationPage(EditorialMixin, Page):
             FieldPanel('map_content'),
         ], heading='Map Section'),
         FieldPanel('after_page_content'),
+        MultiFieldPanel([
+            FieldPanel('discreet_shipping'),
+            FieldPanel('quality_focus'),
+            FieldPanel('body_safe_materials'),
+            FieldPanel('seo_keyword'),
+        ], heading='Service messaging'),
         InlinePanel('faqs', label='FAQs'),
     ]
 
@@ -174,8 +201,20 @@ class LocationPage(EditorialMixin, Page):
         verbose_name = 'Location Page'
         verbose_name_plural = 'Location Pages'
 
+    @property
+    def region(self):
+        """The RegionPage this location sits under, or None while it hangs off a root."""
+        from .region_page import RegionPage
+
+        parent = self.get_parent()
+        if parent is None:
+            return None
+        specific = parent.specific
+        return specific if isinstance(specific, RegionPage) else None
+
     def clean(self):
         super().clean()
+        self._apply_region_data()
         canonical = location_page_slug(self)
         if canonical:
             self.slug = canonical
@@ -188,6 +227,9 @@ class LocationPage(EditorialMixin, Page):
             str(self.brand_section_content or ''),
             str(self.map_content or ''),
             str(self.after_page_content or ''),
+            str(self.discreet_shipping or ''),
+            str(self.quality_focus or ''),
+            str(self.body_safe_materials or ''),
         ]
         for faq in self.faqs.all():
             rich_parts.append(faq.question)
@@ -203,6 +245,15 @@ class LocationPage(EditorialMixin, Page):
                     )
                 }
             )
+
+    def _apply_region_data(self):
+        """Province/state and country follow the parent region page."""
+        region = self.region
+        if region is None:
+            return
+        self.state = region.title
+        if region.country:
+            self.country = region.country
 
     def get_seo_title(self):
         return self.seo_title or self.titulo

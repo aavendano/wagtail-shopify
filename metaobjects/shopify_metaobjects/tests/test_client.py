@@ -766,3 +766,50 @@ class MetaobjectClientTests(TestCase):
         )
         self.assertEqual(result.handle, "main-cotton")
         self.assertEqual(mock_execute.call_count, 3)
+
+
+class MetaobjectDefinitionUpdateTests(TestCase):
+    def _update(self, **kwargs):
+        payload = {
+            "metaobjectDefinitionUpdate": {
+                "metaobjectDefinition": {"id": "gid://shopify/MetaobjectDefinition/1", "type": "region", "fieldDefinitions": []},
+                "userErrors": [],
+            }
+        }
+        with patch(
+            "metaobjects.shopify_metaobjects.client.execute_admin_graphql",
+            return_value=_ok_result(payload),
+        ) as execute:
+            MetaobjectClient(shop="test-shop.myshopify.com").update_definition(
+                "gid://shopify/MetaobjectDefinition/1", **kwargs,
+            )
+        return execute.call_args.kwargs["variables"]["definition"]
+
+    def test_existing_callers_still_only_create_fields(self):
+        definition = self._update(
+            fields=[MetaobjectFieldSpec(key="locale", name="Locale", type="single_line_text_field")],
+        )
+        self.assertEqual(
+            [list(op) for op in definition["fieldDefinitions"]], [["create"]],
+        )
+
+    def test_validations_of_an_existing_field_are_updated_by_key(self):
+        definition = self._update(
+            field_validations={"country": [{"name": "choices", "value": ["Canada", "United States"]}]},
+        )
+        self.assertEqual(
+            definition["fieldDefinitions"],
+            [{"update": {
+                "key": "country",
+                "validations": [{"name": "choices", "value": '["Canada", "United States"]'}],
+            }}],
+        )
+
+    def test_new_fields_and_validation_updates_go_in_one_request(self):
+        definition = self._update(
+            fields=[MetaobjectFieldSpec(key="locale", name="Locale", type="single_line_text_field")],
+            field_validations={"country": [{"name": "choices", "value": ["Canada"]}]},
+            capabilities={"publishable": {"enabled": True}},
+        )
+        self.assertEqual([list(op) for op in definition["fieldDefinitions"]], [["create"], ["update"]])
+        self.assertEqual(definition["capabilities"], {"publishable": {"enabled": True}})

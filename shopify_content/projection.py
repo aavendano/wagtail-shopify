@@ -41,8 +41,10 @@ PROJECTIONS: dict[str, ChannelProjection] = {
         liquid_type='local_page',
         wagtail_sync=True,
     ),
+    # RegionPage exists in the CMS (the parent of its locations) but is not synced yet: the
+    # unified `region` definition is only declared in code until the project is operational.
     'region': ChannelProjection(
-        wagtail_model=None,
+        wagtail_model='RegionPage',
         resource_class='metaobject',
         wagtail_type=None,
         hydrogen_type='region',

@@ -15,6 +15,7 @@ from shopify_content.models import (
     HomePage,
     LocationPage,
     ProductPage,
+    RegionPage,
     ShopifyRootPage,
 )
 
@@ -174,6 +175,40 @@ class LocationApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         page = LocationPage.objects.get(pk=response.json()["id"])
         self.assertEqual(page.get_parent().pk, self.locales_parent.pk)
+
+    def test_create_location_under_a_region_page(self):
+        region = RegionPage(
+            title="Tennessee", slug="tennessee", country="United States", region_code="TN",
+            locale=self.locales_parent.locale,
+        )
+        self.locales_parent.add_child(instance=region)
+        region.save_revision().publish()
+
+        response = self.client.post(
+            "/locations/",
+            json={
+                "titulo": "Nashville Store",
+                "city": "Nashville",
+                "state": "wrong",
+                "parent_page_id": region.pk,
+            },
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        page = LocationPage.objects.get(pk=response.json()["id"])
+        self.assertEqual(page.get_parent().pk, region.pk)
+        self.assertEqual(page.state, "Tennessee")
+        self.assertEqual(page.country, "United States")
+
+    def test_create_location_under_an_unrelated_page_returns_400(self):
+        other = Page.objects.get(pk=self.locales_parent.get_parent().pk)
+        response = self.client.post(
+            "/locations/",
+            json={"titulo": "Nope", "city": "Nope", "parent_page_id": other.pk},
+            headers=_auth_headers(self.key.key),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("RegionPage", response.json()["detail"])
 
     def test_create_location_invalid_parent_page_id_returns_400(self):
         response = self.client.post(
