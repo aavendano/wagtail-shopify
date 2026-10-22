@@ -1,0 +1,40 @@
+/* PlayLoveToys branding for the Wagtail admin. Hand-written; the colour theme lives in cheesecake-admin.css. */
+
+.plt-admin-logo {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+.login .login-logo {
+  width: 14rem;
+}
+
+.plt-login-logo {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.plt-login-logo--dark {
+  display: none;
+}
+
+.w-theme-dark .plt-login-logo--light {
+  display: none;
+}
+
+.w-theme-dark .plt-login-logo--dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  .w-theme-system .plt-login-logo--light {
+    display: none;
+  }
+
+  .w-theme-system .plt-login-logo--dark {
+    display: block;
+  }
+}

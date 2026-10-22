@@ -1,0 +1,12 @@
+{% extends "wagtailadmin/login.html" %}
+{% load static i18n %}
+
+{% block branding_login %}{% trans "Sign in to PlayLoveToys" %}{% endblock %}
+
+{# The page background follows the admin theme, so ship both logo variants and let branding.css pick one. #}
+{% block branding_logo %}
+    <div class="login-logo">
+        <img class="plt-login-logo plt-login-logo--light" src="{% static 'admin_theme/img/plt-logo-on-light.svg' %}" alt="PlayLoveToys">
+        <img class="plt-login-logo plt-login-logo--dark" src="{% static 'admin_theme/img/plt-logo.svg' %}" alt="PlayLoveToys">
+    </div>
+{% endblock %}
