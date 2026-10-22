@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from metaobjects.shopify_metaobjects.exceptions import UpsertError
 from metaobjects.shopify_metaobjects.metaobject import Metaobject
 from shopify_content.glossary.index import (

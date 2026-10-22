@@ -11,7 +11,9 @@ Shopify Embedded App (Django + Wagtail) — CMS headless: una instalación = una
 
 | App | Rol |
 |-----|-----|
-| `core` | OAuth, ShopConfig, middleware |
+| `shopify_admin` | UI embebida, OAuth App Home (`/shopify-admin/`) |
+| `shopify_config` | ShopConfig + tokens (`db_table=core_shopconfig`) |
+| `core` | Solo plataforma Django (`ensure_superuser`) |
 | `shopify_content` | Páginas Wagtail sincronizadas a Shopify |
 | `shopify_requests` | Cliente GraphQL centralizado |
 | `metaobjects` | Toolkit metaobjetos Shopify |

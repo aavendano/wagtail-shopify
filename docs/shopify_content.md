@@ -46,7 +46,7 @@ Checklist al instalar la app en una tienda Shopify nueva (`{shop}.myshopify.com`
 **Verificación glossary (metaobject por locale):**
 
 ```python
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_requests.graphql_service import execute_admin_graphql
 
 shop = ShopConfig.objects.first().shop

@@ -10,7 +10,7 @@ from django.views.generic import TemplateView
 from wagtail.admin import messages as wagtail_messages
 from wagtail.admin.views.generic import WagtailAdminTemplateMixin
 
-from core.shop_config_lookup import get_shop_config, shop_has_access_token
+from shopify_config.shop_config_lookup import get_shop_config, shop_has_access_token
 from shopify_content.sync.service import VALID_IMPORT_RESOURCES
 from shopify_content.sync.task_dispatch import enqueue_shopify_import
 

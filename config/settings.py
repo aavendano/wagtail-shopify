@@ -133,6 +133,8 @@ INSTALLED_APPS = [
     'oauth2_provider',
 
     'core.apps.CoreConfig',
+    'shopify_config.apps.ShopifyConfigConfig',
+    'shopify_admin.apps.ShopifyAdminConfig',
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
@@ -150,7 +152,7 @@ else:
     INSTALLED_APPS.insert(-1, 'bigquery_gsc')
 
 MIDDLEWARE = [
-    'core.debug_middleware.ShopifyLocalProxyMiddleware',
+    'shopify_admin.debug_middleware.ShopifyLocalProxyMiddleware',
     'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -178,7 +180,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'core.context_processors.shopify_context',
+                'shopify_admin.context_processors.shopify_context',
             ],
         },
     },

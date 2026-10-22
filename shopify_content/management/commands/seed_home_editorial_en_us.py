@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 
 from wagtail.models import Locale
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import CollectionPage, HomePage
 from shopify_content.home_sections_normalization import normalize_sections_json
 from shopify_content.home_serialization import sections_json_to_stream_data

@@ -1,4 +1,4 @@
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 
 from ..utils import shop_lookup_variants
 

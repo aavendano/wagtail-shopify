@@ -1,4 +1,4 @@
-from .utils import (
+from shopify_config.utils import (
     get_shopify_app,
     log_shopify_result,
     request_to_shopify_req,
@@ -15,7 +15,7 @@ class AppHomeVerifiedMixin:
 
     def get_app_home_patch_id_token_path(self):
         from django.urls import reverse
-        return reverse("core:patch-id-token")
+        return reverse("shopify_admin:patch-id-token")
 
     def dispatch(self, request, *args, **kwargs):
         shopify_app = get_shopify_app()

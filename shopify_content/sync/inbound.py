@@ -51,7 +51,7 @@ PAGE_SIZE = 100
 
 
 def _get_shop():
-    from core.models import ShopConfig
+    from shopify_config.models import ShopConfig
     config = ShopConfig.objects.first()
     if not config:
         raise RuntimeError('No ShopConfig found. Install the app on Shopify first.')

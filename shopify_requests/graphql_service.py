@@ -3,8 +3,8 @@ from typing import Any, Optional
 
 from django.conf import settings
 
-from core.utils import _get_attr, get_shopify_app
-from core.token_service import TOKEN_ERROR_CODES, clear_shop_tokens
+from shopify_config.utils import _get_attr, get_shopify_app
+from shopify_config.token_service import TOKEN_ERROR_CODES, clear_shop_tokens
 
 from . import graphql_client
 from .token_provider import resolve_access_token_for_admin

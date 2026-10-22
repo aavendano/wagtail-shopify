@@ -1,4 +1,4 @@
-{% extends 'core/base.html' %}
+{% extends 'shopify_admin/base.html' %}
 
 {% block content %}
 <s-page heading="CMS Shop">
@@ -10,8 +10,8 @@
             <s-link href="/cms/">CMS SPA</s-link>
             <s-link href="/admin/">Wagtail Admin</s-link>
             <s-link href="/admin-django/">Django Admin</s-link>
-            <s-link href="{% url 'home' %}">App embebida (sync Shopify)</s-link>
-            <s-link href="{% url 'core:install' %}">Instalar / login tienda</s-link>
+            <s-link href="{% url 'shopify_admin:home' %}">App embebida (sync Shopify)</s-link>
+            <s-link href="{% url 'shopify_admin:install' %}">Instalar / login tienda</s-link>
             <s-link href="/api/v1/docs/">API docs</s-link>
             <s-link href="/mcp">MCP</s-link>
         </s-stack>

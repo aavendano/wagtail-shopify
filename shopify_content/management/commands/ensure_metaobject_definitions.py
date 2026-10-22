@@ -12,7 +12,7 @@ Usage:
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from metaobjects.shopify_metaobjects.client import MetaobjectClient
 from metaobjects.shopify_metaobjects.exceptions import DefinitionError
 from shopify_content.sync.outbound import (

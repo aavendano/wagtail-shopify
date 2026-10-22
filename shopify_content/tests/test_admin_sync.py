@@ -5,8 +5,8 @@ from django.test import TestCase
 from django.urls import reverse
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import ProductPage, ShopifyRootPage, ShopifySyncRun
 from shopify_content.sync.inbound import import_products
 from shopify_content.sync.service import run_shopify_import

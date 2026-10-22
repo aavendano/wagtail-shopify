@@ -31,7 +31,9 @@ Shopify Storefront → Cliente final
 
 | App | Descripción |
 |-----|-------------|
-| `core` | OAuth, `ShopConfig`, middleware de proxy local |
+| `shopify_admin` | UI embebida App Home (`/shopify-admin/`), OAuth install/login, middleware proxy CLI |
+| `shopify_config` | `ShopConfig` + tokens (`db_table=core_shopconfig`); sin rutas HTTP |
+| `core` | Solo plataforma Django (`ensure_superuser`); fuera del grafo Shopify — ver [`docs/adr/0001-core-app-split.md`](docs/adr/0001-core-app-split.md) |
 | `shopify_requests` | Cliente GraphQL centralizado; ver [`docs/shopify_requests.md`](docs/shopify_requests.md) |
 | `metaobjects` | Toolkit para metaobjetos Shopify; ver [`docs/Documentation.txt`](docs/Documentation.txt) |
 | `shopify_content` | Páginas Wagtail sincronizadas a Shopify; ver [`docs/shopify_content.md`](docs/shopify_content.md) |
@@ -40,6 +42,8 @@ Shopify Storefront → Cliente final
 | `cms_ui` | SPA Puck (`/cms/`) para merchants/editores — ver [`docs/cms-spa.md`](docs/cms-spa.md) |
 | `django_react_ui_editor` | Contenedor SPA (SpaMount, register_spa, SpaShellView) |
 | `bigquery_gsc` | Analytics GSC vía BigQuery — ver [`docs/api-gsc.md`](docs/api-gsc.md) |
+
+**Partners (human gate):** si App URL / allowed redirection URLs apuntan a `/core/…`, actualizarlas a `/shopify-admin/…`. Los redirects legacy `/core/…` → `/shopify-admin/…` cubren bookmarks temporales.
 
 ---
 

@@ -1,4 +1,4 @@
-from core.utils import log_shopify_result
+from shopify_config.utils import log_shopify_result
 from webhooks.utils import shop_for_sdk_api
 
 

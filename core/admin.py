@@ -1,3 +1,2 @@
-from django.contrib import admin
-
-# Register your models here.
+# Platform ops only — no models registered here.
+# ShopConfig is registered in shopify_config.admin.

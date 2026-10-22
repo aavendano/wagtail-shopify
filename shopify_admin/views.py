@@ -17,20 +17,20 @@ from shopify_content.embedded_commands.registry import get_command_by_id, get_co
 from shopify_content.models.command_run import EmbeddedCommandRun
 from shopify_content.models.sync_run import ShopifySyncRun
 
-from .embedded_redirects import (
+from shopify_admin.embedded_redirects import (
     validate_parent_redirect_url,
     validate_relative_app_path,
 )
-from .forms import ShopConfigForm
-from .shop_config_lookup import get_shop_config, shop_has_access_token
-from .mixins import AppHomeVerifiedMixin
-from .utils import (
+from shopify_admin.forms import ShopConfigForm
+from shopify_config.shop_config_lookup import get_shop_config, shop_has_access_token
+from shopify_admin.mixins import AppHomeVerifiedMixin
+from shopify_config.utils import (
     get_shopify_app,
     log_shopify_result,
     request_to_shopify_req,
     shopify_result_to_django_response,
 )
-from .token_service import ensure_offline_token_lifecycle
+from shopify_config.token_service import ensure_offline_token_lifecycle
 from shopify_requests.domains.shop import fetch_shop_admin_graphql
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ SYNC_RESOURCES = [
 
 
 def _redirect_home_preserving_query(request):
-    url = reverse('home')
+    url = reverse('shopify_admin:home')
     if request.GET:
         url = f'{url}?{request.GET.urlencode()}'
     return redirect(url)
@@ -70,11 +70,11 @@ def _shop_config_context(shop=None):
 class RootMenuView(TemplateView):
     """Hub de navegación en / (CMS headless: no hay páginas Wagtail en la raíz)."""
 
-    template_name = "core/root_menu.html"
+    template_name = "shopify_admin/root_menu.html"
 
 
 class PublicEntryView(TemplateView):
-    template_name = "core/public_entry.html"
+    template_name = "shopify_admin/public_entry.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -83,7 +83,7 @@ class PublicEntryView(TemplateView):
 
 
 class AuthLoginView(TemplateView):
-    template_name = "core/public_entry.html"
+    template_name = "shopify_admin/public_entry.html"
 
     def _oauth_install_redirect(self, shop):
         querystring = urlencode({"client_id": settings.SHOPIFY_API_KEY})
@@ -105,7 +105,7 @@ class AuthLoginView(TemplateView):
 
 
 class HomeView(AppHomeVerifiedMixin, TemplateView):
-    template_name = "core/home.html"
+    template_name = "shopify_admin/home.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

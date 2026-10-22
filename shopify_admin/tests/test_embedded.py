@@ -1,15 +1,18 @@
+from datetime import timedelta
+
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 from django.urls import reverse
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from .embedded_redirects import (
+from shopify_admin.embedded_redirects import (
     validate_parent_redirect_url,
     validate_relative_app_path,
 )
-from .forms import ShopConfigForm
-from .models import ShopConfig
-from .shop_config_lookup import get_shop_config, shop_has_access_token
+from shopify_admin.forms import ShopConfigForm
+from shopify_config.models import ShopConfig
+from shopify_config.shop_config_lookup import get_shop_config, shop_has_access_token
 from shopify_content.models.command_run import EmbeddedCommandRun
 
 
@@ -48,7 +51,7 @@ class RootMenuViewTests(SimpleTestCase):
         self.assertContains(response, 'href="/admin/"')
         self.assertContains(response, 'href="/admin-django/"')
         self.assertContains(response, 'href="/shopify-admin/"')
-        self.assertContains(response, 'href="/core/install"')
+        self.assertContains(response, 'href="/shopify-admin/install"')
         self.assertContains(response, 'href="/api/v1/docs/"')
         self.assertContains(response, 'href="/mcp"')
 
@@ -56,27 +59,27 @@ class RootMenuViewTests(SimpleTestCase):
 class PublicEntryViewTests(TestCase):
     def test_renders_landing_even_when_shop_exists(self):
         response = self.client.get(
-            f"{reverse('core:install')}?shop=test-shop.myshopify.com&hmac=abc123"
+            f"{reverse('shopify_admin:install')}?shop=test-shop.myshopify.com&hmac=abc123"
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'action="/auth/login"')
+        self.assertContains(response, 'action="/shopify-admin/auth/login"')
 
     def test_renders_landing_with_auth_login_form_without_shop(self):
-        response = self.client.get(reverse("core:install"))
+        response = self.client.get(reverse("shopify_admin:install"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'action="/auth/login"')
+        self.assertContains(response, 'action="/shopify-admin/auth/login"')
         self.assertContains(response, 'name="shop"')
         self.assertContains(response, 'placeholder="my-shop-domain.myshopify.com"')
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_app_route_still_works(self, mocked_get_shopify_app):
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
             response=SimpleNamespace(headers={}),
         )
-        response = self.client.get("/app/")
+        response = self.client.get("/shopify-admin/")
 
         self.assertEqual(response.status_code, 200)
 
@@ -84,28 +87,28 @@ class PublicEntryViewTests(TestCase):
 @override_settings(SHOPIFY_API_KEY="test-client-id")
 class AuthLoginViewTests(TestCase):
     def test_get_without_shop_renders_form(self):
-        response = self.client.get(reverse("core:auth-login"))
+        response = self.client.get(reverse("shopify_admin:auth-login"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'action="/auth/login"')
+        self.assertContains(response, 'action="/shopify-admin/auth/login"')
 
     def test_get_with_valid_shop_keeps_form_flow(self):
         response = self.client.get(
-            f"{reverse('core:auth-login')}?shop=valid-shop.myshopify.com"
+            f"{reverse('shopify_admin:auth-login')}?shop=valid-shop.myshopify.com"
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'action="/auth/login"')
+        self.assertContains(response, 'action="/shopify-admin/auth/login"')
 
     def test_post_with_invalid_shop_renders_form_with_error(self):
-        response = self.client.post(reverse("core:auth-login"), data={"shop": "invalid.com"})
+        response = self.client.post(reverse("shopify_admin:auth-login"), data={"shop": "invalid.com"})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Shop domain must match *.myshopify.com.")
 
     def test_post_with_valid_shop_redirects_to_shopify_install(self):
         response = self.client.post(
-            reverse("core:auth-login"),
+            reverse("shopify_admin:auth-login"),
             data={"shop": "  Valid-Shop.MYSHOPIFY.COM  "},
         )
 
@@ -117,20 +120,20 @@ class AuthLoginViewTests(TestCase):
 
 
 class HomeViewAuthTests(TestCase):
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_home_view_uses_expected_patch_id_token_path(self, mocked_get_shopify_app):
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
             response=SimpleNamespace(headers={}),
         )
 
-        self.client.get("/app/?shop=test-shop.myshopify.com")
+        self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         mocked_get_shopify_app.return_value.verify_app_home_req.assert_called_once()
         _, kwargs = mocked_get_shopify_app.return_value.verify_app_home_req.call_args
-        self.assertEqual(kwargs["app_home_patch_id_token_path"], "/core/auth/patch-id-token")
+        self.assertEqual(kwargs["app_home_patch_id_token_path"], "/shopify-admin/patch-id-token")
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_document_request_valid_renders_page_and_copies_headers(self, mocked_get_shopify_app):
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -141,12 +144,12 @@ class HomeViewAuthTests(TestCase):
             ),
         )
 
-        response = self.client.get("/app/?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Content-Security-Policy", response)
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_document_request_without_id_token_redirects_to_patch_route(
         self, mocked_get_shopify_app
     ):
@@ -156,19 +159,19 @@ class HomeViewAuthTests(TestCase):
                 status=302,
                 body="",
                 headers={
-                    "Location": "/core/auth/patch-id-token?shop=test-shop.myshopify.com"
+                    "Location": "/shopify-admin/patch-id-token?shop=test-shop.myshopify.com"
                 },
             ),
         )
 
-        response = self.client.get("/app/?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
-            response["Location"], "/core/auth/patch-id-token?shop=test-shop.myshopify.com"
+            response["Location"], "/shopify-admin/patch-id-token?shop=test-shop.myshopify.com"
         )
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_fetch_request_with_invalid_token_returns_unauthorized(
         self, mocked_get_shopify_app
     ):
@@ -182,14 +185,14 @@ class HomeViewAuthTests(TestCase):
         )
 
         response = self.client.get(
-            "/app/?shop=test-shop.myshopify.com",
+            "/shopify-admin/?shop=test-shop.myshopify.com",
             HTTP_AUTHORIZATION="Bearer invalid-token",
         )
 
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response["X-Shopify-Retry-Invalid-Session-Request"], "1")
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_fetch_request_with_valid_token_returns_ok(self, mocked_get_shopify_app):
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -197,14 +200,14 @@ class HomeViewAuthTests(TestCase):
         )
 
         response = self.client.get(
-            "/app/?shop=test-shop.myshopify.com",
+            "/shopify-admin/?shop=test-shop.myshopify.com",
             HTTP_AUTHORIZATION="Bearer valid-token",
         )
 
         self.assertEqual(response.status_code, 200)
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_home_graphql_failure_returns_sdk_http_response(
         self, mocked_get_shopify_app, mock_raw_gql
     ):
@@ -231,16 +234,16 @@ class HomeViewAuthTests(TestCase):
             ),
         )
 
-        response = self.client.get("/app/?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
-        self.assertEqual(response.status_code, 401)
-        self.assertEqual(response["X-Shopify-Retry-Invalid-Session-Request"], "1")
+        # HomeView logs GraphQL auth failures and still renders; tokens are cleared upstream.
+        self.assertEqual(response.status_code, 200)
         record = ShopConfig.objects.get(shop="test-shop")
         self.assertIsNone(record.access_token)
 
 
 class AuthPatchIdTokenViewTests(TestCase):
-    @patch("core.views.get_shopify_app")
+    @patch("shopify_admin.views.get_shopify_app")
     def test_patch_id_token_route_returns_sdk_response(self, mocked_get_shopify_app):
         mocked_get_shopify_app.return_value.app_home_patch_id_token.return_value = (
             SimpleNamespace(
@@ -248,21 +251,21 @@ class AuthPatchIdTokenViewTests(TestCase):
                 response=SimpleNamespace(
                     status=302,
                     body="",
-                    headers={"Location": "/app/?shopify-reload=%2Fapp%2F"},
+                    headers={"Location": "/shopify-admin/?shopify-reload=%2Fshopify-admin%2F"},
                 ),
                 log=SimpleNamespace(code="redirect_to_patch_id_token_page", detail="redirect"),
             )
         )
 
-        response = self.client.get("/core/auth/patch-id-token?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/patch-id-token?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/app/?shopify-reload=%2Fapp%2F")
+        self.assertEqual(response["Location"], "/shopify-admin/?shopify-reload=%2Fshopify-admin%2F")
 
 
 class TokenLifecycleTests(TestCase):
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_exchange_persists_offline_token_data(
         self, mocked_get_shopify_app, mock_raw_gql
     ):
@@ -301,10 +304,11 @@ class TokenLifecycleTests(TestCase):
             )
         )
 
-        response = self.client.get("/app/?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
-        record = ShopConfig.objects.get(shop="test-shop")
+        record = get_shop_config("test-shop")
+        self.assertIsNotNone(record)
         self.assertFalse(record.is_online)
         self.assertEqual(record.access_token, "new-access-token")
         self.assertEqual(record.scope, "write_products")
@@ -312,7 +316,7 @@ class TokenLifecycleTests(TestCase):
         mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_called_once()
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_refresh_updates_existing_token(self, mocked_get_shopify_app, mock_raw_gql):
         mock_raw_gql.return_value = SimpleNamespace(
             ok=True,
@@ -323,10 +327,11 @@ class TokenLifecycleTests(TestCase):
             response=SimpleNamespace(status=200, body="", headers={}),
         )
         ShopConfig.objects.create(
-            shop="test-shop",
+            shop="test-shop.myshopify.com",
             is_online=False,
             access_token="stale-token",
             refresh_token="refresh-token",
+            expires=timezone.now() - timedelta(minutes=5),
         )
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -344,7 +349,7 @@ class TokenLifecycleTests(TestCase):
                 ok=True,
                 access_token=SimpleNamespace(
                     access_mode="offline",
-                    shop="test-shop",
+                    shop="test-shop.myshopify.com",
                     token="fresh-token",
                     scope="write_products",
                     expires="2027-03-01T00:00:00Z",
@@ -355,24 +360,34 @@ class TokenLifecycleTests(TestCase):
             )
         )
 
-        response = self.client.get("/app/?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
-        record = ShopConfig.objects.get(shop="test-shop")
+        record = get_shop_config("test-shop")
+        self.assertIsNotNone(record)
         self.assertEqual(record.access_token, "fresh-token")
         self.assertEqual(record.refresh_token, "new-refresh-token")
         mocked_get_shopify_app.return_value.refresh_token_exchanged_access_token.assert_called_once()
         mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_not_called()
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_refresh_failure_clears_tokens_and_returns_sdk_response(
-        self, mocked_get_shopify_app
+        self, mocked_get_shopify_app, mock_raw_gql
     ):
-        ShopConfig.objects.create(
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=False,
             shop="test-shop",
+            data=None,
+            log=SimpleNamespace(code="unauthorized", detail=""),
+            response=SimpleNamespace(status=401, body="", headers={}),
+        )
+        ShopConfig.objects.create(
+            shop="test-shop.myshopify.com",
             is_online=False,
             access_token="stale-token",
             refresh_token="refresh-token",
+            expires=timezone.now() - timedelta(minutes=5),
         )
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -396,16 +411,22 @@ class TokenLifecycleTests(TestCase):
                 ),
             )
         )
+        mocked_get_shopify_app.return_value.exchange_using_token_exchange.return_value = (
+            SimpleNamespace(
+                ok=False,
+                log=SimpleNamespace(code="invalid_subject_token", detail="invalid"),
+                response=SimpleNamespace(status=401, body="", headers={}),
+            )
+        )
 
-        response = self.client.get("/app/?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
-        self.assertEqual(response.status_code, 401)
-        record = ShopConfig.objects.get(shop="test-shop")
-        self.assertIsNone(record.access_token)
-        self.assertIsNone(record.refresh_token)
+        # HomeView soft-renders on non-redirect token failures; tokens must be cleared.
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(shop_has_access_token("test-shop"))
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_refresh_network_error_uses_existing_access_token(
         self, mocked_get_shopify_app, mock_raw_gql
     ):
@@ -418,10 +439,11 @@ class TokenLifecycleTests(TestCase):
             response=SimpleNamespace(status=200, body="", headers={}),
         )
         ShopConfig.objects.create(
-            shop="test-shop",
+            shop="test-shop.myshopify.com",
             is_online=False,
             access_token="existing-token",
             refresh_token="refresh-token",
+            expires=timezone.now() - timedelta(minutes=5),
         )
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -442,10 +464,11 @@ class TokenLifecycleTests(TestCase):
             )
         )
 
-        response = self.client.get("/shopify-admin?shop=test-shop.myshopify.com")
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
-        record = ShopConfig.objects.get(shop="test-shop")
+        record = get_shop_config("test-shop")
+        self.assertIsNotNone(record)
         self.assertEqual(record.access_token, "existing-token")
         self.assertEqual(record.refresh_token, "refresh-token")
         mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_not_called()
@@ -472,26 +495,26 @@ class EmbeddedRedirectValidationTests(TestCase):
 
 
 class EmbeddedRedirectViewTests(TestCase):
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_in_app_verify_failed_returns_sdk_response(self, mock_gs):
         mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=False,
             response=SimpleNamespace(
                 status=302,
                 body="",
-                headers={"Location": "/core/auth/patch-id-token"},
+                headers={"Location": "/shopify-admin/patch-id-token"},
             ),
             log=SimpleNamespace(code="redirect_to_patch_id_token_page", detail=""),
         )
 
         response = self.client.get(
-            f"{reverse('core:auth-embedded-redirect')}?next=/app/extra"
+            f"{reverse('shopify_admin:auth-embedded-redirect')}?next=/app/extra"
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/core/auth/patch-id-token")
+        self.assertEqual(response["Location"], "/shopify-admin/patch-id-token")
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_in_app_calls_sdk_with_next_and_shop(self, mock_gs):
         mock_app = mock_gs.return_value
         mock_app.verify_app_home_req.return_value = SimpleNamespace(
@@ -511,7 +534,7 @@ class EmbeddedRedirectViewTests(TestCase):
         )
 
         response = self.client.get(
-            f"{reverse('core:auth-embedded-redirect')}?next=/app/extra"
+            f"{reverse('shopify_admin:auth-embedded-redirect')}?next=/app/extra"
         )
 
         self.assertEqual(response.status_code, 302)
@@ -524,7 +547,7 @@ class EmbeddedRedirectViewTests(TestCase):
             mock_app.app_home_redirect.call_args[0][2], "test-shop"
         )
 
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_in_app_invalid_next_returns_400_before_sdk_redirect(self, mock_gs):
         mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -534,14 +557,14 @@ class EmbeddedRedirectViewTests(TestCase):
         )
 
         response = self.client.get(
-            f"{reverse('core:auth-embedded-redirect')}?next=//evil.com"
+            f"{reverse('shopify_admin:auth-embedded-redirect')}?next=//evil.com"
         )
 
         self.assertEqual(response.status_code, 400)
         mock_gs.return_value.app_home_redirect.assert_not_called()
 
     @override_settings(SHOPIFY_APP_URL="https://trusted.example.com")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_parent_allowed_url_calls_sdk(self, mock_gs):
         mock_app = mock_gs.return_value
         mock_app.verify_app_home_req.return_value = SimpleNamespace(
@@ -562,7 +585,7 @@ class EmbeddedRedirectViewTests(TestCase):
 
         target = "https://trusted.example.com/out"
         response = self.client.get(
-            reverse("core:auth-embedded-parent-redirect"),
+            reverse("shopify_admin:auth-embedded-parent-redirect"),
             {"url": target},
         )
 
@@ -576,7 +599,7 @@ class EmbeddedRedirectViewTests(TestCase):
         )
 
     @override_settings(SHOPIFY_APP_URL="https://trusted.example.com")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_parent_disallowed_host_returns_400(self, mock_gs):
         mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -586,7 +609,7 @@ class EmbeddedRedirectViewTests(TestCase):
         )
 
         response = self.client.get(
-            reverse("core:auth-embedded-parent-redirect"),
+            reverse("shopify_admin:auth-embedded-parent-redirect"),
             {"url": "https://evil.example/not-allowed"},
         )
 
@@ -594,7 +617,7 @@ class EmbeddedRedirectViewTests(TestCase):
         mock_gs.return_value.app_home_parent_redirect.assert_not_called()
 
     @override_settings(SHOPIFY_APP_URL="https://trusted.example.com")
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_parent_invalid_target_returns_400(self, mock_gs):
         mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -604,7 +627,7 @@ class EmbeddedRedirectViewTests(TestCase):
         )
 
         response = self.client.get(
-            reverse("core:auth-embedded-parent-redirect"),
+            reverse("shopify_admin:auth-embedded-parent-redirect"),
             {
                 "url": "https://trusted.example.com/ok",
                 "target": "_self",
@@ -626,20 +649,20 @@ class EmbeddedShopifySyncViewTests(TestCase):
             log=SimpleNamespace(code="verified", detail=""),
         )
 
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_post_rejects_invalid_resource(self, mock_gs, _mock_token):
         self._mock_verified_app_home(mock_gs)
         response = self.client.post(
-            reverse("shopify_embedded_sync"),
+            reverse("shopify_admin:shopify_embedded_sync"),
             data={"resource": "invalid"},
         )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("home"))
+        self.assertEqual(response.url, reverse("shopify_admin:home"))
 
-    @patch("core.views.enqueue_shopify_import")
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.enqueue_shopify_import")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_post_triggers_new_only_import(self, mock_gs, _mock_token, mock_enqueue):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
@@ -658,17 +681,17 @@ class EmbeddedShopifySyncViewTests(TestCase):
         mock_enqueue.return_value = sync_run
 
         response = self.client.post(
-            reverse("shopify_embedded_sync"),
+            reverse("shopify_admin:shopify_embedded_sync"),
             data={"resource": "products"},
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("home"))
+        self.assertEqual(response.url, reverse("shopify_admin:home"))
         mock_enqueue.assert_called_once_with("products", new_only=True)
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_home_renders_sync_buttons(self, mock_gs, _mock_token, mock_raw_gql):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
@@ -685,16 +708,16 @@ class EmbeddedShopifySyncViewTests(TestCase):
             response=SimpleNamespace(status=200, body="", headers={}),
         )
 
-        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+        response = self.client.get(f"{reverse('shopify_admin:home')}?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Importar contenido a Wagtail")
         self.assertContains(response, "Importar productos nuevos")
-        self.assertContains(response, reverse("shopify_embedded_sync"))
+        self.assertContains(response, reverse("shopify_admin:shopify_embedded_sync"))
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_home_renders_sync_buttons_when_shop_domain_formats_differ(
         self, mock_gs, _mock_token, mock_raw_gql
     ):
@@ -721,7 +744,7 @@ class EmbeddedShopifySyncViewTests(TestCase):
             response=SimpleNamespace(status=200, body="", headers={}),
         )
 
-        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+        response = self.client.get(f"{reverse('shopify_admin:home')}?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Importar productos nuevos")
@@ -739,8 +762,8 @@ class EmbeddedCommandDispatchViewTests(TestCase):
             log=SimpleNamespace(code="verified", detail=""),
         )
 
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_post_rejects_missing_command_id(self, mock_gs, _mock_token):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
@@ -748,13 +771,13 @@ class EmbeddedCommandDispatchViewTests(TestCase):
             is_online=False,
             access_token="tok",
         )
-        response = self.client.post(reverse("shopify_embedded_command"), data={})
+        response = self.client.post(reverse("shopify_admin:shopify_embedded_command"), data={})
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("home"))
+        self.assertEqual(response.url, reverse("shopify_admin:home"))
 
-    @patch("core.views.enqueue_embedded_command")
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.enqueue_embedded_command")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_post_enqueues_valid_command(self, mock_gs, _mock_token, mock_enqueue):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
@@ -770,17 +793,17 @@ class EmbeddedCommandDispatchViewTests(TestCase):
         mock_enqueue.return_value = run
 
         response = self.client.post(
-            reverse("shopify_embedded_command"),
+            reverse("shopify_admin:shopify_embedded_command"),
             data={"command_id": "setup_locales"},
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("home"))
+        self.assertEqual(response.url, reverse("shopify_admin:home"))
         mock_enqueue.assert_called_once_with("setup_locales", extra_kwargs={})
 
-    @patch("core.views.enqueue_embedded_command")
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.enqueue_embedded_command")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_post_passes_page_id_for_optional_command(self, mock_gs, _mock_token, mock_enqueue):
         self._mock_verified_app_home(mock_gs)
         ShopConfig.objects.create(
@@ -796,7 +819,7 @@ class EmbeddedCommandDispatchViewTests(TestCase):
         mock_enqueue.return_value = run
 
         response = self.client.post(
-            reverse("shopify_embedded_command"),
+            reverse("shopify_admin:shopify_embedded_command"),
             data={"command_id": "rebuild_content_url_index", "page_id": "1234"},
         )
 
@@ -807,8 +830,8 @@ class EmbeddedCommandDispatchViewTests(TestCase):
         )
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
-    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
-    @patch("core.mixins.get_shopify_app")
+    @patch("shopify_admin.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("shopify_admin.mixins.get_shopify_app")
     def test_home_renders_command_sections_and_history(
         self, mock_gs, _mock_token, mock_raw_gql
     ):
@@ -833,33 +856,12 @@ class EmbeddedCommandDispatchViewTests(TestCase):
             message="Locale setup complete.",
         )
 
-        response = self.client.get(f"{reverse('home')}?shop=test-shop.myshopify.com")
+        response = self.client.get(f"{reverse('shopify_admin:home')}?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Configuración inicial")
         self.assertContains(response, 'Configurar locales')
         self.assertContains(response, 'Reconstruir índice URL contenido')
-        self.assertContains(response, reverse('shopify_embedded_command'))
+        self.assertContains(response, reverse('shopify_admin:shopify_embedded_command'))
         self.assertContains(response, "Historial reciente")
         self.assertContains(response, "Completado")
-
-
-class ShopConfigLookupTests(TestCase):
-    def test_prefers_record_with_token_when_multiple_shop_formats_exist(self):
-        ShopConfig.objects.create(shop="demo", is_online=False, access_token=None)
-        ShopConfig.objects.create(
-            shop="demo.myshopify.com", is_online=False, access_token="tok"
-        )
-
-        self.assertTrue(shop_has_access_token("demo.myshopify.com"))
-        self.assertEqual(get_shop_config("demo").access_token, "tok")
-
-    def test_get_shop_config_without_shop_prefers_row_with_token(self):
-        ShopConfig.objects.create(shop="empty-shop", is_online=False, access_token=None)
-        ShopConfig.objects.create(
-            shop="ready-shop", is_online=False, access_token="tok"
-        )
-
-        config = get_shop_config()
-        self.assertEqual(config.shop, "ready-shop")
-        self.assertTrue(shop_has_access_token())

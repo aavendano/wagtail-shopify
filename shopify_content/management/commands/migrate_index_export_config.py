@@ -4,7 +4,7 @@ import json
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.models import ShopifyRootPage
 from shopify_content.sync.index_pages_bootstrap import (

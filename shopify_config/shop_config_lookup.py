@@ -8,7 +8,7 @@ def get_shop_config(shop=None):
     When *shop* is given, match both short subdomain and *.myshopify.com forms.
     Prefer a row that already has an access_token when multiple rows exist.
     """
-    from .models import ShopConfig
+    from shopify_config.models import ShopConfig
 
     if shop:
         configs = []

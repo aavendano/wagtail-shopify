@@ -11,7 +11,7 @@ For legacy per-locale index metafields, use ensure_index_metafield_definitions -
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.sync.page_metafield_definitions import (
     PAGE_INDEX_METAFIELD_DEFINITIONS,
     ensure_page_metafield_definitions,

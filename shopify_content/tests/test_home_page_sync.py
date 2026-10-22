@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase
 from wagtail.models import Locale, Page
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_content.models import HomePage, ShopifyRootPage
 from shopify_content.home_slug import home_page_handle
 from shopify_content.sync.outbound import _home_page_definition, sync_home_page

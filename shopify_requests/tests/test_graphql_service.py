@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from core.models import ShopConfig
+from shopify_config.models import ShopConfig
 from shopify_requests.graphql_service import AdminGraphqlResult, execute_admin_graphql
 
 
