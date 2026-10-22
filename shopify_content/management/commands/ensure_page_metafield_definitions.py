@@ -11,7 +11,11 @@ For legacy per-locale index metafields, use ensure_index_metafield_definitions -
 
 from django.core.management.base import BaseCommand, CommandError
 
-from shopify_config.models import ShopConfig
+from shopify_config.tenancy import (
+    ShopUnresolvedError,
+    add_shop_argument,
+    resolve_shop_for_command_or_sole,
+)
 from shopify_content.sync.page_metafield_definitions import (
     PAGE_INDEX_METAFIELD_DEFINITIONS,
     ensure_page_metafield_definitions,
@@ -22,6 +26,7 @@ class Command(BaseCommand):
     help = 'Create or verify Page metafield definitions for index sync'
 
     def add_arguments(self, parser):
+        add_shop_argument(parser)
         parser.add_argument(
             '--list-only',
             action='store_true',
@@ -29,11 +34,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        config = ShopConfig.objects.first()
-        if not config:
-            raise CommandError('No ShopConfig found. Install the app on a Shopify store first.')
-
-        shop = config.shop
+        try:
+            shop = resolve_shop_for_command_or_sole(shop=options.get('shop') or None)
+        except ShopUnresolvedError as exc:
+            raise CommandError(str(exc)) from exc
         self.stdout.write(f'Shop: {shop}')
 
         if options['list_only']:

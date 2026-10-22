@@ -3,7 +3,12 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from shopify_config.models import ShopConfig
+from django.contrib.auth import get_user_model
+
+from shopify_config.membership import ensure_membership
+from shopify_config.models import ShopConfig, ShopMembership
+
+User = get_user_model()
 
 
 class WebhookUninstalledTests(TestCase):
@@ -62,6 +67,30 @@ class WebhookUninstalledTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertFalse(ShopConfig.objects.exists())
+
+    @patch("webhooks.views.get_shopify_app")
+    def test_uninstalled_deletes_memberships(self, mock_get_app):
+        ShopConfig.objects.create(
+            shop="demo.myshopify.com", is_online=False, access_token="tok"
+        )
+        user = User.objects.create_user(username="ed", password="x", is_staff=True)
+        ensure_membership(user, "demo.myshopify.com")
+        mock_get_app.return_value.verify_webhook_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="demo.myshopify.com",
+            response=SimpleNamespace(status=200, body="", headers={}),
+            log=SimpleNamespace(code="verified", detail="ok"),
+        )
+
+        response = self.client.post(
+            "/webhooks/app/uninstalled",
+            data=b"{}",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(ShopMembership.objects.exists())
         self.assertFalse(ShopConfig.objects.exists())
 
 

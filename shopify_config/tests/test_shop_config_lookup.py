@@ -14,8 +14,7 @@ class ShopConfigLookupTests(TestCase):
         self.assertTrue(shop_has_access_token("demo.myshopify.com"))
         self.assertEqual(get_shop_config("demo").access_token, "tok")
 
-    def test_get_shop_config_without_shop_prefers_row_with_token(self):
-        ShopConfig.objects.create(shop="empty-shop", is_online=False, access_token=None)
+    def test_get_shop_config_without_shop_uses_sole_installed(self):
         ShopConfig.objects.create(
             shop="ready-shop", is_online=False, access_token="tok"
         )
@@ -23,3 +22,12 @@ class ShopConfigLookupTests(TestCase):
         config = get_shop_config()
         self.assertEqual(config.shop, "ready-shop")
         self.assertTrue(shop_has_access_token())
+
+    def test_get_shop_config_without_shop_returns_none_when_ambiguous(self):
+        ShopConfig.objects.create(shop="empty-shop", is_online=False, access_token=None)
+        ShopConfig.objects.create(
+            shop="ready-shop", is_online=False, access_token="tok"
+        )
+
+        self.assertIsNone(get_shop_config())
+        self.assertFalse(shop_has_access_token())

@@ -13,14 +13,53 @@ def user_is_cms_editor(user) -> bool:
     return user.groups.filter(name="cms_editors").exists()
 
 
-class SessionEditorAuth(NinjaSessionAuth):
-    """Allow authenticated staff / cms_editors via Django session (SPA same-origin)."""
+def user_has_shop_membership_access(request, user) -> bool:
+    """Fail-closed membership gate for session CMS editors.
+
+    Requires an authorized session shop (or sole-shop auto-seed). When shops
+    are installed but the user has no membership and is not a superuser,
+    access is denied. When no ShopConfig exists yet, staff editors may still
+    authenticate (install/bootstrap flows).
+    """
+    from shopify_config.membership import user_may_access_shop
+    from shopify_config.tenancy import (
+        ShopUnresolvedError,
+        ensure_session_shop,
+        installed_shop_domains,
+        resolve_sole_installed_shop,
+    )
+
+    if getattr(user, "is_superuser", False):
+        shop = ensure_session_shop(request)
+        if not shop:
+            try:
+                ensure_session_shop(request, resolve_sole_installed_shop())
+            except ShopUnresolvedError:
+                pass
+        return True
+
+    shop = ensure_session_shop(request)
+    if shop:
+        return user_may_access_shop(user, shop)
+
+    try:
+        sole = resolve_sole_installed_shop()
+    except ShopUnresolvedError:
+        # No installed shop yet — allow staff/editors for onboarding.
+        return not bool(installed_shop_domains())
+
+    if user_may_access_shop(user, sole):
+        ensure_session_shop(request, sole)
+        return True
+    return False
+
+
+class CmsEditorSessionAuth(NinjaSessionAuth):
+    """Staff / cms_editors only — no shop membership gate (session-shop selector)."""
 
     openapi_description = (
-        "Django session authentication for the merchant CMS SPA at /cms/. "
-        "Requires a logged-in staff user or membership in the cms_editors group. "
-        "Same-origin requests send the session cookie; include the CSRF token for "
-        "unsafe methods."
+        "Django session authentication for CMS editors selecting a shop. "
+        "Requires staff or cms_editors; membership is checked when setting a shop."
     )
 
     def authenticate(self, request, key=None):
@@ -30,12 +69,33 @@ class SessionEditorAuth(NinjaSessionAuth):
         return None
 
 
+class SessionEditorAuth(NinjaSessionAuth):
+    """Allow authenticated staff / cms_editors via Django session (SPA same-origin)."""
+
+    openapi_description = (
+        "Django session authentication for the merchant CMS SPA at /cms/. "
+        "Requires a logged-in staff user or membership in the cms_editors group, "
+        "plus ShopMembership for the session shop (or sole installed shop). "
+        "Same-origin requests send the session cookie; include the CSRF token for "
+        "unsafe methods."
+    )
+
+    def authenticate(self, request, key=None):
+        user = getattr(request, "user", None)
+        if not user_is_cms_editor(user):
+            return None
+        if not user_has_shop_membership_access(request, user):
+            return None
+        return user
+
+
 class ApiKeyAuth(HttpBearer):
     openapi_description = (
         "Bearer token authentication. Pass either an API key or an OAuth access token in "
         "the Authorization header: 'Authorization: Bearer <token>'. API keys are managed "
         "in Django admin under API > API Keys. OAuth clients and tokens are managed under "
-        "Django OAuth Toolkit and require the configured MCP scope."
+        "Django OAuth Toolkit and require the configured MCP scope. "
+        "ApiKey is deploy-scoped (one shop per install); per-shop API key scope is a follow-up."
     )
 
     def authenticate(self, request, token):

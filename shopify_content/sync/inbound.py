@@ -51,11 +51,13 @@ PAGE_SIZE = 100
 
 
 def _get_shop():
-    from shopify_config.models import ShopConfig
-    config = ShopConfig.objects.first()
-    if not config:
-        raise RuntimeError('No ShopConfig found. Install the app on Shopify first.')
-    return config.shop
+    """Resolve the sole installed shop (deploy-per-shop / Celery without request)."""
+    from shopify_config.tenancy import ShopUnresolvedError, resolve_sole_installed_shop
+
+    try:
+        return resolve_sole_installed_shop()
+    except ShopUnresolvedError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def _paginate(shop, query, data_path, variables=None):

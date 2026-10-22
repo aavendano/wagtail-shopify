@@ -23,7 +23,17 @@ Shopify Admin API (GraphQL)
 Shopify Storefront → Cliente final
 ```
 
-**Single-tenant:** una instalación Wagtail = una tienda Shopify. El `shop` se resuelve desde `ShopConfig.objects.first().shop`; no se almacena en cada página.
+**Deploy-per-shop:** una instalación Wagtail = una tienda Shopify. El `shop` se
+resuelve por sesión (`SESSION_SHOP`) + `ShopMembership`, o por
+`resolve_sole_installed_shop()` en sync/Celery; no se almacena en cada página.
+Ver [`docs/adr/0002-shop-tenancy-membership.md`](docs/adr/0002-shop-tenancy-membership.md).
+
+**Dual-channel (Online Store + Hydrogen):** un merchant, un Site Wagtail, dos
+superficies de lectura sobre la misma proyección Shopify. Forma documental:
+`plt-editorial-schema` 1.1.0. Ver
+[`docs/adr/0003-dual-channel-storefronts.md`](docs/adr/0003-dual-channel-storefronts.md)
+e inventario
+[`docs/content-inventory-playlovetoys.md`](docs/content-inventory-playlovetoys.md).
 
 ---
 
@@ -32,7 +42,7 @@ Shopify Storefront → Cliente final
 | App | Descripción |
 |-----|-------------|
 | `shopify_admin` | UI embebida App Home (`/shopify-admin/`), OAuth install/login, middleware proxy CLI |
-| `shopify_config` | `ShopConfig` + tokens (`db_table=core_shopconfig`); sin rutas HTTP |
+| `shopify_config` | `ShopConfig` + tokens (`db_table=core_shopconfig`), tenancy + `ShopMembership`; sin rutas HTTP |
 | `core` | Solo plataforma Django (`ensure_superuser`); fuera del grafo Shopify — ver [`docs/adr/0001-core-app-split.md`](docs/adr/0001-core-app-split.md) |
 | `shopify_requests` | Cliente GraphQL centralizado; ver [`docs/shopify_requests.md`](docs/shopify_requests.md) |
 | `metaobjects` | Toolkit para metaobjetos Shopify; ver [`docs/Documentation.txt`](docs/Documentation.txt) |

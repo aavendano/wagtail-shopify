@@ -20,6 +20,7 @@ Resource = Literal[
     "home",
     "semantic_links",
     "capabilities",
+    "session",
 ]
 SyncDirection = Literal["shopify_to_wagtail", "wagtail_to_shopify"] | None
 
@@ -83,6 +84,24 @@ def _cap(
 
 
 CAPABILITIES: dict[str, AgentCapability] = {
+    # Session shop (CMS SPA)
+    "get_session_shop": _cap(
+        "get_session_shop", "GET", "/session-shop/",
+        "read", "session",
+        "Get active session shop and allowed shops",
+        "Read or auto-seed the merchant shop on the Django session before CMS writes.",
+        "SessionShopOut",
+        ("set_session_shop", "list_agent_capabilities"),
+    ),
+    "set_session_shop": _cap(
+        "set_session_shop", "POST", "/session-shop/",
+        "update", "session",
+        "Set the active session shop",
+        "Switch the CMS session to an installed shop the editor may access.",
+        "SessionShopSetOut",
+        ("get_session_shop",),
+        ("ShopMembership for the target shop (or superuser)",),
+    ),
     # Products
     "list_products": _cap(
         "list_products", "GET", "/products/",
@@ -674,6 +693,10 @@ TAG_DESCRIPTIONS: dict[str, str] = {
     "Semantic Links": (
         "Read-only semantic neighbor preview against PageIndex. Does not persist "
         "related-link FKs; production auto-links still materialize on publish."
+    ),
+    "Session": (
+        "Session shop selector for CMS editors. GET lists membership shops and "
+        "auto-seeds when only one is allowed; POST sets SESSION_SHOP (membership-gated)."
     ),
     "Capabilities": (
         "Meta capability group: machine-readable agent tool catalog and predefined workflows."

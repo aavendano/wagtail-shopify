@@ -158,9 +158,32 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
                     getattr(self._verification_result, "shop", None),
                     log_code,
                 )
+                self._apply_installer_membership(request)
                 return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
             return shopify_result_to_django_response(token_result)
+        self._apply_installer_membership(request)
         return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
+
+    def _apply_installer_membership(self, request):
+        """Upsert shop admin membership from session-token staff claims."""
+        from django.contrib.auth import login
+
+        from shopify_config.membership import ensure_installer_user_and_membership
+        from shopify_config.tenancy import SESSION_SHOP, normalize_shop
+
+        verification = getattr(self, "_verification_result", None)
+        shop = normalize_shop(getattr(verification, "shop", None) or "")
+        if not shop:
+            return
+        id_token = getattr(verification, "id_token", None)
+        claims = getattr(id_token, "claims", None) if id_token is not None else None
+        user = ensure_installer_user_and_membership(shop=shop, claims=claims)
+        # Always pin session shop when App Home verified an installed shop.
+        request.session[SESSION_SHOP] = shop
+        if user is None:
+            return
+        if not getattr(request.user, "is_authenticated", False) or request.user.pk != user.pk:
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
 
     def render_to_response(self, context, **response_kwargs):
         response = super().render_to_response(context, **response_kwargs)

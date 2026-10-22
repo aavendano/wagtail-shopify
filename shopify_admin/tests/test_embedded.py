@@ -11,9 +11,14 @@ from shopify_admin.embedded_redirects import (
     validate_relative_app_path,
 )
 from shopify_admin.forms import ShopConfigForm
-from shopify_config.models import ShopConfig
+from django.contrib.auth import get_user_model
+
+from shopify_config.models import ShopConfig, ShopMembership
 from shopify_config.shop_config_lookup import get_shop_config, shop_has_access_token
+from shopify_config.tenancy import SESSION_SHOP
 from shopify_content.models.command_run import EmbeddedCommandRun
+
+User = get_user_model()
 
 
 class ShopConfigFormTests(TestCase):
@@ -472,6 +477,58 @@ class TokenLifecycleTests(TestCase):
         self.assertEqual(record.access_token, "existing-token")
         self.assertEqual(record.refresh_token, "refresh-token")
         mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_not_called()
+
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
+    @patch("shopify_admin.mixins.get_shopify_app")
+    def test_home_bootstraps_membership_and_session_shop(
+        self, mocked_get_shopify_app, mock_raw_gql
+    ):
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop",
+            data={"shop": {"id": "gid://shopify/Shop/1"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+        ShopConfig.objects.create(
+            shop="test-shop.myshopify.com",
+            is_online=False,
+            access_token="existing-token",
+            refresh_token="refresh-token",
+            refresh_token_expires=timezone.now() + timedelta(days=30),
+            expires=timezone.now() + timedelta(hours=1),
+        )
+        mocked_get_shopify_app.return_value.verify_app_home_req.return_value = (
+            SimpleNamespace(
+                ok=True,
+                shop="test-shop",
+                id_token=SimpleNamespace(
+                    exchangeable=True,
+                    token="jwt-token",
+                    claims={
+                        "dest": "https://test-shop.myshopify.com",
+                        "email": "installer@example.com",
+                    },
+                ),
+                new_id_token_response=None,
+                response=SimpleNamespace(headers={}),
+            )
+        )
+
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self.client.session.get(SESSION_SHOP), "test-shop.myshopify.com"
+        )
+        user = User.objects.get(username="installer@example.com")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(
+            ShopMembership.objects.filter(
+                user=user, shop="test-shop.myshopify.com", role="admin"
+            ).exists()
+        )
 
 
 class EmbeddedRedirectValidationTests(TestCase):
