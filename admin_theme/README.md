@@ -1,4 +1,4 @@
-# admin_theme — PLT "cheesecake" for the Wagtail admin
+# admin_theme — PLT "cheesecake" theme and branding for the Wagtail admin
 
 Skins the Wagtail admin with the `cheesecake` theme of
 [`plt-design-system`](https://github.com/aavendano/plt-design-system), using the
@@ -40,6 +40,29 @@ make admin-theme-check                                 # fails if the committed 
 The generator needs only Python's standard library. It exits with an error if a mapped pair
 (body text, links, button text, sidebar text, status accents) falls below 4.5:1, so a token
 change cannot silently produce an inaccessible admin.
+
+## Branding
+
+PlayLoveToys logo, favicon and titles, through Wagtail's documented template blocks
+(`templates/wagtailadmin/{base,login,admin_base}.html`; this app must stay before
+`wagtail.admin` in `INSTALLED_APPS`). `static/admin_theme/css/branding.css` is hand-written.
+
+| Where | Asset |
+|---|---|
+| Sidebar | `img/plt-logo.svg`, white wordmark, works on the purple sidebar and the dark theme |
+| Login, light theme | `img/plt-logo-on-light.svg` |
+| Login, dark theme / OS dark | `img/plt-logo.svg` (`branding.css` switches on `.w-theme-dark` and `.w-theme-system`) |
+| Favicon | `img/favicon-32x32.png` |
+| Browser title, login heading | "PlayLoveToys" / "Sign in to PlayLoveToys" |
+
+Sources: `plt-logo.svg` and the favicon are the files published on the PlayLoveToys store
+(`PlayLoveToys-Logo.svg`, `favicon-playlovetoys-32x32.png`). `plt-logo-on-light.svg` is a derived
+copy with the five near-white fills (`#FEFEFE`, `#FDFDFD`, `#F6F6F6`) recoloured to the brand
+purple `#533278`, because the original's white wordmark is invisible on the cream login card.
+Replace it with official artwork if one exists. Logos are exempt from WCAG contrast rules.
+
+Not changed: the dashboard heading still reads `WAGTAIL_SITE_NAME` ("Wagtail Shopify"), and the
+Wagtail 404 page keeps its own logo.
 
 ## Deployment
 

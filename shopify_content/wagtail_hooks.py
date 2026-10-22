@@ -19,16 +19,6 @@ from .sync.publish_sync import is_syncable_page
 logger = logging.getLogger(__name__)
 
 
-@hooks.register('insert_global_admin_css')
-def hide_wagtail_sidebar_branding_logo():
-    """Hide the default Wagtail bird in the admin sidebar (no custom branding)."""
-    from django.utils.safestring import mark_safe
-
-    return mark_safe(
-        '<style>.sidebar-wagtail-branding{display:none!important}</style>'
-    )
-
-
 @hooks.register('insert_global_admin_js', order=1000)
 def shopify_wai_chooser_patch_js():
     from django.utils.html import format_html

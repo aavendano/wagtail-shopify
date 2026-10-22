@@ -101,6 +101,8 @@ if WAGTAIL_AI_PGVECTOR:
 INSTALLED_APPS = [
     'daphne',
     'custom.apps.CustomConfig',
+    # Before wagtail.admin: its wagtailadmin/* template overrides (branding) must win.
+    'admin_theme.apps.AdminThemeConfig',
     *_wagtail_ai_apps,
     #'wagtail_localize',
     'wagtail.locales',
@@ -140,7 +142,6 @@ INSTALLED_APPS = [
     'api',
     'django_react_ui_editor',
     'cms_ui.apps.CmsUiConfig',
-    'admin_theme.apps.AdminThemeConfig',
     'django_celery_beat',
 ]
 
