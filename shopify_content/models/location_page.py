@@ -49,6 +49,13 @@ class LocationPage(EditorialMixin, Page):
         max_length=255, blank=True,
         help_text='Shopify metaobject handle (auto-derived as <locale>-<city>[-<state>])',
     )
+    keep_shopify_handle = models.BooleanField(
+        default=False, db_default=False,
+        help_text=(
+            'Keep the handle the store already uses instead of deriving it from locale, '
+            'city and state. Set on pages imported from the Canadian location_page entries.'
+        ),
+    )
     sync_enabled = models.BooleanField(default=True, db_default=True)
     last_synced_at = models.DateTimeField(null=True, blank=True)
 
@@ -185,6 +192,7 @@ class LocationPage(EditorialMixin, Page):
         MultiFieldPanel([
             FieldPanel('shopify_id'),
             FieldPanel('handle', read_only=True),
+            FieldPanel('keep_shopify_handle'),
             FieldPanel('sync_enabled'),
             FieldPanel('last_synced_at', read_only=True),
         ], heading='Shopify Sync'),
@@ -212,13 +220,17 @@ class LocationPage(EditorialMixin, Page):
         specific = parent.specific
         return specific if isinstance(specific, RegionPage) else None
 
+    # Set by importers (never persisted) so existing store content is not rejected.
+    _skip_editorial_checks = False
+
     def clean(self):
         super().clean()
         self._apply_region_data()
         canonical = location_page_slug(self)
         if canonical:
             self.slug = canonical
-            self.handle = canonical
+            if not (self.keep_shopify_handle and self.handle):
+                self.handle = canonical
 
         rich_parts = [
             str(self.intro or ''),
@@ -235,7 +247,9 @@ class LocationPage(EditorialMixin, Page):
             rich_parts.append(faq.question)
             rich_parts.append(faq.answer)
 
-        forbidden = find_forbidden_phrases(' '.join(rich_parts))
+        # Content imported from Shopify is stored as the store has it; editors hit this check
+        # on their next save.
+        forbidden = [] if self._skip_editorial_checks else find_forbidden_phrases(' '.join(rich_parts))
         if forbidden:
             raise ValidationError(
                 {
