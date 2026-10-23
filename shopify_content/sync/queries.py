@@ -281,3 +281,54 @@ query GetGlossaryTerm($id: ID!) {
   }
 }
 """ % GLOSSARY_TERM_METAOBJECT_FIELDS
+
+# Canadian location pages: read-only. `region` lists its `location_pages`; `location_page`
+# entries carry no parent link of their own (province_page is empty in the live store).
+_CA_METAOBJECT_FIELDS = """
+        id
+        handle
+        type
+        capabilities { publishable { status } }
+        fields {
+          key
+          type
+          value
+          reference {
+            ... on Metaobject { id type handle fields { key value } }
+          }
+        }
+"""
+
+LIST_REGIONS = """
+query ListRegions($first: Int!, $after: String) {
+  metaobjects(type: "region", first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        %s
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+""" % _CA_METAOBJECT_FIELDS
+
+LIST_CA_LOCATION_PAGES = """
+query ListCanadianLocationPages($first: Int!, $after: String) {
+  metaobjects(type: "location_page", first: $first, after: $after) {
+    edges {
+      cursor
+      node {
+        %s
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+""" % _CA_METAOBJECT_FIELDS

@@ -54,6 +54,19 @@ Wagtail knew only `local_page`, as a flat `LocationPage` under a root.
   (root, locale, state) and moves loose locations under it. Wagtail tree only; dry run by default;
   idempotent.
 
+## Canada import
+
+`python manage.py import_canada_locations [--dry-run] [--new-only] [--locale en-CA]` reads the live
+`region` and `location_page` entries (Admin API queries only) and creates a `RegionPage` per
+region and a `LocationPage` under the region that lists it in `location_pages`. Falls back to
+`province_page`, then to the `province` name; what still has no region is imported loose under the
+root and reported. Re-running updates in place (matched by `shopify_id`).
+
+Imported pages keep the Shopify handle (`keep_shopify_handle`; the Wagtail slug stays canonical) and
+have `sync_enabled` off, so publishing them cannot write to `local_page`. Existing store copy is
+stored as is: the forbidden-phrase check applies from the editor's next save. Regions with no
+`country` in the store get Canada from their province code.
+
 ## Consequences
 
 - Moving locations changes Wagtail paths, not handles, so storefront URLs do not change.
