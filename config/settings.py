@@ -157,6 +157,9 @@ MIDDLEWARE = [
     'shopify_admin.debug_middleware.ShopifyLocalProxyMiddleware',
     'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    # Serves STATIC_ROOT under STATIC_URL in production (after `collectstatic`), so the admin
+    # theme and fonts need no separate file server. Must stay right after SecurityMiddleware.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
