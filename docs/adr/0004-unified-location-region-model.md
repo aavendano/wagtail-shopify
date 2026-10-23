@@ -73,5 +73,10 @@ stored as is: the forbidden-phrase check applies from the editor's next save. Re
 - The region ↔ location reference is circular, so applying the definitions takes two passes.
 - Canada's `province_page` is empty in the live data; importing Canada must derive the parent from
   `region.location_pages`.
+- The locations index (`custom.index_listings`) groups by region: a section is the `RegionPage`
+  name, falling back to the page's `state` text, then `#`. Sections from a region carry a `region`
+  summary (`handle`, `code`, `country`, `path`); items carry `country`. The additions are optional
+  keys, so the index version stays 1. Canadian pages link to `/pages/canada-location/{handle}` and
+  regions to `/pages/canada/{handle}`; a US region has no public path yet (`null`).
 - Not done yet: syncing `region` / unified `location_page` and `faq` entries (behind a flag, off
-  until operational), grouping the locations index by region, and region API endpoints.
+  until operational) and region API endpoints.
