@@ -10,6 +10,11 @@ from wagtail.models import Page
 
 GLOSSARY_METAOBJECT_URL_HANDLE = 'glossary'
 LOCATION_METAOBJECT_URL_HANDLE = 'location'
+# Canadian pages are the `location_page` / `region` metaobjects, published under their own URL
+# handles in the live theme (Shopify Liquid is the source of truth for these).
+CANADA_LOCATION_METAOBJECT_URL_HANDLE = 'canada-location'
+CANADA_REGION_METAOBJECT_URL_HANDLE = 'canada'
+COUNTRY_CANADA = 'Canada'
 
 # Shopify Markets locale path prefixes (aligned with bigquery_gsc scoring).
 KNOWN_LOCALE_PREFIXES: tuple[str, ...] = (
@@ -54,8 +59,19 @@ def glossary_term_path(handle: str) -> str:
     return f'/pages/{GLOSSARY_METAOBJECT_URL_HANDLE}/{handle}'
 
 
-def location_page_path(handle: str) -> str:
-    return f'/pages/{LOCATION_METAOBJECT_URL_HANDLE}/{handle}'
+def location_page_path(handle: str, country: str = '') -> str:
+    url_handle = (
+        CANADA_LOCATION_METAOBJECT_URL_HANDLE if country == COUNTRY_CANADA
+        else LOCATION_METAOBJECT_URL_HANDLE
+    )
+    return f'/pages/{url_handle}/{handle}'
+
+
+def region_page_path(handle: str, country: str = '') -> str | None:
+    """Path of a region page; only Canadian regions are published today."""
+    if country != COUNTRY_CANADA or not handle:
+        return None
+    return f'/pages/{CANADA_REGION_METAOBJECT_URL_HANDLE}/{handle}'
 
 
 def home_page_path(handle: str) -> str:
@@ -159,6 +175,7 @@ def storefront_path_for_page(page) -> str | None:
     from shopify_content.models.home_page import HomePage
     from shopify_content.models.location_page import LocationPage
     from shopify_content.models.product import ProductPage
+    from shopify_content.models.region_page import RegionPage
     from shopify_content.models.root import ShopifyRootPage
 
     specific = page.specific if isinstance(page, Page) else page
@@ -188,7 +205,10 @@ def storefront_path_for_page(page) -> str | None:
 
     if isinstance(specific, LocationPage):
         handle = _location_handle(specific)
-        return location_page_path(handle) if handle else None
+        return location_page_path(handle, specific.country) if handle else None
+
+    if isinstance(specific, RegionPage):
+        return region_page_path(_page_handle(specific), specific.country)
 
     if isinstance(specific, HomePage):
         handle = _home_handle(specific)

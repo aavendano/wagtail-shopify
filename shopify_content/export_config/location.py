@@ -17,12 +17,13 @@ class LocationIndexConsumer(RootIndexConsumer):
         return build_location_index_json(locale_code)
 
     def locale_codes_for_page(self, page) -> list[str] | None:
-        from shopify_content.models import LocationPage
+        from shopify_content.models import LocationPage, RegionPage
 
         specific = page.specific if hasattr(page, 'specific') else page
-        if not isinstance(specific, LocationPage):
+        # A region's name and handle label the index sections, so its changes rebuild it too.
+        if not isinstance(specific, (LocationPage, RegionPage)):
             return None
-        if specific.shopify_locale:
+        if getattr(specific, 'shopify_locale', ''):
             return [specific.shopify_locale]
         if not specific.locale_id:
             return None

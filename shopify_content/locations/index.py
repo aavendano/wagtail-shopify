@@ -1,14 +1,22 @@
-"""Build precomputed location index JSON for Shopify Page metafields."""
+"""Build precomputed location index JSON for Shopify Page metafields.
+
+Sections are the regions (province or state) the locations sit under; a location still hanging
+off the root falls back to its ``state`` text, and one with neither goes to the ``#`` section.
+Sections that come from a RegionPage also carry a ``region`` summary. Everything added since
+version 1 is additive, so the version stays 1.
+"""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from wagtail.models import Page
+
 from shopify_content.available_locales import ALLOWED_LOCALE_CODE_LIST
 from shopify_content.index_builders import build_multi_locale_index
 from shopify_content.location_slug import location_page_slug
-from shopify_content.models import LocationPage, ShopifyRootPage
-from shopify_content.storefront_urls import location_page_path
+from shopify_content.models import LocationPage, RegionPage, ShopifyRootPage
+from shopify_content.storefront_urls import location_page_path, region_page_path
 
 LOCATION_INDEX_VERSION = 1
 LOCATION_ROOT_SLUG = 'local-us'
@@ -21,9 +29,22 @@ def _location_locale_code(page: LocationPage) -> str:
     return page.locale.language_code
 
 
-def _state_key(page: LocationPage) -> str:
+def _section_key(page: LocationPage, region: RegionPage | None) -> str:
+    """The region name when the page sits under a region, else its state/province text."""
+    if region is not None:
+        return region.title.strip() or UNKNOWN_STATE_KEY
     state = (page.state or '').strip()
     return state if state else UNKNOWN_STATE_KEY
+
+
+def _region_summary(region: RegionPage) -> dict:
+    handle = (region.handle or region.slug or '').strip()
+    return {
+        'handle': handle,
+        'code': region.region_code,
+        'country': region.country,
+        'path': region_page_path(handle, region.country),
+    }
 
 
 def _build_location_locale_listing(locale_code: str) -> dict:
@@ -35,6 +56,12 @@ def _build_location_locale_listing(locale_code: str) -> dict:
     if root is None:
         return {'count': 0, 'sections': []}
 
+    # A page's parent path is its own path minus the last step: no query per page.
+    regions_by_path = {
+        region.path: region
+        for region in RegionPage.objects.live().descendant_of(root)
+    }
+
     pages = (
         LocationPage.objects.live()
         .descendant_of(root)
@@ -44,6 +71,7 @@ def _build_location_locale_listing(locale_code: str) -> dict:
     )
 
     buckets: dict[str, list[dict]] = {}
+    section_regions: dict[str, RegionPage] = {}
     for page in pages:
         if _location_locale_code(page) != locale_code:
             continue
@@ -53,13 +81,17 @@ def _build_location_locale_listing(locale_code: str) -> dict:
         titulo = (page.titulo or page.title or '').strip()
         if not titulo:
             continue
-        key = _state_key(page)
+        region = regions_by_path.get(page.path[:-Page.steplen])
+        key = _section_key(page, region)
+        if region is not None:
+            section_regions.setdefault(key, region)
         buckets.setdefault(key, []).append({
             'titulo': titulo,
             'handle': handle,
-            'path': location_page_path(handle),
+            'path': location_page_path(handle, page.country),
             'city': (page.city or '').strip(),
             'state': (page.state or '').strip(),
+            'country': (page.country or '').strip(),
         })
 
     section_keys = sorted(
@@ -72,8 +104,14 @@ def _build_location_locale_listing(locale_code: str) -> dict:
     sections = []
     for key in section_keys:
         items = buckets.get(key)
-        if items:
-            sections.append({'key': key, 'items': items})
+        if not items:
+            continue
+        # A section can merge pages whose state text differs, so order it here, not in the query.
+        items.sort(key=lambda item: (item['city'].casefold(), item['titulo'].casefold()))
+        section = {'key': key, 'items': items}
+        if key in section_regions:
+            section['region'] = _region_summary(section_regions[key])
+        sections.append(section)
 
     count = sum(len(section['items']) for section in sections)
     return {'count': count, 'sections': sections}

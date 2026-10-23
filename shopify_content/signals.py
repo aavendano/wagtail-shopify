@@ -127,7 +127,9 @@ def register_publish_signals():
             dispatch_uid=f'shopify_content_semantic_links_on_publish_{model._meta.label_lower}',
         )
 
-    from shopify_content.models import ArticlePage, GlossaryTermPage, LocationPage, ShopifyRootPage
+    from shopify_content.models import (
+        ArticlePage, GlossaryTermPage, LocationPage, RegionPage, ShopifyRootPage,
+    )
 
     page_unpublished.connect(
         _on_glossary_term_changed,
@@ -139,6 +141,12 @@ def register_publish_signals():
         sender=LocationPage,
         dispatch_uid='shopify_content_location_index_on_unpublish',
     )
+    for signal, uid in ((page_published, 'publish'), (page_unpublished, 'unpublish')):
+        signal.connect(
+            _on_location_page_changed,
+            sender=RegionPage,
+            dispatch_uid=f'shopify_content_location_index_on_region_{uid}',
+        )
     page_unpublished.connect(
         _on_article_page_changed,
         sender=ArticlePage,
