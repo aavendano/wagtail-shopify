@@ -69,14 +69,15 @@ Wagtail 404 page keeps its own logo.
 
 The stylesheet and fonts are ordinary static files (`STORAGES` uses Django's plain
 `StaticFilesStorage`, so the CSS can reference `../fonts/` relatively). Production must run
-`python manage.py collectstatic --noinput` (the README's `scripts/bootstrap_app.sh` step) and
-serve `STATIC_ROOT` under `/static/`; Django only does that itself when `DEBUG` is on.
+`python manage.py collectstatic --noinput` on every deploy (the README's `scripts/bootstrap_app.sh`
+step). The app then serves `STATIC_ROOT` under `/static/` itself, even with `DEBUG` off, through
+`whitenoise.middleware.WhiteNoiseMiddleware` (right after `SecurityMiddleware`), so no file server
+is required in front of it. WhiteNoise indexes `STATIC_ROOT` when the process starts: restart the
+service after `collectstatic` (the README's restart step already does).
 
-Checked locally: `collectstatic` copies `cheesecake-admin.css` and the four `.woff2` files, and
-`../fonts/...` resolves from the CSS URL.
-
-Example Caddy block (**illustrative, not validated against the real Caddyfile**; adjust the path
-to your `STATIC_ROOT`):
+If a reverse proxy should serve the files instead, it can take `/static/*` ahead of the app; the app
+keeps working either way. Example Caddy block (**illustrative, not validated against the real
+Caddyfile**; adjust the path to your `STATIC_ROOT`):
 
 ```caddyfile
 cms.example.com {
