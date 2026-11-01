@@ -191,8 +191,13 @@ Tras `git pull` o cambios que requieran migraciones:
 cd /home/alejandro/apps/cms-shop/backend
 
 git pull
-./scripts/bootstrap_app.sh   # migrate, collectstatic, setup commands
+./scripts/restart_daphne.sh --bootstrap --all   # migrate/static + reinicio Daphne+Celery
+```
 
+Equivalente manual:
+
+```bash
+./scripts/bootstrap_app.sh   # migrate, collectstatic, setup commands
 sudo systemctl restart cms-shop-daphne cms-shop-celery-worker cms-shop-celery-beat
 ```
 
@@ -207,7 +212,8 @@ Instalación completa desde cero (PostgreSQL, systemd, Caddy, Shopify app):
 Si solo cambiaste schemas/endpoints y no tareas en background:
 
 ```bash
-sudo systemctl restart cms-shop-daphne
+./scripts/restart_daphne.sh               # solo cms-shop-daphne
+./scripts/restart_daphne.sh --bootstrap   # tras git pull (migrate/static + Daphne)
 ```
 
 ### Recargar MCP en Cursor

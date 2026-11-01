@@ -42,3 +42,4 @@ CSRF_TRUSTED_ORIGINS = [
     'https://localhost:8083',
 ]
 SECURE_PROXY_SSL_HEADER = None
+EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'

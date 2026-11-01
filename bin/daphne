@@ -10,4 +10,14 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
   exit 1
 fi
 
+# Live :8082 (Caddy → cms.aadigitalbusiness.com) must use Postgres from .env.
+# A shell leftover from pytest (DJANGO_SETTINGS_MODULE=config.settings_test +
+# TEST_SQLITE_NAME) would otherwise serve SQLite on the public URL.
+unset TEST_SQLITE_NAME
+if [[ "${DJANGO_SETTINGS_MODULE:-}" == "config.settings_test" ]]; then
+  echo "warning: ignoring pytest settings; using config.settings" >&2
+  unset DJANGO_SETTINGS_MODULE
+fi
+export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-config.settings}"
+
 exec "$VENV_PYTHON" "$ROOT/bin/daphne_boot.py" "$@"

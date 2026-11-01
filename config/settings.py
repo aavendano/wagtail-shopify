@@ -232,6 +232,28 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Mail (password reset, etc.). No hay SMTP local en :25 — hay que configurar
+# EMAIL_HOST* o, en DEBUG, el backend de consola escribe el mensaje en logs.
+_email_backend = os.environ.get('EMAIL_BACKEND')
+if not _email_backend:
+    _email_backend = (
+        'django.core.mail.backends.console.EmailBackend'
+        if DEBUG
+        else 'django.core.mail.backends.smtp.EmailBackend'
+    )
+EMAIL_BACKEND = _email_backend
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587' if os.environ.get('EMAIL_HOST') else '25'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true' if os.environ.get('EMAIL_HOST') else 'false').lower() == 'true'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() == 'true'
+DEFAULT_FROM_EMAIL = os.environ.get(
+    'DEFAULT_FROM_EMAIL',
+    'CMS Shop <noreply@cms.aadigitalbusiness.com>',
+)
+SERVER_EMAIL = os.environ.get('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
