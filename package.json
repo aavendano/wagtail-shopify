@@ -1,0 +1,12 @@
+{
+  "name": "cms-shop-backend",
+  "private": true,
+  "scripts": {
+    "start": "./bin/daphne -b 127.0.0.1 -p 8082 config.asgi:application",
+    "dev": "DJANGO_SETTINGS_MODULE=config.settings_dev .venv/bin/python -m daphne -b 127.0.0.1 -p 8083 config.asgi:application",
+    "test": "make test",
+    "migrate": ".venv/bin/python manage.py migrate",
+    "cms:dev": "npm --prefix cms_ui/frontend run dev",
+    "cms:build": "npm --prefix cms_ui/frontend run build"
+  }
+}
