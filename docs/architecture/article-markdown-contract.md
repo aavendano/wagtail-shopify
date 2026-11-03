@@ -1,3 +1,10 @@
+---
+id: article-markdown-contract
+type: architecture-design
+title: Article Markdown Editorial Contract
+status: draft
+parent: wagtail-shopify-architecture
+---
 # Article Markdown Editorial Contract
 
 Status: **Phase F completed** (implementation verified 2026-09-05; `git_authoritative` on `settings_dev` only)  

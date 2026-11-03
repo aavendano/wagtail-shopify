@@ -1,3 +1,10 @@
+---
+id: editorial-content-decisions
+type: architecture-design
+title: Editorial Content Architecture Decisions
+status: draft
+parent: wagtail-shopify-architecture
+---
 # Editorial Content Architecture Decisions
 
 Status: Accepted architecture through HG-003  

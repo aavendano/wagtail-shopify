@@ -1,3 +1,10 @@
+---
+id: content-layer-coordination
+type: architecture-design
+title: Content Layer Coordination
+status: draft
+parent: wagtail-shopify-architecture
+---
 # Coordinación — capa Git-native Markdown (`content_store`)
 
 Última actualización: 2026-09-14  

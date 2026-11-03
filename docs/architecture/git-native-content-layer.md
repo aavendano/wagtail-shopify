@@ -1,3 +1,10 @@
+---
+id: git-native-content-layer
+type: architecture-design
+title: Git-native Content Layer
+status: draft
+parent: wagtail-shopify-architecture
+---
 # Capa Git-native Markdown (`content_store`)
 
 Status: implementado en rama `cursor/git-native-content-layer-e08d`  

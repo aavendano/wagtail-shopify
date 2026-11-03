@@ -1,3 +1,10 @@
+---
+id: location-editorial-git-migration
+type: architecture-design
+title: Location Editorial Git Migration
+status: draft
+parent: wagtail-shopify-architecture
+---
 # Phase E — LocationPage editorial content in Git
 
 Status: **completed / merged** (verified 2026-09-05; `git_authoritative` on `settings_dev` only)  
