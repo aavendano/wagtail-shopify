@@ -31,6 +31,38 @@ def _www_authenticate_header() -> str:
     return f'Bearer realm="mcp", resource_metadata="{metadata}"'
 
 
+def _resolve_authorization_with_fresh_db(
+    *,
+    request_authorization: str,
+    stored_session_authorization: str,
+    fallback_authorization: str,
+    authenticate_token,
+) -> str:
+    """Resolve auth after refreshing stale DB connections (ASGI bypasses Django middleware)."""
+    from django.db import close_old_connections
+    from django.db.utils import InterfaceError, OperationalError
+
+    close_old_connections()
+    try:
+        return resolve_streamable_authorization(
+            request_authorization=request_authorization,
+            stored_session_authorization=stored_session_authorization,
+            fallback_authorization=fallback_authorization,
+            authenticate_token=authenticate_token,
+        )
+    except (InterfaceError, OperationalError) as exc:
+        logger.warning("MCP auth DB connection stale (%s); retrying once", type(exc).__name__)
+        close_old_connections()
+        return resolve_streamable_authorization(
+            request_authorization=request_authorization,
+            stored_session_authorization=stored_session_authorization,
+            fallback_authorization=fallback_authorization,
+            authenticate_token=authenticate_token,
+        )
+    finally:
+        close_old_connections()
+
+
 async def _authenticate_scope(scope) -> tuple[bool, str]:
     from api.auth import ApiKeyAuth
     from api.mcp import get_mcp_server
@@ -40,7 +72,7 @@ async def _authenticate_scope(scope) -> tuple[bool, str]:
     session_id = _get_header(scope, MCP_SESSION_ID_HEADER)
     stored = mcp._streamable_session_auth.get(session_id, "") if session_id else ""
     resolved = await sync_to_async(
-        resolve_streamable_authorization,
+        _resolve_authorization_with_fresh_db,
         thread_sensitive=True,
     )(
         request_authorization=_get_header(scope, "authorization"),

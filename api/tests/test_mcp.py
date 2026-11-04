@@ -170,6 +170,30 @@ class StreamableAuthResolutionTests(TestCase):
         )
         self.assertEqual(resolved, "")
 
+    def test_fresh_db_helper_retries_once_after_interface_error(self):
+        from django.db.utils import InterfaceError
+        from unittest.mock import patch
+
+        from api.mcp_asgi import _resolve_authorization_with_fresh_db
+
+        calls = {"n": 0}
+
+        def flaky_authenticate(token):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise InterfaceError("connection already closed")
+            return token == "ok-key"
+
+        with patch("django.db.close_old_connections"):
+            resolved = _resolve_authorization_with_fresh_db(
+                request_authorization="Bearer ok-key",
+                stored_session_authorization="",
+                fallback_authorization="",
+                authenticate_token=flaky_authenticate,
+            )
+        self.assertEqual(resolved, "Bearer ok-key")
+        self.assertEqual(calls["n"], 2)
+
 
 @override_settings(
     SHOPIFY_APP_URL="https://cms.aadigitalbusiness.com",
