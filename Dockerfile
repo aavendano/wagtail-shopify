@@ -1,18 +1,24 @@
-FROM python:3.12-slim-bookworm
+# Use alpine (already present on this host) to avoid Docker Hub pull timeouts.
+FROM alpine:3.24
 
 WORKDIR /app
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    libpq-dev \
-    curl \
-  && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+      bash \
+      build-base \
+      cargo \
+      curl \
+      git \
+      libffi-dev \
+      openssl-dev \
+      postgresql-dev \
+      python3 \
+      python3-dev \
+      py3-pip \
+  && python3 -m venv /app/.venv
 
 COPY requirements.txt .
-RUN python -m venv /app/.venv \
-  && /app/.venv/bin/pip install --upgrade pip \
+RUN /app/.venv/bin/pip install --upgrade pip \
   && /app/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
 COPY . .
