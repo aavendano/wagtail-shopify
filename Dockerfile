@@ -24,6 +24,12 @@ RUN /app/.venv/bin/pip install --upgrade pip \
 
 COPY . .
 
+# Collect static at build time (PLT/CMS pattern). Dummy secrets satisfy settings import.
+RUN DJANGO_SETTINGS_MODULE=config.settings \
+    DJANGO_SECRET=build-collectstatic-only \
+    DJANGO_DEBUG=false \
+    /app/.venv/bin/python manage.py collectstatic --noinput
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PORT=3000 \
     PYTHONUNBUFFERED=1 \
@@ -35,4 +41,4 @@ EXPOSE 3000
 # Cmd array is parsed as bash -c SCRIPT $0 $1..., so only "./bin/daphne" runs and
 # Daphne never receives "config.asgi:application".
 ENTRYPOINT []
-CMD ["bash", "-lc", "/app/.venv/bin/python manage.py migrate --noinput && exec ./bin/daphne -b 0.0.0.0 -p 3000 config.asgi:application"]
+CMD ["bash", "-lc", "/app/.venv/bin/python manage.py migrate --noinput && /app/.venv/bin/python manage.py ensure_superuser --update-password && exec ./bin/daphne -b 0.0.0.0 -p 3000 config.asgi:application"]

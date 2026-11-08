@@ -1,5 +1,6 @@
 asgiref
 Django
+whitenoise>=6.9
 python-dotenv
 pyactiveresource
 pytz
