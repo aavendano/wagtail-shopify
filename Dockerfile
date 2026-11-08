@@ -31,4 +31,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 3000
 
+# Clear nixpacks ENTRYPOINT ["/bin/bash","-l","-c"]. With that entrypoint, a JSON
+# Cmd array is parsed as bash -c SCRIPT $0 $1..., so only "./bin/daphne" runs and
+# Daphne never receives "config.asgi:application".
+ENTRYPOINT []
 CMD ["./bin/daphne", "-b", "0.0.0.0", "-p", "3000", "config.asgi:application"]
