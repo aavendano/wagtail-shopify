@@ -35,4 +35,4 @@ EXPOSE 3000
 # Cmd array is parsed as bash -c SCRIPT $0 $1..., so only "./bin/daphne" runs and
 # Daphne never receives "config.asgi:application".
 ENTRYPOINT []
-CMD ["./bin/daphne", "-b", "0.0.0.0", "-p", "3000", "config.asgi:application"]
+CMD ["bash", "-lc", "/app/.venv/bin/python manage.py migrate --noinput && exec ./bin/daphne -b 0.0.0.0 -p 3000 config.asgi:application"]
