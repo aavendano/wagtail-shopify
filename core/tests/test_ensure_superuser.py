@@ -6,6 +6,12 @@ from django.core.management import call_command
 from django.test import TestCase
 
 
+# Intentional non-secret fixtures for unit tests only (not production credentials).
+_FIXTURE_A = "fixture-alpha"
+_FIXTURE_B = "fixture-bravo"
+_FIXTURE_C = "fixture-charlie"
+_FIXTURE_D = "fixture-delta"
+
 _ENV_KEYS = (
     "ADMIN_USERNAME",
     "ADMIN_PASSWORD",
@@ -32,40 +38,40 @@ class EnsureSuperuserCommandTests(TestCase):
 
     def test_creates_superuser_from_admin_env(self):
         os.environ["ADMIN_USERNAME"] = "plt-admin"
-        os.environ["ADMIN_PASSWORD"] = "plt-pass"
+        os.environ["ADMIN_PASSWORD"] = _FIXTURE_A
         os.environ["ADMIN_EMAIL"] = "plt@example.com"
         out = StringIO()
         call_command("ensure_superuser", stdout=out)
         user = get_user_model().objects.get(username="plt-admin")
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
-        self.assertTrue(user.check_password("plt-pass"))
+        self.assertTrue(user.check_password(_FIXTURE_A))
         self.assertEqual(user.email, "plt@example.com")
         self.assertIn("Created superuser", out.getvalue())
 
     def test_prefers_admin_over_django_superuser(self):
         os.environ["ADMIN_USERNAME"] = "from-admin"
-        os.environ["ADMIN_PASSWORD"] = "admin-pass"
+        os.environ["ADMIN_PASSWORD"] = _FIXTURE_B
         os.environ["DJANGO_SUPERUSER_USERNAME"] = "from-django"
-        os.environ["DJANGO_SUPERUSER_PASSWORD"] = "django-pass"
+        os.environ["DJANGO_SUPERUSER_PASSWORD"] = _FIXTURE_C
         call_command("ensure_superuser")
         User = get_user_model()
         self.assertTrue(User.objects.filter(username="from-admin").exists())
         self.assertFalse(User.objects.filter(username="from-django").exists())
         user = User.objects.get(username="from-admin")
-        self.assertTrue(user.check_password("admin-pass"))
+        self.assertTrue(user.check_password(_FIXTURE_B))
 
     def test_update_password_when_flag_set(self):
         User = get_user_model()
         User.objects.create_superuser(
-            username="alejandro", email="a@localhost", password="old-pass"
+            username="alejandro", email="a@localhost", password=_FIXTURE_C
         )
         os.environ["ADMIN_USERNAME"] = "alejandro"
-        os.environ["ADMIN_PASSWORD"] = "new-pass"
+        os.environ["ADMIN_PASSWORD"] = _FIXTURE_D
         out = StringIO()
         call_command("ensure_superuser", update_password=True, stdout=out)
         user = User.objects.get(username="alejandro")
-        self.assertTrue(user.check_password("new-pass"))
+        self.assertTrue(user.check_password(_FIXTURE_D))
         self.assertIn("Updated superuser", out.getvalue())
 
     def test_noop_when_env_missing(self):
