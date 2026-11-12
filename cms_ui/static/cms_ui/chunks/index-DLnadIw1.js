@@ -1,4 +1,4 @@
-import{e as Y,r as S,R as A,j as R,d as ne}from"./index-DM5-hRaU.js";import{G as oe}from"./index-C-SMbPlM.js";var O={exports:{}},D={};/**
+import{l as Y,r as S,R as A,j as R,m as ne}from"../editor.js";import{G as oe}from"./index-C-SMbPlM.js";var O={exports:{}},D={};/**
  * @license React
  * use-sync-external-store-shim.production.js
  *

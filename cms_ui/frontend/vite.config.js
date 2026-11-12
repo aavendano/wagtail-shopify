@@ -11,7 +11,6 @@ export default defineConfig({
     manifest: false,
     rollupOptions: {
       input: {
-        "spa-public": path.resolve(__dirname, "src/spa-public.jsx"),
         editor: path.resolve(__dirname, "src/editor.jsx"),
       },
       output: {

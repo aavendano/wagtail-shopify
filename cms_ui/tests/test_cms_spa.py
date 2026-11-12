@@ -71,7 +71,7 @@ class CmsSpaShellTests(TestCase):
         self.assertContains(response, "data-cms-spa-version=")
         self.assertContains(response, "__CMS_BOOTSTRAP__")
         self.assertContains(response, "shopifycloud/app-bridge.js")
-        self.assertContains(response, "spa-public.js?v=")
+        self.assertContains(response, "cms-embedded.js?v=")
 
     @override_settings(SHOPIFY_API_KEY="test-key", SHOPIFY_API_SECRET="test-secret")
     @patch("cms_ui.views.get_shopify_app")

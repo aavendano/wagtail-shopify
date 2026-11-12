@@ -407,8 +407,9 @@ LOGIN_URL = '/admin-django/login/'
 
 # Puck / CMS SPA (django-react-ui-editor)
 VISUAL_EDITOR = {
-    'SPA_PUBLIC_JS': 'cms_ui/spa-public.js',
-    'SPA_PUBLIC_CSS': 'cms_ui/spa-public.css',
+    # Polaris embedded CMS at /cms/ (renamed from spa-public.* to bust stale CDN/browser cache)
+    'SPA_PUBLIC_JS': 'cms_ui/cms-embedded.js',
+    'SPA_PUBLIC_CSS': 'cms_ui/cms-embedded.css',
     'EDITOR_JS': 'cms_ui/editor.js',
     'EDITOR_CSS': 'cms_ui/editor.css',
 }
