@@ -124,6 +124,7 @@ scripts/
 */migrations/*
 !shopify_content/migrations/*.py
 bin/*
+!bin/build_cms_ui.sh
 
 bin/daphne
 bin/daphne_boot.py

@@ -11,16 +11,23 @@
 
 ## Setup (producción / tienda conectada)
 
+Producción típica: **systemd** + `git pull` en `/home/alejandro/apps/cms-shop/backend`
+(ver README «Despliegue y reinicio»). No usa Coolify; el `Dockerfile` del repo es opcional.
+
 ```bash
-# deps Python (incluye paquete local django_react_ui_editor)
 pip install -r requirements.txt
 
-# bundles SPA
-cd cms_ui/frontend && npm install && npm run build
+# Bundles Polaris embebidos (obligatorio tras cambios en cms_ui/frontend o primer deploy Polaris)
+./bin/build_cms_ui.sh   # escribe cms_ui/static/cms_ui/cms-embedded.{js,css}
 
 python manage.py migrate
-python manage.py ensure_cms_spa
+python manage.py collectstatic --noinput
+python manage.py ensure_cms_spa   # verifica cms-embedded.* y monta CmsSpaMount
+sudo systemctl restart cms-shop-daphne
 ```
+
+En el HTML de `/cms/` debe verse `cms-embedded.js?v=…` y `data-cms-spa-ui="polaris"`.
+La URL del Admin de Shopify (`…/apps/…/cms/`) carga ese mismo `/cms/` en el iframe.
 
 Crea un usuario staff (o añádelo al grupo `cms_editors`) y abre `/cms/`.
 

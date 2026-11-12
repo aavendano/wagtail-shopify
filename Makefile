@@ -1,4 +1,4 @@
-.PHONY: test test-glossary install-test-deps devenv-env
+.PHONY: test test-glossary install-test-deps devenv-env cms-ui-build
 
 VENV_PYTHON := .venv/bin/python
 PYTEST := $(VENV_PYTHON) -m pytest
@@ -16,3 +16,6 @@ test-glossary:
 
 install-test-deps:
 	$(VENV_PYTHON) -m pip install -r requirements.txt
+
+cms-ui-build:
+	./bin/build_cms_ui.sh

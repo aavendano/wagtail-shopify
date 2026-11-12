@@ -191,8 +191,15 @@ Tras `git pull` o cambios que requieran migraciones:
 cd /home/alejandro/apps/cms-shop/backend
 
 git pull
+# UI embebida Polaris (/cms/): rebuild si cambió cms_ui/frontend o no ves tema claro Polaris
+./bin/build_cms_ui.sh   # requiere Node 20+ (npm ci + vite)
 ./scripts/restart_daphne.sh --bootstrap --all   # migrate/static + reinicio Daphne+Celery
 ```
+
+Si `bootstrap_app.sh` en el servidor **no** incluye el build del frontend, hay que ejecutar
+`./bin/build_cms_ui.sh` antes de `collectstatic`. Sin eso, `/cms/` puede seguir sirviendo
+`spa-public.*` viejos desde `staticfiles/`. Comprueba con
+`python manage.py ensure_cms_spa` (muestra versión del bundle `cms-embedded.js`).
 
 Equivalente manual:
 
