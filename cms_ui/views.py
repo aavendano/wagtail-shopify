@@ -15,6 +15,7 @@ from core.utils import (
 from django_react_ui_editor.views import SpaShellView
 
 from .shop_auth import ensure_shop_editor_user
+from .spa_assets import cms_spa_asset_version
 
 
 class CmsShellView(SpaShellView):
@@ -27,6 +28,11 @@ class CmsShellView(SpaShellView):
 
     mount_slug = "cms"
     template_name = "django_react_ui_editor/spa_shell.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["spa_asset_version"] = cms_spa_asset_version()
+        return context
 
     def get_app_home_patch_id_token_path(self):
         return reverse("core:patch-id-token")

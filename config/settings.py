@@ -418,6 +418,12 @@ CMS_RESTRICT_WAGTAIL_ADMIN = (
     os.environ.get('CMS_RESTRICT_WAGTAIL_ADMIN', 'false').lower() == 'true'
 )
 
+# When True, embedded App Home (/shopify-admin/) redirects merchants to the Polaris React CMS at /cms/.
+# Ops hub (import/sync) remains at /shopify-admin/?ops=1
+CMS_REDIRECT_EMBEDDED_HOME_TO_SPA = (
+    os.environ.get('CMS_REDIRECT_EMBEDDED_HOME_TO_SPA', 'true').lower() == 'true'
+)
+
 # Hostnames allowed for app_home_parent_redirect targets (comma-separated). Always includes
 # admin.shopify.com plus SHOPIFY_APP_URL / SHOPIFY_APP_DOMAIN hosts via embedded_redirects.parent_redirect_allowed_hosts.
 _parent_redirect_hosts = os.environ.get('SHOPIFY_PARENT_REDIRECT_ALLOWED_HOSTS', '')

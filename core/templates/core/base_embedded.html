@@ -16,7 +16,9 @@
 
 <body>
 
+    {% block embedded_nav %}
     {% include 'core/navbar.html' %}
+    {% endblock %}
 
     {% if messages %}
     <div id="django-messages" hidden>

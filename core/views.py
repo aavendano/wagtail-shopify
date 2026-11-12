@@ -160,6 +160,15 @@ class HomeView(AppHomeVerifiedMixin, TemplateView):
                 )
                 return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
             return shopify_result_to_django_response(token_result)
+        if (
+            getattr(settings, "CMS_REDIRECT_EMBEDDED_HOME_TO_SPA", False)
+            and request.method == "GET"
+            and request.GET.get("ops") != "1"
+        ):
+            cms_url = "/cms/"
+            if request.GET:
+                cms_url = f"{cms_url}?{request.GET.urlencode()}"
+            return redirect(cms_url)
         return super(AppHomeVerifiedMixin, self).dispatch(request, *args, **kwargs)
 
     def render_to_response(self, context, **response_kwargs):

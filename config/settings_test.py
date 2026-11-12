@@ -48,3 +48,4 @@ SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = False
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
+CMS_REDIRECT_EMBEDDED_HOME_TO_SPA = False

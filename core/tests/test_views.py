@@ -88,6 +88,7 @@ class PublicEntryViewTests(TestCase):
         self.assertNotContains(response, "shopifycloud/app-bridge.js")
         self.assertNotContains(response, 'name="shopify-api-key"')
 
+    @override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=False)
     @patch("core.mixins.get_shopify_app")
     def test_embedded_home_still_works(self, mocked_get_shopify_app):
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
@@ -100,6 +101,19 @@ class PublicEntryViewTests(TestCase):
         self.assertContains(response, "shopifycloud/app-bridge.js")
         self.assertContains(response, 'href="/cms/"')
         self.assertContains(response, "Abrir CMS")
+
+    @override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=True)
+    @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
+    @patch("core.mixins.get_shopify_app")
+    def test_embedded_home_redirects_to_cms_spa(self, mocked_get_shopify_app, _mock_token):
+        mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
+            ok=True,
+            shop="test-shop.myshopify.com",
+            response=SimpleNamespace(headers={}),
+        )
+        response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/cms/?shop=test-shop.myshopify.com")
 
 
 @override_settings(SHOPIFY_API_KEY="test-client-id")
@@ -137,6 +151,7 @@ class AuthLoginViewTests(TestCase):
         )
 
 
+@override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=False)
 class HomeViewAuthTests(TestCase):
     @patch("core.mixins.get_shopify_app")
     def test_home_view_uses_expected_patch_id_token_path(self, mocked_get_shopify_app):
@@ -280,6 +295,7 @@ class AuthPatchIdTokenViewTests(TestCase):
         self.assertEqual(response["Location"], "/shopify-admin/?shopify-reload=%2Fshopify-admin%2F")
 
 
+@override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=False)
 class TokenLifecycleTests(TestCase):
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
     @patch("core.mixins.get_shopify_app")
@@ -653,6 +669,7 @@ class EmbeddedRedirectViewTests(TestCase):
         mock_gs.return_value.app_home_parent_redirect.assert_not_called()
 
 
+@override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=False)
 class EmbeddedShopifySyncViewTests(TestCase):
     def _mock_verified_app_home(self, mock_gs):
         mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(
@@ -766,6 +783,7 @@ class EmbeddedShopifySyncViewTests(TestCase):
         self.assertNotContains(response, "No hay token de acceso configurado")
 
 
+@override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=False)
 class EmbeddedCommandDispatchViewTests(TestCase):
     def _mock_verified_app_home(self, mock_gs):
         mock_gs.return_value.verify_app_home_req.return_value = SimpleNamespace(

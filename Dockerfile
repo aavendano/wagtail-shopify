@@ -15,6 +15,10 @@ RUN apt-get update \
     libpq-dev \
     git \
     curl \
+    ca-certificates \
+    gnupg \
+  && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/* \
   && python3 -m venv /app/.venv
 
@@ -23,6 +27,10 @@ RUN /app/.venv/bin/pip install --upgrade pip \
   && /app/.venv/bin/pip install --no-cache-dir -r requirements-prod.txt
 
 COPY . .
+
+RUN cd /app/cms_ui/frontend \
+  && npm ci --legacy-peer-deps \
+  && npm run build
 
 # Collect static at build time (PLT/CMS pattern). Dummy secrets satisfy settings import.
 RUN DJANGO_SETTINGS_MODULE=config.settings \

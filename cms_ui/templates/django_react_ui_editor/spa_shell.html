@@ -3,14 +3,19 @@
 
 {% block title %}{{ spa_title }}{% endblock %}
 
+{% block embedded_nav %}{% endblock %}
+
 {% block extra_css %}
-<link rel="stylesheet" href="{% static spa_public_css %}">
+<link rel="stylesheet" href="{% static spa_public_css %}?v={{ spa_asset_version }}">
+<style>
+  #cms-spa-root { min-height: 100vh; }
+</style>
 {% endblock %}
 
 {% block content %}
 <script>
   window.__CMS_BOOTSTRAP__ = {{ spa_bootstrap_json|safe }};
 </script>
-<div id="cms-spa-root"></div>
-<script type="module" src="{% static spa_public_js %}"></script>
+<div id="cms-spa-root" data-cms-spa-version="{{ spa_asset_version }}"></div>
+<script type="module" crossorigin src="{% static spa_public_js %}?v={{ spa_asset_version }}"></script>
 {% endblock %}
