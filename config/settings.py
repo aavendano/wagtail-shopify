@@ -52,6 +52,27 @@ if _shopify_app_domain:
 if _shopify_app_url:
     CSRF_TRUSTED_ORIGINS.append(_shopify_app_url)
 
+# Coolify injects FQDN/URL lists (comma-separated) for the public domains.
+for _host in os.environ.get('COOLIFY_FQDN', '').split(','):
+    _host = _host.strip()
+    if _host and _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
+for _url in os.environ.get('COOLIFY_URL', '').split(','):
+    _url = _url.strip().rstrip('/')
+    if _url and _url not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_url)
+    _parsed_host = urlparse(_url).hostname if _url else None
+    if _parsed_host and _parsed_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_parsed_host)
+
+# Local Daphne (:8082) serves plain HTTP; Django 4+ checks the Origin header on POST
+# (admin login), so the loopback origins must be trusted explicitly. Dev only.
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += [
+        'http://127.0.0.1:8082',
+        'http://localhost:8082',
+    ]
+
 # Shopify CLI --use-localhost terminates TLS and proxies to Django over HTTP.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -163,6 +184,7 @@ MIDDLEWARE = [
     'core.debug_middleware.ShopifyLocalProxyMiddleware',
     'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -293,10 +315,18 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+    },
+}
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 

@@ -1,0 +1,16 @@
+# Ensure Coolify/Nixpacks treats this as a Python app (package.json alone
+# previously caused a Node-only image without /app/.venv).
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["python312", "gcc", "gnumake", "postgresql", "libffi", "openssl", "git"]
+
+[phases.install]
+cmds = [
+  "python -m venv .venv",
+  ".venv/bin/pip install --upgrade pip",
+  ".venv/bin/pip install -r requirements.txt",
+]
+
+[start]
+cmd = "./bin/daphne -b 0.0.0.0 -p ${PORT:-3000} config.asgi:application"

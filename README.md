@@ -247,6 +247,13 @@ DJANGO_SETTINGS_MODULE=config.settings_dev DEV_SQLITE_NAME=/tmp/cms-shop-dev.sql
   .venv/bin/daphne -b 127.0.0.1 -p 8083 config.asgi:application
 ```
 
+**Variables de dev compartidas (plt-devenv)** — `DJANGO_SECRET`, `ADMIN_*`, `GEMINI_API_KEY`, etc. se importan del perfil `wagtail-shopify` de `~/Documents/Proyectos/playlovetoys/plt-devenv` (valores en la bóveda `~/.secrets/plt/`, nunca en git):
+
+```bash
+direnv allow        # terminales: .envrc exporta el perfil
+make devenv-env     # VS Code (envFile: .env): genera .env modo 600; repetir si cambia la bóveda
+```
+
 Reiniciar con **Ctrl+C** y volver a arrancar cada proceso.
 
 ---
