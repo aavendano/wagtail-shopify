@@ -186,6 +186,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -308,6 +309,14 @@ TIME_ZONE = 'America/Toronto'
 USE_I18N = True
 
 WAGTAIL_I18N_ENABLED = True
+
+LOCALE_PATHS = [BASE_DIR / "locale"]
+
+LANGUAGE_COOKIE_NAME = "django_language"
+LANGUAGE_COOKIE_AGE = 365 * 24 * 60 * 60
+LANGUAGE_COOKIE_SECURE = SESSION_COOKIE_SECURE
+LANGUAGE_COOKIE_HTTPONLY = False
+LANGUAGE_COOKIE_SAMESITE = SESSION_COOKIE_SAMESITE
 
 USE_TZ = True
 

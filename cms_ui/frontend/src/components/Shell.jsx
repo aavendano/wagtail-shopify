@@ -2,12 +2,15 @@ import React, { useCallback, useState } from "react";
 import { Frame, Navigation, TopBar } from "@shopify/polaris";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getBootstrap } from "../api";
+import { useI18n } from "../i18n/I18nProvider";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 export function Shell({ children }) {
   const boot = getBootstrap();
   const resources = boot.resources || [];
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [mobileNavActive, setMobileNavActive] = useState(false);
   const [userMenuActive, setUserMenuActive] = useState(false);
 
@@ -27,7 +30,7 @@ export function Shell({ children }) {
         {
           items: [
             {
-              content: "Login",
+              content: t("nav.login"),
               url: boot.loginUrl || "/admin-django/login/?next=/cms/",
             },
           ],
@@ -40,7 +43,7 @@ export function Shell({ children }) {
       userMenu={
         <TopBar.UserMenu
           actions={userMenuActions}
-          name={boot.user ? boot.user.username : "Guest"}
+          name={boot.user ? boot.user.username : t("nav.guest")}
           initials={
             boot.user
               ? boot.user.username.slice(0, 2).toUpperCase()
@@ -51,12 +54,13 @@ export function Shell({ children }) {
         />
       }
       onNavigationToggle={toggleMobileNav}
+      secondaryMenu={<LanguageSwitcher compact />}
     />
   );
 
   const navItems = [
     {
-      label: "Inicio",
+      label: t("nav.home"),
       url: "#/",
       selected: location.pathname === "/",
       onClick: () => {
@@ -65,7 +69,7 @@ export function Shell({ children }) {
       },
     },
     ...resources.map((r) => ({
-      label: r.label,
+      label: t(`resource.${r.key}`) !== `resource.${r.key}` ? t(`resource.${r.key}`) : r.label,
       url: `#${r.path}`,
       selected:
         location.pathname === r.path ||
@@ -79,7 +83,7 @@ export function Shell({ children }) {
 
   const navigationMarkup = (
     <Navigation location={location.pathname}>
-      <Navigation.Section title="CMS" items={navItems} />
+      <Navigation.Section title={t("nav.cms")} items={navItems} />
     </Navigation>
   );
 

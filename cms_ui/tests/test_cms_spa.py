@@ -1,7 +1,7 @@
 import api.ninja_compat  # noqa: F401
 
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import patch  # noqa: F401 — used by CmsSpaMountTests bootstrap patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -23,10 +23,20 @@ class CmsSpaMountTests(TestCase):
             url_prefix="cms",
             layout=default_cms_layout(),
         )
-        data = mount.get_bootstrap()
+        with patch("cms_ui.models.fetch_shop_spa_locales") as mock_locales:
+            mock_locales.return_value = {
+                "primaryLocale": "en-US",
+                "availableLocales": [
+                    {"code": "en-US", "label": "English (United States)", "primary": True},
+                ],
+                "source": "fallback",
+            }
+            data = mount.get_bootstrap()
         self.assertEqual(data["apiBase"], "/api/v1")
         self.assertTrue(any(r["key"] == "glossary" for r in data["resources"]))
         self.assertIn("/glossary", data["layout"]["pages"])
+        self.assertIn("availableLocales", data)
+        self.assertIn("setLanguageUrl", data)
 
 
 class ShopEditorUserTests(TestCase):
