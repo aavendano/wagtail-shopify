@@ -41,6 +41,8 @@ Shopify Storefront → Cliente final
 | `django_react_ui_editor` | Contenedor SPA (SpaMount, register_spa, SpaShellView) |
 | `bigquery_gsc` | Analytics GSC vía BigQuery — ver [`docs/api-gsc.md`](docs/api-gsc.md) |
 
+**App Home embebida:** con `CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=true` (default), `/shopify-admin/` redirige a `/cms/`. El hub de operaciones (importar, comandos allowlist, historial) está en `/shopify-admin/?ops=1` y en el menú embebido como **Operaciones**.
+
 ---
 
 ## Tipos de página (`shopify_content`)

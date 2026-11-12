@@ -93,6 +93,8 @@ class CmsSpaShellTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "cms-spa-root")
         self.assertContains(response, "shopifycloud/app-bridge.js")
+        self.assertContains(response, "Operaciones")
+        self.assertContains(response, "ops=1")
         self.assertEqual(
             response["Content-Security-Policy"],
             "frame-ancestors https://test-shop.myshopify.com;",
