@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { BlockStack, Button, Card, Text } from "@shopify/polaris";
 import { previewUrl } from "../api";
 
 export function PreviewPanel({ resource, id }) {
@@ -7,13 +8,27 @@ export function PreviewPanel({ resource, id }) {
   const src = previewUrl(resource, id);
 
   return (
-    <div className="preview-panel">
-      <button type="button" className="btn secondary" onClick={() => setOpen((v) => !v)}>
-        {open ? "Ocultar preview" : "Previsualizar"}
-      </button>
-      {open && (
-        <iframe title="preview" className="preview-frame" src={src} />
-      )}
-    </div>
+    <Card>
+      <BlockStack gap="300">
+        <Text as="h2" variant="headingSm">
+          Preview
+        </Text>
+        <Button onClick={() => setOpen((v) => !v)}>
+          {open ? "Ocultar preview" : "Previsualizar"}
+        </Button>
+        {open ? (
+          <iframe
+            title="preview"
+            src={src}
+            style={{
+              width: "100%",
+              minHeight: "480px",
+              border: "1px solid var(--p-color-border)",
+              borderRadius: "var(--p-border-radius-200)",
+            }}
+          />
+        ) : null}
+      </BlockStack>
+    </Card>
   );
 }

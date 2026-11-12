@@ -1,5 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  Banner,
+  BlockStack,
+  Button,
+  Card,
+  Checkbox,
+  FormLayout,
+  IndexTable,
+  InlineStack,
+  Layout,
+  Page,
+  Spinner,
+  Text,
+  TextField,
+} from "@shopify/polaris";
 import { api } from "../api";
 import { Shell } from "../components/Shell";
 import { PreviewPanel } from "../components/PreviewPanel";
@@ -102,6 +117,7 @@ const RESOURCE_CONFIG = {
 
 export function ResourceList({ resource }) {
   const cfg = RESOURCE_CONFIG[resource];
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -124,43 +140,69 @@ export function ResourceList({ resource }) {
     };
   }, [resource, cfg.listPath]);
 
+  const rowMarkup = items.map((item, index) => (
+    <IndexTable.Row id={String(item.id)} key={item.id} position={index}>
+      <IndexTable.Cell>
+        <Text as="span" variant="bodyMd">
+          {item.id}
+        </Text>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        {item[cfg.labelField] || item.title}
+      </IndexTable.Cell>
+      <IndexTable.Cell>{item.handle}</IndexTable.Cell>
+      <IndexTable.Cell>{item.live ? "yes" : "draft"}</IndexTable.Cell>
+      <IndexTable.Cell>
+        <Button variant="plain" onClick={() => navigate(`/${resource}/${item.id}`)}>
+          Editar
+        </Button>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  ));
+
   return (
     <Shell>
-      <div className="page-head">
-        <h1>{cfg.title}</h1>
-        <Link className="btn" to={`/${resource}/new`}>
-          Nuevo
-        </Link>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {loading ? (
-        <p>Cargando…</p>
-      ) : (
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Nombre</th>
-              <th>Handle</th>
-              <th>Live</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
-                <td>{item[cfg.labelField] || item.title}</td>
-                <td>{item.handle}</td>
-                <td>{item.live ? "yes" : "draft"}</td>
-                <td>
-                  <Link to={`/${resource}/${item.id}`}>Editar</Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <Page
+        title={cfg.title}
+        primaryAction={{
+          content: "Nuevo",
+          onAction: () => navigate(`/${resource}/new`),
+        }}
+      >
+        <Layout>
+          <Layout.Section>
+            <BlockStack gap="400">
+              {error ? (
+                <Banner tone="critical" title="Error">
+                  <p>{error}</p>
+                </Banner>
+              ) : null}
+              {loading ? (
+                <InlineStack align="center">
+                  <Spinner accessibilityLabel="Cargando" size="large" />
+                </InlineStack>
+              ) : (
+                <Card padding="0">
+                  <IndexTable
+                    resourceName={{ singular: "registro", plural: "registros" }}
+                    itemCount={items.length}
+                    headings={[
+                      { title: "ID" },
+                      { title: "Nombre" },
+                      { title: "Handle" },
+                      { title: "Live" },
+                      { title: "" },
+                    ]}
+                    selectable={false}
+                  >
+                    {rowMarkup}
+                  </IndexTable>
+                </Card>
+              )}
+            </BlockStack>
+          </Layout.Section>
+        </Layout>
+      </Page>
     </Shell>
   );
 }
@@ -175,6 +217,7 @@ function emptyForm(fields) {
 
 export function ResourceDetail({ resource }) {
   const { id } = useParams();
+  const navigate = useNavigate();
   const isNew = id === "new";
   const cfg = RESOURCE_CONFIG[resource];
   const [form, setForm] = useState(() => emptyForm(cfg.fields));
@@ -256,69 +299,88 @@ export function ResourceDetail({ resource }) {
     }
   }
 
+  const secondaryActions = [
+    {
+      content: "Publicar",
+      onAction: () => save({ publish: true }),
+      loading: saving,
+      disabled: saving,
+    },
+  ];
+
+  if (!isNew) {
+    secondaryActions.push({
+      content: "Push a Shopify",
+      onAction: push,
+      loading: saving,
+      disabled: saving,
+    });
+  }
+
   return (
     <Shell>
-      <div className="page-head">
-        <h1>
-          {cfg.title}: {isNew ? "nuevo" : `#${id}`}
-        </h1>
-        <Link to={`/${resource}`}>← Volver</Link>
-      </div>
-      {error && <p className="error">{error}</p>}
-      {message && <p className="ok">{message}</p>}
-      <form
-        className="edit-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save({ publish: false });
+      <Page
+        title={`${cfg.title}: ${isNew ? "nuevo" : `#${id}`}`}
+        backAction={{ content: cfg.title, onAction: () => navigate(`/${resource}`) }}
+        primaryAction={{
+          content: "Guardar borrador",
+          onAction: () => save({ publish: false }),
+          loading: saving,
+          disabled: saving,
         }}
+        secondaryActions={secondaryActions}
       >
-        {cfg.fields.map((f) => (
-          <label key={f.key} className="field">
-            <span>{f.label}</span>
-            {f.type === "textarea" ? (
-              <textarea
-                value={form[f.key] ?? ""}
-                onChange={(e) => updateField(f.key, e.target.value)}
-                rows={6}
-              />
-            ) : f.type === "checkbox" ? (
-              <input
-                type="checkbox"
-                checked={Boolean(form[f.key])}
-                onChange={(e) => updateField(f.key, e.target.checked)}
-              />
-            ) : (
-              <input
-                type="text"
-                value={form[f.key] ?? ""}
-                placeholder={f.placeholder || ""}
-                required={Boolean(f.required)}
-                onChange={(e) => updateField(f.key, e.target.value)}
-              />
-            )}
-          </label>
-        ))}
-        <div className="cta-row">
-          <button className="btn" type="submit" disabled={saving}>
-            Guardar borrador
-          </button>
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={saving}
-            onClick={() => save({ publish: true })}
-          >
-            Publicar
-          </button>
-          {!isNew && (
-            <button className="btn secondary" type="button" disabled={saving} onClick={push}>
-              Push a Shopify
-            </button>
-          )}
-        </div>
-      </form>
-      {!isNew && <PreviewPanel resource={resource} id={numericId} />}
+        <Layout>
+          <Layout.Section>
+            <BlockStack gap="400">
+              {error ? (
+                <Banner tone="critical" title="Error">
+                  <p>{error}</p>
+                </Banner>
+              ) : null}
+              {message ? (
+                <Banner tone="success" title="Listo">
+                  <p>{message}</p>
+                </Banner>
+              ) : null}
+              <Card>
+                <FormLayout>
+                  {cfg.fields.map((f) =>
+                    f.type === "textarea" ? (
+                      <TextField
+                        key={f.key}
+                        label={f.label}
+                        value={form[f.key] ?? ""}
+                        onChange={(value) => updateField(f.key, value)}
+                        multiline={6}
+                        autoComplete="off"
+                      />
+                    ) : f.type === "checkbox" ? (
+                      <Checkbox
+                        key={f.key}
+                        label={f.label}
+                        checked={Boolean(form[f.key])}
+                        onChange={(checked) => updateField(f.key, checked)}
+                      />
+                    ) : (
+                      <TextField
+                        key={f.key}
+                        label={f.label}
+                        value={form[f.key] ?? ""}
+                        onChange={(value) => updateField(f.key, value)}
+                        placeholder={f.placeholder || ""}
+                        requiredIndicator={Boolean(f.required)}
+                        autoComplete="off"
+                      />
+                    ),
+                  )}
+                </FormLayout>
+              </Card>
+              {!isNew ? <PreviewPanel resource={resource} id={numericId} /> : null}
+            </BlockStack>
+          </Layout.Section>
+        </Layout>
+      </Page>
     </Shell>
   );
 }
