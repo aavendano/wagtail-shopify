@@ -17,6 +17,9 @@ CONTENT_STORE_ENABLED = False
 CONTENT_STORE_MODE = ''
 CONTENT_STORE_GIT_FALLBACK_TO_DB = False
 
+# Avoid sending telemetry during the test suite (kv pattern).
+os.environ.pop('SENTRY_DSN', None)
+
 INSTALLED_APPS = [
     app
     for app in INSTALLED_APPS
@@ -25,21 +28,21 @@ INSTALLED_APPS = [
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.environ.get('TEST_SQLITE_NAME', ':memory:'),
+        'ENGINE': 'django.db.backends.sqlite3'
+        'NAME': os.environ.get('TEST_SQLITE_NAME', ':memory:')
     }
 }
 
 CSRF_TRUSTED_ORIGINS = [
-    *CSRF_TRUSTED_ORIGINS,
-    'http://127.0.0.1:8082',
-    'http://localhost:8082',
-    'https://127.0.0.1:8082',
-    'https://localhost:8082',
-    'http://127.0.0.1:8083',
-    'http://localhost:8083',
-    'https://127.0.0.1:8083',
-    'https://localhost:8083',
+    *CSRF_TRUSTED_ORIGINS
+    'http://127.0.0.1:8082'
+    'http://localhost:8082'
+    'https://127.0.0.1:8082'
+    'https://localhost:8082'
+    'http://127.0.0.1:8083'
+    'http://localhost:8083'
+    'https://127.0.0.1:8083'
+    'https://localhost:8083'
 ]
 SECURE_PROXY_SSL_HEADER = None
 # Test client is HTTP; keep Lax so session cookies stick without Secure.

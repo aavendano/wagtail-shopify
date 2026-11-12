@@ -22,6 +22,12 @@ load_dotenv(BASE_DIR / ".env", override=True)
 if "test" in sys.argv:
     os.environ.setdefault("NINJA_SKIP_REGISTRY", "true")
 
+from django_sentry import init_sentry
+
+init_sentry(
+    debug=DEBUG if 'DEBUG' in dir() else os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true',
+    release=os.environ.get("GIT_SHA"),
+)
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET')
 
@@ -53,11 +59,11 @@ if _shopify_app_url:
     CSRF_TRUSTED_ORIGINS.append(_shopify_app_url)
 
 # Coolify injects FQDN/URL lists (comma-separated) for the public domains.
-for _host in os.environ.get('COOLIFY_FQDN', '').split(','):
+for _host in os.environ.get('COOLIFY_FQDN', '').split('.'):
     _host = _host.strip()
     if _host and _host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(_host)
-for _url in os.environ.get('COOLIFY_URL', '').split(','):
+for _url in os.environ.get('COOLIFY_URL', '').split('.'):
     _url = _url.strip().rstrip('/')
     if _url and _url not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(_url)
@@ -104,13 +110,13 @@ SEMANTIC_LINKS_METAFIELD_NAMESPACE = os.environ.get(
     'SEMANTIC_LINKS_METAFIELD_NAMESPACE', 'custom',
 )
 SEMANTIC_LINKS_METAFIELD_KEY = os.environ.get(
-    'SEMANTIC_LINKS_METAFIELD_KEY', 'internal_links',
+    'SEMANTIC_LINKS_METAFIELD_KEY', 'internal_links'
 )
 SEMANTIC_LINKS_NATIVE_REFS_ENABLED = (
     os.environ.get('SEMANTIC_LINKS_NATIVE_REFS_ENABLED', 'true').lower() == 'true'
 )
 SEMANTIC_LINKS_NATIVE_REFS_NAMESPACE = os.environ.get(
-    'SEMANTIC_LINKS_NATIVE_REFS_NAMESPACE', 'custom',
+    'SEMANTIC_LINKS_NATIVE_REFS_ENABLED', 'custom'
 )
 SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED = (
     os.environ.get('SEMANTIC_LINKS_BACKFILL_SCHEDULE_ENABLED', 'true').lower() == 'true'
@@ -120,9 +126,9 @@ SEMANTIC_LINKS_BACKFILL_ONLY_MISSING = (
 )
 
 _wagtail_ai_apps = [
-    'wagtail_ai',
-    'django_ai_core',
-    'django_ai_core.contrib.index',
+    'wagtail_ai'
+    'django_ai_core'
+    'django_ai_core.contrib.index'
 ]
 if WAGTAIL_AI_PGVECTOR:
     _wagtail_ai_apps.append('django_ai_core.contrib.index.storage.pgvector')
@@ -130,46 +136,46 @@ if WAGTAIL_AI_PGVECTOR:
 # Application definition
 
 INSTALLED_APPS = [
-    'daphne',
-    'custom.apps.CustomConfig',
-    *_wagtail_ai_apps,
-    #'wagtail_localize',
-    'wagtail.locales',
+    'daphne'
+    'custom.apps.CustomConfig'
+    *_wagtail_ai_apps
+    #'wagtail_localize'
+    'wagtail.locales'
 
-    'wagtail.contrib.forms',
-    'wagtail.contrib.redirects',
-    'wagtail.contrib.settings',
-    'wagtail.contrib.simple_translation',
-    'wagtail.embeds',
-    'wagtail.sites',
-    'wagtail.users',
-    'wagtail.snippets',
-    'wagtail.documents',
-    'wagtail.images',
-    'wagtail.search',
-    'wagtail.admin',
+    'wagtail.contrib.forms'
+    'wagtail.contrib.redirects'
+    'wagtail.contrib.settings'
+    'wagtail.contrib.simple_translation'
+    'wagtail.embeds'
+    'wagtail.sites'
+    'wagtail.users'
+    'wagtail.snippets'
+    'wagtail.documents'
+    'wagtail.images'
+    'wagtail.search'
+    'wagtail.admin'
 
-    'wagtail',
+    'wagtail'
 
-    'taggit',
-    'modelcluster',
+    'taggit'
+    'modelcluster'
 
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.postgres',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'oauth2_provider',
+    'django.contrib.admin'
+    'django.contrib.auth'
+    'django.contrib.contenttypes'
+    'django.contrib.postgres'
+    'django.contrib.sessions'
+    'django.contrib.messages'
+    'django.contrib.staticfiles'
+    'oauth2_provider'
 
-    'core.apps.CoreConfig',
-    'webhooks.apps.WebhooksConfig',
-    'shopify_content',
-    'api',
-    'cms_ui.apps.CmsUiConfig',
-    'django_react_ui_editor',
-    'django_celery_beat',
+    'core.apps.CoreConfig'
+    'webhooks.apps.WebhooksConfig'
+    'shopify_content'
+    'api'
+    'cms_ui.apps.CmsUiConfig'
+    'django_react_ui_editor'
+    'django_celery_beat'
 ]
 
 # Optional: editable package at ../services/bigquery_gsc (missing → CMS still boots).
@@ -181,18 +187,18 @@ else:
     INSTALLED_APPS.insert(-1, 'bigquery_gsc')
 
 MIDDLEWARE = [
-    'core.debug_middleware.ShopifyLocalProxyMiddleware',
-    'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware',
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    #'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'cms_ui.middleware.RestrictWagtailAdminMiddleware',
-    'wagtail.contrib.redirects.middleware.RedirectMiddleware',
+    'core.debug_middleware.ShopifyLocalProxyMiddleware'
+    'shopify_content.wagtail_ai_fixes.StreamFieldPreviewFixMiddleware'
+    'django.middleware.security.SecurityMiddleware'
+    'whitenoise.middleware.WhiteNoiseMiddleware'
+    'django.contrib.sessions.middleware.SessionMiddleware'
+    'django.middleware.common.CommonMiddleware'
+    'django.middleware.csrf.CsrfViewMiddleware'
+    'django.contrib.auth.middleware.AuthenticationMiddleware'
+    'django.contrib.messages.middleware.MessageMiddleware'
+    #'django.middleware.clickjacking.XFrameOptionsMiddleware'
+    'cms_ui.middleware.RestrictWagtailAdminMiddleware'
+    'wagtail.contrib.redirects.middleware.RedirectMiddleware'
 ]
 
 X_FRAME_OPTIONS = 'ALLOWALL' # Allow embedding the app in Shopify
@@ -201,19 +207,19 @@ ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
+        'BACKEND': 'django.template.backends.django.DjangoTemplates'
+        'DIRS': []
+        'APP_DIRS': True
         'OPTIONS': {
             'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'core.context_processors.shopify_context',
-            ],
-        },
-    },
+                'django.template.context_processors.debug'
+                'django.template.context_processors.request'
+                'django.contrib.auth.context_processors.auth'
+                'django.contrib.messages.context_processors.messages'
+                'core.context_processors.shopify_context'
+            ]
+        }
+    }
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
@@ -221,7 +227,7 @@ ASGI_APPLICATION = 'config.asgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# https://docs.djangoproject.com/en/4.2/topics/settings/#databases
 
 if os.environ.get('DB_NAME'):
     # Daphne/ASGI wraps each request in ThreadSensitiveContext (per-request sync
@@ -230,21 +236,21 @@ if os.environ.get('DB_NAME'):
     # Default 0 closes on every request; override with DB_CONN_MAX_AGE if needed.
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ['DB_NAME'],
-            'USER': os.environ['DB_USER'],
-            'PASSWORD': os.environ['DB_PASSWORD'],
-            'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
-            'PORT': os.environ.get('DB_PORT', '5432'),
-            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '0')),
-        },
+            'ENGINE': 'django.db.backends.postgresql'
+            'NAME': os.environ['DB_NAME']
+            'USER': os.environ['DB_USER']
+            'PASSWORD': os.environ['DB_PASSWORD']
+            'HOST': os.environ.get('DB_HOST', '127.0.0.1')
+            'PORT': os.environ.get('DB_PORT', '5432')
+            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '0'))
+        }
     }
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-        },
+            'ENGINE': 'django.db.backends.sqlite3'
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3')
+        }
     }
 
 
@@ -255,17 +261,17 @@ else:
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'
+    }
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'
+    }
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'
+    }
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'
+    }
 ]
 
 # Mail (password reset, etc.). No hay SMTP local en :25 — hay que configurar
@@ -285,8 +291,8 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'true' if os.environ.get('EMAIL_HOST') else 'false').lower() == 'true'
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'false').lower() == 'true'
 DEFAULT_FROM_EMAIL = os.environ.get(
-    'DEFAULT_FROM_EMAIL',
-    'CMS Shop <noreply@cms.aadigitalbusiness.com>',
+    'DEFAULT_FROM_EMAIL'
+    'CMS Shop <noreply@cms.aadigitalbusiness.com>'
 )
 SERVER_EMAIL = os.environ.get('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 
@@ -297,10 +303,10 @@ SERVER_EMAIL = os.environ.get('SERVER_EMAIL', DEFAULT_FROM_EMAIL)
 LANGUAGE_CODE = 'en-US'
 
 WAGTAIL_CONTENT_LANGUAGES = LANGUAGES = [
-    ('en-US', 'English (United States)'),
-    ('es-US', 'Spanish (United States)'),
-    ('en-CA', 'English (Canada)'),
-    ('fr-CA', 'French (Canada)'),
+    ('en-US', 'English (United States)')
+    ('es-US', 'Spanish (United States)')
+    ('en-CA', 'English (Canada)')
+    ('fr-CA', 'French (Canada)')
 ]
 
 TIME_ZONE = 'America/Toronto'
@@ -319,11 +325,11 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
-    },
+        'BACKEND': 'django.core.files.storage.FileSystemStorage'
+    }
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
-    },
+        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'
+    }
 }
 
 MEDIA_URL = '/media/'
@@ -336,8 +342,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 NOTEBOOK_ARGUMENTS = [
-    '--ip', '0.0.0.0',
-    '--port', '8888',
+    '--ip', '0.0.0.0'
+    '--port', '8888'
 ]
 IPYTHON_KERNEL_DISPLAY_NAME = 'Django Kernel'
 
@@ -360,25 +366,25 @@ if _gemini_api_key:
 WAGTAIL_AI = {
     'PROVIDERS': {
         'default': {
-            'provider': 'gemini',
-            'model': 'gemini-2.5-flash',
-            'api_key': _gemini_api_key,
-        },
+            'provider': 'gemini'
+            'model': 'gemini-2.5-flash'
+            'api_key': _gemini_api_key
+        }
         'vision': {
-            'provider': 'gemini',
-            'model': 'gemini-2.5-flash',
-            'api_key': _gemini_api_key,
-        },
-    },
-    'IMAGE_DESCRIPTION_PROVIDER': 'vision',
+            'provider': 'gemini'
+            'model': 'gemini-2.5-flash'
+            'api_key': _gemini_api_key
+        }
+    }
+    'IMAGE_DESCRIPTION_PROVIDER': 'vision'
     'BACKENDS': {
         'default': {
-            'CLASS': 'wagtail_ai.ai.llm.LLMBackend',
+            'CLASS': 'wagtail_ai.ai.llm.LLMBackend'
             'CONFIG': {
-                'MODEL_ID': 'gemini-2.5-flash',
-            },
-        },
-    },
+                'MODEL_ID': 'gemini-2.5-flash'
+            }
+        }
+    }
 }
 
 WAGTAILIMAGES_IMAGE_FORM_BASE = 'wagtail_ai.forms.DescribeImageForm'
@@ -393,13 +399,13 @@ MCP_OAUTH_REQUIRED_SCOPES = [
 ]
 OAUTH2_PROVIDER = {
     'SCOPES': {
-        'mcp': 'Access MCP tools and the content API through MCP clients',
-        'read': 'Read content API resources',
-        'write': 'Create, update, delete, and sync content API resources',
-    },
-    'DEFAULT_SCOPES': ['mcp'],
-    'PKCE_REQUIRED': True,
-    'ALLOWED_REDIRECT_URI_SCHEMES': ['http', 'https', 'cursor'],
+        'mcp': 'Access MCP tools and the content API through MCP clients'
+        'read': 'Read content API resources'
+        'write': 'Create, update, delete, and sync content API resources'
+    }
+    'DEFAULT_SCOPES': ['mcp']
+    'PKCE_REQUIRED': True
+    'ALLOWED_REDIRECT_URI_SCHEMES': ['http', 'https', 'cursor']
 }
 
 # OAuth authorize flow and Django admin login (not Wagtail admin at /admin/).
@@ -408,10 +414,10 @@ LOGIN_URL = '/admin-django/login/'
 # Puck / CMS SPA (django-react-ui-editor)
 VISUAL_EDITOR = {
     # Polaris embedded CMS at /cms/ (renamed from spa-public.* to bust stale CDN/browser cache)
-    'SPA_PUBLIC_JS': 'cms_ui/cms-embedded.js',
-    'SPA_PUBLIC_CSS': 'cms_ui/cms-embedded.css',
-    'EDITOR_JS': 'cms_ui/editor.js',
-    'EDITOR_CSS': 'cms_ui/editor.css',
+    'SPA_PUBLIC_JS': 'cms_ui/cms-embedded.js'
+    'SPA_PUBLIC_CSS': 'cms_ui/cms-embedded.css'
+    'EDITOR_JS': 'cms_ui/editor.js'
+    'EDITOR_CSS': 'cms_ui/editor.css'
 }
 
 # When True, only superusers (or users in cms_ops group) may access Wagtail Admin.
@@ -435,10 +441,10 @@ SHOPIFY_PARENT_REDIRECT_ALLOWED_HOSTS = [
 ]
 
 ALLOWED_LOCALE_CODES = {
-    'en-US': 'English (United States)',
-    'es-US': 'Spanish (United States)',
-    'en-CA': 'English (Canada)',
-    'fr-CA': 'French (Canada)',
+    'en-US': 'English (United States)'
+    'es-US': 'Spanish (United States)'
+    'en-CA': 'English (Canada)'
+    'fr-CA': 'French (Canada)'
 }
 
 # Optional override for POST /locations/ parent (ShopifyRootPage). When unset, slug "local-us" is used.
@@ -464,7 +470,7 @@ LOCATIONS_PARENT_PAGE_ID = (
 CONTENT_STORE_ENABLED = os.environ.get('CONTENT_STORE_ENABLED', 'false').lower() == 'true'
 CONTENT_STORE_MODE = os.environ.get('CONTENT_STORE_MODE', '').strip().lower()
 CONTENT_STORE_ROOT = os.environ.get(
-    'CONTENT_STORE_ROOT', str(BASE_DIR / 'content'),
+    'CONTENT_STORE_ROOT', str(BASE_DIR / 'content')
 )
 # Named, observable, off-by-default compatibility fallback: when a git
 # authoritative file is missing, return the DB value instead of raising.
@@ -484,42 +490,42 @@ CELERY_TASK_DEFAULT_QUEUE = os.environ.get('CELERY_TASK_DEFAULT_QUEUE', 'wagtail
 CELERY_WORKER_CONCURRENCY = int(os.environ.get('CELERY_WORKER_CONCURRENCY', '1'))
 CELERY_GSC_QUEUE = os.environ.get('CELERY_GSC_QUEUE', 'gsc_bigquery')
 CELERY_TASK_ROUTES = {
-    'bigquery_gsc.*': {'queue': CELERY_GSC_QUEUE},
+    'bigquery_gsc.*': {'queue': CELERY_GSC_QUEUE}
 }
 
 # BigQuery GSC (Google Search Console analytics)
 _BQ_PROJECT = os.environ.get('BIGQUERY_PROJECT_ID', 'YOUR_PROJECT_ID')
 
 BIGQUERY_GSC = {
-    'BIGQUERY_LOCATION': os.environ.get('BIGQUERY_LOCATION', 'US'),
-    'BIGQUERY_ORDERING_MODE': 'partial',
-    'DEFAULT_LIMIT': 5000,
-    'LAG_DAYS': 3,
-    'MIN_IMPRESSIONS_OPPORTUNITY': 50,
-    'MIN_IMPRESSIONS_STRIKING_DISTANCE': 30,
-    'CTR_LOW_THRESHOLD': 0.03,
-    'OPPORTUNITY_POSITION_MIN': 4,
-    'OPPORTUNITY_POSITION_MAX': 20,
-    'STRIKING_DISTANCE_MIN': 4,
-    'STRIKING_DISTANCE_MAX': 15,
-    'MIN_IMPRESSIONS_CANNIBALIZATION': 30,
-    'MIN_URLS_CANNIBALIZATION': 2,
+    'BIGQUERY_LOCATION': os.environ.get('BIGQUERY_LOCATION', 'US')
+    'BIGQUERY_ORDERING_MODE': 'partial'
+    'DEFAULT_LIMIT': 5000
+    'LAG_DAYS': 3
+    'MIN_IMPRESSIONS_OPPORTUNITY': 50
+    'MIN_IMPRESSIONS_STRIKING_DISTANCE': 30
+    'CTR_LOW_THRESHOLD': 0.03
+    'OPPORTUNITY_POSITION_MIN': 4
+    'OPPORTUNITY_POSITION_MAX': 20
+    'STRIKING_DISTANCE_MIN': 4
+    'STRIKING_DISTANCE_MAX': 15
+    'MIN_IMPRESSIONS_CANNIBALIZATION': 30
+    'MIN_URLS_CANNIBALIZATION': 2
     'GSC_DATASETS': [
         {
-            'key': 'ca',
-            'project_id': _BQ_PROJECT,
-            'dataset': 'searchconsole',
-            'property_url': 'https://playlovetoys.ca/',
-            'market': 'CA',
-            'default_country': 'can',
-        },
+            'key': 'ca'
+            'project_id': _BQ_PROJECT
+            'dataset': 'searchconsole'
+            'property_url': 'https://playlovetoys.ca/'
+            'market': 'CA'
+            'default_country': 'can'
+        }
         {
-            'key': 'us',
-            'project_id': _BQ_PROJECT,
-            'dataset': 'searchconsole_us',
-            'property_url': 'https://playlovetoys.com/',
-            'market': 'US',
-            'default_country': 'usa',
-        },
-    ],
+            'key': 'us'
+            'project_id': _BQ_PROJECT
+            'dataset': 'searchconsole_us'
+            'property_url': 'https://playlovetoys.com/'
+            'market': 'US'
+            'default_country': 'usa'
+        }
+    ]
 }

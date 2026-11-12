@@ -37,3 +37,5 @@ pgvector
 any-llm-sdk[gemini]
 Markdown>=3.10.3,<4
 markdown-it-py>=3.0.0,<4
+# Sentry (private repo)
+django-sentry @ git+https://github.com/aavendano/django-sentry.git
