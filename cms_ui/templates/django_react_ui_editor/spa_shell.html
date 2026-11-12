@@ -1,0 +1,16 @@
+{% extends 'core/base_embedded.html' %}
+{% load static %}
+
+{% block title %}{{ spa_title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static spa_public_css %}">
+{% endblock %}
+
+{% block content %}
+<script>
+  window.__CMS_BOOTSTRAP__ = {{ spa_bootstrap_json|safe }};
+</script>
+<div id="cms-spa-root"></div>
+<script type="module" src="{% static spa_public_js %}"></script>
+{% endblock %}

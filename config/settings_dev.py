@@ -61,6 +61,11 @@ CSRF_TRUSTED_ORIGINS = [
     'https://localhost:8083',
 ]
 SECURE_PROXY_SSL_HEADER = None
+# Local Daphne is HTTP; SameSite=None requires Secure and would drop the cookie.
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False
 EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
     'django.core.mail.backends.console.EmailBackend',

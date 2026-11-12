@@ -42,4 +42,9 @@ CSRF_TRUSTED_ORIGINS = [
     'https://localhost:8083',
 ]
 SECURE_PROXY_SSL_HEADER = None
+# Test client is HTTP; keep Lax so session cookies stick without Secure.
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = False
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'

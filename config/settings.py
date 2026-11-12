@@ -55,6 +55,16 @@ if _shopify_app_url:
 # Shopify CLI --use-localhost terminates TLS and proxies to Django over HTTP.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# App Home /cms/ runs in a cross-site iframe (admin.shopify.com → this origin).
+# SameSite=Lax session cookies are treated as third-party and blocked, so the SPA
+# gets 401 on /api/v1/* after login(). None+Secure keeps the session in the iframe.
+# Dev/test override these for plain HTTP (see settings_dev / settings_test).
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False  # SPA reads csrftoken from document.cookie
+
 # Related pages (vector index) needs PostgreSQL pgvector. The extension must be
 # created once by a DB superuser (CREATE EXTENSION vector) before enabling.
 WAGTAIL_AI_PGVECTOR = os.environ.get('WAGTAIL_AI_PGVECTOR', 'false').lower() == 'true'
@@ -136,8 +146,8 @@ INSTALLED_APPS = [
     'webhooks.apps.WebhooksConfig',
     'shopify_content',
     'api',
-    'django_react_ui_editor',
     'cms_ui.apps.CmsUiConfig',
+    'django_react_ui_editor',
     'django_celery_beat',
 ]
 
@@ -192,6 +202,10 @@ ASGI_APPLICATION = 'config.asgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 if os.environ.get('DB_NAME'):
+    # Daphne/ASGI wraps each request in ThreadSensitiveContext (per-request sync
+    # thread). CONN_MAX_AGE > 0 keeps the socket open after request_finished, then
+    # executor.shutdown() kills the thread and orphans the Postgres backend.
+    # Default 0 closes on every request; override with DB_CONN_MAX_AGE if needed.
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -200,7 +214,7 @@ if os.environ.get('DB_NAME'):
             'PASSWORD': os.environ['DB_PASSWORD'],
             'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
             'PORT': os.environ.get('DB_PORT', '5432'),
-            'CONN_MAX_AGE': 60,
+            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '0')),
         },
     }
 else:

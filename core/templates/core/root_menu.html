@@ -1,20 +1,21 @@
-{% extends 'core/base.html' %}
+{% extends 'core/base_website.html' %}
 
 {% block content %}
-<s-page heading="CMS Shop">
-    <s-section heading="Navegación">
-        <s-paragraph>
-            Accesos rápidos a los paneles y endpoints de esta instalación.
-        </s-paragraph>
-        <s-stack direction="block" gap="small-200">
-            <s-link href="/cms/">CMS SPA</s-link>
-            <s-link href="/admin/">Wagtail Admin</s-link>
-            <s-link href="/admin-django/">Django Admin</s-link>
-            <s-link href="{% url 'home' %}">App embebida (sync Shopify)</s-link>
-            <s-link href="{% url 'core:install' %}">Instalar / login tienda</s-link>
-            <s-link href="/api/v1/docs/">API docs</s-link>
-            <s-link href="/mcp">MCP</s-link>
-        </s-stack>
-    </s-section>
-</s-page>
+<main style="max-width: 760px; margin: 2rem auto; padding: 0 1rem;">
+    <h1 style="margin-bottom: 0.5rem;">CMS Shop</h1>
+    <p style="margin-top: 0; color: #555;">
+        Accesos rápidos a los paneles y endpoints de esta instalación.
+    </p>
+    <nav>
+        <ul style="line-height: 1.8;">
+            <li><a href="/cms/">CMS SPA</a></li>
+            <li><a href="/admin/">Wagtail Admin</a></li>
+            <li><a href="/admin-django/">Django Admin</a></li>
+            <li><a href="{% url 'home' %}">App embebida (sync Shopify)</a></li>
+            <li><a href="{% url 'core:install' %}">Instalar / login tienda</a></li>
+            <li><a href="/api/v1/docs/">API docs</a></li>
+            <li><a href="/mcp">MCP</a></li>
+        </ul>
+    </nav>
+</main>
 {% endblock %}

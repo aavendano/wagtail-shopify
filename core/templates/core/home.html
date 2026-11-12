@@ -1,4 +1,4 @@
-{% extends 'core/base.html' %}
+{% extends 'core/base_embedded.html' %}
 {% load static %}
 
 {% block content %}
@@ -173,9 +173,7 @@
             Edita glossary, products, collections, blogs, articles y locations en la SPA
             en <strong>/cms/</strong> (sesión Django staff o grupo cms_editors).
         </s-paragraph>
-        <s-button href="/cms/" target="_top">
-            Abrir CMS
-        </s-button>
+        <s-link href="/cms/">Abrir CMS</s-link>
     </s-section>
 
     <s-section heading="Wagtail Admin">
