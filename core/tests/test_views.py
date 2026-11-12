@@ -3,13 +3,13 @@ from django.urls import reverse
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from .embedded_redirects import (
+from ..embedded_redirects import (
     validate_parent_redirect_url,
     validate_relative_app_path,
 )
-from .forms import ShopConfigForm
-from .models import ShopConfig
-from .shop_config_lookup import get_shop_config, shop_has_access_token
+from ..forms import ShopConfigForm
+from ..models import ShopConfig
+from ..shop_config_lookup import get_shop_config, shop_has_access_token
 from shopify_content.models.command_run import EmbeddedCommandRun
 
 
