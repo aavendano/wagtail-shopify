@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -321,7 +324,8 @@ class TokenLifecycleTests(TestCase):
         response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
-        record = ShopConfig.objects.get(shop="test-shop")
+        record = get_shop_config("test-shop")
+        self.assertIsNotNone(record)
         self.assertFalse(record.is_online)
         self.assertEqual(record.access_token, "new-access-token")
         self.assertEqual(record.scope, "write_products")
@@ -340,10 +344,11 @@ class TokenLifecycleTests(TestCase):
             response=SimpleNamespace(status=200, body="", headers={}),
         )
         ShopConfig.objects.create(
-            shop="test-shop",
+            shop="test-shop.myshopify.com",
             is_online=False,
             access_token="stale-token",
             refresh_token="refresh-token",
+            expires=timezone.now() - timedelta(hours=1),
         )
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -375,21 +380,34 @@ class TokenLifecycleTests(TestCase):
         response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
         self.assertEqual(response.status_code, 200)
-        record = ShopConfig.objects.get(shop="test-shop")
+        record = get_shop_config("test-shop")
         self.assertEqual(record.access_token, "fresh-token")
         self.assertEqual(record.refresh_token, "new-refresh-token")
         mocked_get_shopify_app.return_value.refresh_token_exchanged_access_token.assert_called_once()
         mocked_get_shopify_app.return_value.exchange_using_token_exchange.assert_not_called()
 
+    @patch("shopify_requests.graphql_client.raw_admin_graphql")
     @patch("core.mixins.get_shopify_app")
     def test_refresh_failure_clears_tokens_and_returns_sdk_response(
-        self, mocked_get_shopify_app
+        self, mocked_get_shopify_app, mock_raw_gql
     ):
-        ShopConfig.objects.create(
+        mock_raw_gql.return_value = SimpleNamespace(
+            ok=True,
             shop="test-shop",
+            data={"shop": {"id": "gid://shopify/Shop/1"}},
+            extensions=None,
+            log=SimpleNamespace(code="success", detail="ok"),
+            response=SimpleNamespace(status=200, body="", headers={}),
+        )
+        mocked_get_shopify_app.return_value.exchange_using_token_exchange.return_value = (
+            SimpleNamespace(ok=False, log=SimpleNamespace(code="skipped", detail=""))
+        )
+        ShopConfig.objects.create(
+            shop="test-shop.myshopify.com",
             is_online=False,
             access_token="stale-token",
             refresh_token="refresh-token",
+            expires=timezone.now() - timedelta(hours=1),
         )
         mocked_get_shopify_app.return_value.verify_app_home_req.return_value = SimpleNamespace(
             ok=True,
@@ -416,10 +434,13 @@ class TokenLifecycleTests(TestCase):
 
         response = self.client.get("/shopify-admin/?shop=test-shop.myshopify.com")
 
-        self.assertEqual(response.status_code, 401)
-        record = ShopConfig.objects.get(shop="test-shop")
+        self.assertEqual(response.status_code, 200)
+        record = get_shop_config("test-shop")
+        self.assertIsNotNone(record)
+        record.refresh_from_db()
         self.assertIsNone(record.access_token)
         self.assertIsNone(record.refresh_token)
+        mocked_get_shopify_app.return_value.refresh_token_exchanged_access_token.assert_called_once()
 
     @patch("shopify_requests.graphql_client.raw_admin_graphql")
     @patch("core.mixins.get_shopify_app")
