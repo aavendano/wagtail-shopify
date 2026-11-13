@@ -18,6 +18,7 @@ import {
 import { api } from "../api";
 import { Shell } from "../components/Shell";
 import { PreviewPanel } from "../components/PreviewPanel";
+import { translateFieldLabel, useI18n } from "../i18n/I18nProvider";
 
 const RESOURCE_CONFIG = {
   glossary: {
@@ -117,6 +118,7 @@ const RESOURCE_CONFIG = {
 
 export function ResourceList({ resource }) {
   const cfg = RESOURCE_CONFIG[resource];
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [error, setError] = useState("");
@@ -151,10 +153,10 @@ export function ResourceList({ resource }) {
         {item[cfg.labelField] || item.title}
       </IndexTable.Cell>
       <IndexTable.Cell>{item.handle}</IndexTable.Cell>
-      <IndexTable.Cell>{item.live ? "yes" : "draft"}</IndexTable.Cell>
+      <IndexTable.Cell>{item.live ? t("list.live.yes") : t("list.live.draft")}</IndexTable.Cell>
       <IndexTable.Cell>
         <Button variant="plain" onClick={() => navigate(`/${resource}/${item.id}`)}>
-          Editar
+          {t("list.edit")}
         </Button>
       </IndexTable.Cell>
     </IndexTable.Row>
@@ -163,9 +165,9 @@ export function ResourceList({ resource }) {
   return (
     <Shell>
       <Page
-        title={cfg.title}
+        title={t(`resource.${resource}`)}
         primaryAction={{
-          content: "Nuevo",
+          content: t("list.new"),
           onAction: () => navigate(`/${resource}/new`),
         }}
       >
@@ -173,24 +175,27 @@ export function ResourceList({ resource }) {
           <Layout.Section>
             <BlockStack gap="400">
               {error ? (
-                <Banner tone="critical" title="Error">
+                <Banner tone="critical" title={t("list.error")}>
                   <p>{error}</p>
                 </Banner>
               ) : null}
               {loading ? (
                 <InlineStack align="center">
-                  <Spinner accessibilityLabel="Cargando" size="large" />
+                  <Spinner accessibilityLabel={t("list.loading")} size="large" />
                 </InlineStack>
               ) : (
                 <Card padding="0">
                   <IndexTable
-                    resourceName={{ singular: "registro", plural: "registros" }}
+                    resourceName={{
+                      singular: t("list.record.singular"),
+                      plural: t("list.record.plural"),
+                    }}
                     itemCount={items.length}
                     headings={[
-                      { title: "ID" },
-                      { title: "Nombre" },
-                      { title: "Handle" },
-                      { title: "Live" },
+                      { title: t("list.headings.id") },
+                      { title: t("list.headings.name") },
+                      { title: t("list.headings.handle") },
+                      { title: t("list.headings.live") },
                       { title: "" },
                     ]}
                     selectable={false}
@@ -218,6 +223,7 @@ function emptyForm(fields) {
 export function ResourceDetail({ resource }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useI18n();
   const isNew = id === "new";
   const cfg = RESOURCE_CONFIG[resource];
   const [form, setForm] = useState(() => emptyForm(cfg.fields));
@@ -269,14 +275,14 @@ export function ResourceDetail({ resource }) {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        setMessage("Creado");
+        setMessage(t("detail.created"));
         window.location.hash = `#/${resource}/${created.id}`;
       } else {
         await api(cfg.itemPath(id), {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        setMessage(publish ? "Publicado" : "Borrador guardado");
+        setMessage(publish ? t("detail.published") : t("detail.draftSaved"));
       }
     } catch (err) {
       setError(err.message);
@@ -299,9 +305,10 @@ export function ResourceDetail({ resource }) {
     }
   }
 
+  const resourceTitle = t(`resource.${resource}`);
   const secondaryActions = [
     {
-      content: "Publicar",
+      content: t("detail.publish"),
       onAction: () => save({ publish: true }),
       loading: saving,
       disabled: saving,
@@ -310,7 +317,7 @@ export function ResourceDetail({ resource }) {
 
   if (!isNew) {
     secondaryActions.push({
-      content: "Push a Shopify",
+      content: t("detail.pushShopify"),
       onAction: push,
       loading: saving,
       disabled: saving,
@@ -320,10 +327,10 @@ export function ResourceDetail({ resource }) {
   return (
     <Shell>
       <Page
-        title={`${cfg.title}: ${isNew ? "nuevo" : `#${id}`}`}
-        backAction={{ content: cfg.title, onAction: () => navigate(`/${resource}`) }}
+        title={`${resourceTitle}: ${isNew ? t("detail.new") : `#${id}`}`}
+        backAction={{ content: resourceTitle, onAction: () => navigate(`/${resource}`) }}
         primaryAction={{
-          content: "Guardar borrador",
+          content: t("detail.saveDraft"),
           onAction: () => save({ publish: false }),
           loading: saving,
           disabled: saving,
@@ -334,12 +341,12 @@ export function ResourceDetail({ resource }) {
           <Layout.Section>
             <BlockStack gap="400">
               {error ? (
-                <Banner tone="critical" title="Error">
+                <Banner tone="critical" title={t("detail.error")}>
                   <p>{error}</p>
                 </Banner>
               ) : null}
               {message ? (
-                <Banner tone="success" title="Listo">
+                <Banner tone="success" title={t("detail.done")}>
                   <p>{message}</p>
                 </Banner>
               ) : null}
@@ -349,7 +356,7 @@ export function ResourceDetail({ resource }) {
                     f.type === "textarea" ? (
                       <TextField
                         key={f.key}
-                        label={f.label}
+                        label={translateFieldLabel(t, f.key)}
                         value={form[f.key] ?? ""}
                         onChange={(value) => updateField(f.key, value)}
                         multiline={6}
@@ -358,14 +365,14 @@ export function ResourceDetail({ resource }) {
                     ) : f.type === "checkbox" ? (
                       <Checkbox
                         key={f.key}
-                        label={f.label}
+                        label={translateFieldLabel(t, f.key)}
                         checked={Boolean(form[f.key])}
                         onChange={(checked) => updateField(f.key, checked)}
                       />
                     ) : (
                       <TextField
                         key={f.key}
-                        label={f.label}
+                        label={translateFieldLabel(t, f.key)}
                         value={form[f.key] ?? ""}
                         onChange={(value) => updateField(f.key, value)}
                         placeholder={f.placeholder || ""}

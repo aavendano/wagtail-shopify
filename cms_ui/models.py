@@ -1,4 +1,10 @@
+from django.conf import settings
+from django.urls import reverse
+
 from django_react_ui_editor.models import SpaMount, default_layout
+
+from .shop_locales import fetch_shop_spa_locales
+from .spa_locale import activate_request_language
 
 
 class CmsSpaMount(SpaMount):
@@ -10,6 +16,10 @@ class CmsSpaMount(SpaMount):
 
     def get_bootstrap(self, request=None):
         data = super().get_bootstrap(request)
+        locale_payload = fetch_shop_spa_locales()
+        language = settings.LANGUAGE_CODE
+        if request is not None:
+            language = activate_request_language(request)
         data.update(
             {
                 "apiBase": "/api/v1",
@@ -24,6 +34,12 @@ class CmsSpaMount(SpaMount):
                     {"key": "articles", "label": "Articles", "path": "/articles"},
                     {"key": "locations", "label": "Locations", "path": "/locations"},
                 ],
+                "language": language,
+                "primaryLocale": locale_payload.get("primaryLocale"),
+                "availableLocales": locale_payload.get("availableLocales") or [],
+                "localeSource": locale_payload.get("source", "fallback"),
+                "setLanguageUrl": reverse("cms_ui:set-language"),
+                "localeStorageKey": "cms_ui_locale",
             }
         )
         return data
