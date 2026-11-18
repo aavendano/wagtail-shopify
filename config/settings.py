@@ -27,11 +27,24 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET')
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
 
-# Never initialize telemetry for the isolated Django test settings.
-if os.environ.get("DJANGO_SETTINGS_MODULE") != "config.settings_test" and "test" not in sys.argv:
-    from django_sentry import init_sentry
+# Sentry is opt-in and never initialized by the isolated Django test settings.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+if (
+    SENTRY_DSN
+    and os.environ.get("DJANGO_SETTINGS_MODULE") != "config.settings_test"
+    and "test" not in sys.argv
+):
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
 
-    init_sentry(debug=DEBUG, release=os.environ.get("GIT_SHA"))
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        environment="development" if DEBUG else "production",
+        release=os.environ.get("GIT_SHA"),
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+    )
 
 ALLOWED_HOSTS = [
     'localhost',

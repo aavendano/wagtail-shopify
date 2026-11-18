@@ -38,4 +38,4 @@ any-llm-sdk[gemini]
 Markdown>=3.10.3,<4
 markdown-it-py>=3.0.0,<4
 # Sentry integration
-django-sentry @ git+https://github.com/aavendano/django-sentry.git@4b6474099148f843b97e34d7d0e286c0ef8692c8
+sentry-sdk[django]>=2.0.0,<3
