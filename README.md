@@ -41,6 +41,8 @@ Shopify Storefront → Cliente final
 | `django_react_ui_editor` | Contenedor SPA (SpaMount, register_spa, SpaShellView) |
 | `bigquery_gsc` | Analytics GSC vía BigQuery — ver [`docs/api-gsc.md`](docs/api-gsc.md) |
 
+**App Home embebida:** con `CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=true` (default), `/shopify-admin/` redirige a `/cms/`. El hub de operaciones (importar, comandos allowlist, historial) está en `/shopify-admin/?ops=1` y en el menú embebido como **Operaciones**.
+
 ---
 
 ## Tipos de página (`shopify_content`)
@@ -191,10 +193,14 @@ Tras `git pull` o cambios que requieran migraciones:
 cd /home/alejandro/apps/cms-shop/backend
 
 git pull
+# Traducciones Django/Wagtail (mensajes admin, plantillas):
+python manage.py compilemessages
 # UI embebida Polaris (/cms/): rebuild si cambió cms_ui/frontend o no ves tema claro Polaris
 ./bin/build_cms_ui.sh   # requiere Node 20+ (npm ci + vite)
 ./scripts/restart_daphne.sh --bootstrap --all   # migrate/static + reinicio Daphne+Celery
 ```
+
+Ver `docs/i18n-cms-spa.md` para locales por tienda Shopify, catálogos SPA y `makemessages`.
 
 Si `bootstrap_app.sh` en el servidor **no** incluye el build del frontend, hay que ejecutar
 `./bin/build_cms_ui.sh` antes de `collectstatic`. Sin eso, `/cms/` puede seguir sirviendo

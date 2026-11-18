@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import json
+
 from django.conf import settings
 from django.contrib.auth import login
 from django.core.exceptions import ImproperlyConfigured
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import translation
+from django.views import View
+from django.views.decorators.csrf import csrf_protect
+from django.utils.decorators import method_decorator
 
 from api.auth import user_is_cms_editor
 from core.utils import (
@@ -15,7 +22,9 @@ from core.utils import (
 from django_react_ui_editor.views import SpaShellView
 
 from .shop_auth import ensure_shop_editor_user
+from .shop_locales import codes_from_locale_payload, fetch_shop_spa_locales
 from .spa_assets import cms_spa_asset_version
+from .spa_locale import CMS_UI_LOCALE_COOKIE, activate_request_language
 
 
 class CmsShellView(SpaShellView):
@@ -38,6 +47,7 @@ class CmsShellView(SpaShellView):
         return reverse("core:patch-id-token")
 
     def dispatch(self, request, *args, **kwargs):
+        activate_request_language(request)
         if user_is_cms_editor(request.user):
             self._verification_result = None
             return super().dispatch(request, *args, **kwargs)
@@ -80,3 +90,62 @@ class CmsShellView(SpaShellView):
     def _redirect_to_login(self, request):
         login_url = settings.LOGIN_URL or "/admin-django/login/"
         return redirect(f"{login_url}?next={request.path}")
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class CmsSetLanguageView(View):
+    """Persist SPA UI language; keep Django ``LANGUAGE_COOKIE`` in sync."""
+
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({"detail": "Authentication required."}, status=401)
+
+        try:
+            body = json.loads(request.body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"detail": "Invalid JSON."}, status=400)
+
+        language = (body.get("language") or "").strip()
+        if not language:
+            return JsonResponse({"detail": "language is required."}, status=400)
+
+        payload = fetch_shop_spa_locales()
+        allowed = codes_from_locale_payload(payload)
+        if language not in allowed:
+            if language not in settings.ALLOWED_LOCALE_CODES:
+                return JsonResponse(
+                    {"detail": f"Unsupported language '{language}'."},
+                    status=400,
+                )
+            return JsonResponse(
+                {
+                    "detail": (
+                        f"Locale '{language}' is not enabled on this Shopify store."
+                    ),
+                },
+                status=400,
+            )
+
+        request.session["_language"] = language
+        translation.activate(language)
+
+        response = JsonResponse({"language": language, "ok": True})
+        response.set_cookie(
+            CMS_UI_LOCALE_COOKIE,
+            language,
+            max_age=365 * 24 * 60 * 60,
+            samesite=settings.SESSION_COOKIE_SAMESITE,
+            secure=settings.SESSION_COOKIE_SECURE,
+            httponly=False,
+        )
+        response.set_cookie(
+            settings.LANGUAGE_COOKIE_NAME,
+            language,
+            max_age=settings.LANGUAGE_COOKIE_AGE,
+            path=getattr(settings, "LANGUAGE_COOKIE_PATH", "/"),
+            domain=getattr(settings, "LANGUAGE_COOKIE_DOMAIN", None),
+            secure=settings.LANGUAGE_COOKIE_SECURE,
+            httponly=settings.LANGUAGE_COOKIE_HTTPONLY,
+            samesite=settings.LANGUAGE_COOKIE_SAMESITE,
+        )
+        return response

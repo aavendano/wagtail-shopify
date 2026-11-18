@@ -10,6 +10,7 @@ from ..embedded_redirects import (
     validate_parent_redirect_url,
     validate_relative_app_path,
 )
+from ..embedded_urls import embedded_app_home_url, embedded_cms_url
 from ..forms import ShopConfigForm
 from ..models import ShopConfig
 from ..shop_config_lookup import get_shop_config, shop_has_access_token
@@ -101,6 +102,10 @@ class PublicEntryViewTests(TestCase):
         self.assertContains(response, "shopifycloud/app-bridge.js")
         self.assertContains(response, 'href="/cms/"')
         self.assertContains(response, "Abrir CMS")
+        self.assertContains(response, "Operaciones")
+        self.assertContains(response, "ops=1")
+        self.assertContains(response, "Importar contenido a Wagtail")
+        self.assertContains(response, "Operaciones y sincronización")
 
     @override_settings(CMS_REDIRECT_EMBEDDED_HOME_TO_SPA=True)
     @patch("core.views.ensure_offline_token_lifecycle", return_value=None)
@@ -523,6 +528,44 @@ class EmbeddedRedirectValidationTests(TestCase):
         self.assertIsNotNone(
             validate_parent_redirect_url("https://malicious.example.net/phish")
         )
+
+
+class EmbeddedUrlHelperTests(SimpleTestCase):
+    def test_ops_true_adds_ops_and_preserves_shop(self):
+        from django.test import RequestFactory
+
+        request = RequestFactory().get(
+            "/shopify-admin/",
+            {"shop": "test-shop.myshopify.com", "host": "abc", "ops": "0"},
+        )
+        url = embedded_app_home_url(request, ops=True)
+        self.assertTrue(url.startswith("/shopify-admin/?"))
+        self.assertIn("ops=1", url)
+        self.assertIn("shop=test-shop.myshopify.com", url)
+        self.assertIn("host=abc", url)
+
+    def test_ops_false_strips_ops(self):
+        from django.test import RequestFactory
+
+        request = RequestFactory().get(
+            "/shopify-admin/",
+            {"shop": "test-shop.myshopify.com", "ops": "1"},
+        )
+        url = embedded_app_home_url(request, ops=False)
+        self.assertIn("shop=test-shop.myshopify.com", url)
+        self.assertNotIn("ops=", url)
+
+    def test_cms_url_preserves_query_without_ops(self):
+        from django.test import RequestFactory
+
+        request = RequestFactory().get(
+            "/cms/",
+            {"shop": "test-shop.myshopify.com", "ops": "1"},
+        )
+        url = embedded_cms_url(request)
+        self.assertTrue(url.startswith("/cms/?"))
+        self.assertIn("shop=test-shop.myshopify.com", url)
+        self.assertNotIn("ops=", url)
 
 
 class EmbeddedRedirectViewTests(TestCase):
